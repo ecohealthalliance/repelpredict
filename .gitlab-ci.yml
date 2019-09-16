@@ -35,7 +35,7 @@ trigger-test-api:
   stage: testapi
   # Number in URL is ID of REPEL API project
   script:
-  - curl --request POST --form "token=$CI_JOB_TOKEN" --form ref=master https://gitlab.example.com/api/v4/projects/14312994/trigger/pipeline
+  - curl --request POST --form "token=$CI_JOB_TOKEN" --form ref=master https://gitlab.com/api/v4/projects/14312994/trigger/pipeline
   only:
     refs:
       - master
