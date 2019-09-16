@@ -3,7 +3,7 @@ stages:
   - test
 
 build-api-image:
-  stage: buildeps
+  stage: builddeps
   image: docker:19.03.1
   services:
     - docker:19.03.1-dind
