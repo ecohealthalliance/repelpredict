@@ -1,5 +1,9 @@
+stages:
+  - builddeps
+  - test
 
 build-api-image:
+  stage: buildeps
   image: docker:19.03.1
   services:
     - docker:19.03.1-dind
@@ -15,6 +19,7 @@ build-api-image:
   when: always
 
 test-package:
+  stage: test
   image: $CI_REGISTRY_IMAGE:latest
   before_script:
   script:
