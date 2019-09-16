@@ -3,7 +3,7 @@ stages:
   - test
   - testapi
 
-build-api-image:
+build-testing-image:
   stage: builddeps
   image: docker:19.03.1
   services:
@@ -31,7 +31,7 @@ test-package:
   when: on_success
 
 
-test_api:
+trigger-test-api:
   stage: testapi
   # Number in URL is ID of REPEL API project
   script:
