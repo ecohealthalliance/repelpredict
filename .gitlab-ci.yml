@@ -33,7 +33,7 @@ test-package:
     # Number in URL is ID of REPEL API project
     - >
       Rscript -e "devtools::check()" && if [ "$CI_COMMIT_REF_NAME" = "master" ]; then
-        curl --request POST --form "token=$CI_JOB_TOKEN" --form ref=master https://gitlab.com/api/v4/projects/14312994/trigger/pipeline
+        curl --request POST --form "token=$CI_JOB_TOKEN" --form "variables[PKG_COMMIT=$CI_COMMIT_SHA]=true" --form ref=master https://gitlab.com/api/v4/projects/14312994/trigger/pipeline
       fi
   when: on_success
 
