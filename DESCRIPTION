@@ -1,0 +1,22 @@
+Package: repelpredict
+Title: What the Package Does (One Line, Title Case)
+Version: 0.0.1
+Authors@R: 
+    person(given = "Ross",
+           family = "Noam",
+           role = c("aut", "cre"),
+           email = "noam.ross@gmail.com",
+           comment = c(ORCID = "0000-0002-2136-0000"))
+Author: Noam Ross
+Description: What the package does (one paragraph).
+License: MIT + file LICENSE
+Encoding: UTF-8
+LazyData: true
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 6.1.1
+Suggests:
+    spelling, 
+    testthat,
+    lintr,
+    roxygen2
+Language: en-US
