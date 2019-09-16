@@ -2,3 +2,4 @@
 ^Dockerfile$
 ^.*\.Rproj$
 ^\.Rproj\.user$
+^LICENSE\.md$
