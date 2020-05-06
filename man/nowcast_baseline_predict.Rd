@@ -4,7 +4,15 @@
 \alias{nowcast_baseline_predict}
 \title{Get baseline cases nowcast}
 \usage{
-nowcast_baseline_predict(conn, country_iso3c, year, disease, taxa)
+nowcast_baseline_predict(
+  conn,
+  country_iso3c,
+  year,
+  semester,
+  disease,
+  taxa,
+  validate = FALSE
+)
 }
 \description{
 Get baseline cases nowcast
