@@ -3,8 +3,7 @@
 #' @importFrom digest digest2int
 #' @noRd
 repel_cases_split <- function(conn){
-
-  cases <- tbl(conn, "annual_reports_animal_hosts") %>%
+  tbl(conn, "annual_reports_animal_hosts") %>%
     filter(!is.na(cases)) %>%
     filter(report_semester != "0") %>%
     mutate_at(.vars = c("report_year", "report_semester"), ~as.numeric(.)) %>%
@@ -13,7 +12,6 @@ repel_cases_split <- function(conn){
     mutate(validation_set = digest::digest2int(paste0(report, disease, disease_population, serotype, disease_status, taxa)) %% 5 == 1)
 
   #TODO all diseases and taxa need to be in training?
-  return(cases)
 }
 
 
@@ -38,78 +36,84 @@ repel_cases_validate <- function(conn){
     select(-validation_set)
 }
 
+#' Augment data with predictions
+#' @import repeldata dplyr tidyr
+#' @importFrom assertthat assert_that has_name
+#' @return a tibble
+#' @export
+nowcast_baseline_augment <- function(conn, newdata, n_semesters = NULL){
+
+  assertthat::has_name(newdata, c("country_iso3c", "report_year", "report_semester", "disease", "taxa"))
+
+  model_lookup <- repel_cases_split(conn) %>%
+    mutate(report_period = as.numeric(paste0(report_year, report_semester))) %>% # temp for filtering
+    group_by(country_iso3c, disease, taxa) %>%
+    mutate(lag_cases_1 = lag(cases, order_by = report_period, n = 1)) %>%
+    mutate(lag_cases_2 = lag(cases, order_by = report_period, n = 2)) %>%
+    mutate(lag_cases_3 = lag(cases, order_by = report_period, n = 3)) %>%
+    ungroup() %>%
+    mutate(lag_sum = apply(select(., starts_with("lag_cases")), 1, sum_na)) %>%
+    select(country_iso3c, disease, taxa, report_period, cases, starts_with("lag"))
+
+  out <- newdata %>%
+    mutate(report_period = as.numeric(paste0(report_year, report_semester))) %>% # temp for filtering
+    left_join(model_lookup, by = c("country_iso3c", "disease", "taxa", "report_period"))
+
+
+  return(out)
+}
+
+
 
 #' Get baseline cases nowcast
 #' @import repeldata dplyr tidyr
-#' @importFrom assertthat assert_that
+#' @importFrom assertthat assert_that has_name
+#' @return a list with predictions and metadata
 #' @export
-nowcast_baseline_predict <- function(conn, country_iso3c, year, semester, disease, taxa, validate = FALSE){
+nowcast_baseline_model <- function(conn, dat){
 
-  # Get data
-  repel <- repel_cases_split(conn)
-  repel <- read_csv("repel.csv") # temp
+  # assert that newdata has columns needed for model
+  assertthat::has_name(dat, c("country_iso3c", "report_year", "report_semester", "disease", "taxa"))
 
-  # Generate prediction period number for filter
-  prediction_period <- as.numeric(paste0(year, semester))
+  # run augment function
+  dat_augmented <- nowcast_baseline_augment(conn, newdata = dat)
 
-  #TODO handling these NAs
-  # repel %>%
-  #   filter(is.na(taxa)) # 38 cases of taxa NA - these represent "..." ie all species??
-
-  # Filter data for given country, disease, taxa
-  cases_cdt <- repel %>%
-    filter(country_iso3c == !!country_iso3c, disease == !!disease, taxa == !!taxa) %>%
-    mutate(prediction_period = as.numeric(paste0(report_year, report_semester))) # temp for filtering
-
-  # Get prediction from the previous semester
-  cases_cdt_predict <- cases_cdt %>%
-    filter(prediction_period < !!prediction_period) %>%
-    filter(prediction_period == max(prediction_period)) %>%
-    mutate(prediction_year = !!year) %>%
-    mutate(prediction_semester = !!semester) %>%
-    select(country, country_iso3c, disease, taxa, report_year, report_semester, prediction_year, prediction_semester, predicted_cases = cases)
-
-  assertthat::assert_that(nrow(cases_cdt_predict) <= 1)
-
-  # If prediction is unavailable...
-  if(nrow(cases_cdt_predict)==0){
-
-    # Check whether country code, disease, and taxa are available in data (may be misspelling of input vars)
-    if(!country_iso3c %in% unique(repel$country_iso3c)) warning(paste("country code", country_iso3c, "not in the REPEL database"))
-    if(!disease %in% unique(repel$disease)) warning(paste("disease", disease, "not in the REPEL database"))
-    if(!taxa %in% unique(repel$taxa)) warning(paste("taxa", taxa, "not in the REPEL database"))
-
-    # Lookup country name for output data
-    country <- na_empty(unique(repel$country[repel$country_iso3c == country_iso3c]))
-
-    # Create output tibble with 0 predicted cases
-    cases_cdt_predict <- tibble(country, country_iso3c, disease, taxa,
-                                report_year = NA_integer_, report_semester = NA_integer_,
-                                prediction_year = !!year, prediction_semester = !!semester,
-                                predicted_cases = 0)
-  }
-
-  # If validating, get actual value if it exists
-  if(validate){
-
-    # Actual cases
-    cases_cdt_actual <- cases_cdt %>%
-      filter(prediction_period == !!prediction_period) %>%
-      pull(cases)
-    assertthat::assert_that(length(cases_cdt_actual) <= 1)
-
-    # Add actual cases and calculate prediction error
-    cases_cdt_predict <- cases_cdt_predict %>%
-      mutate(report_cases = na_empty(cases_cdt_actual)) %>%
-      mutate(prediction_error = abs(report_cases - predicted_cases))
-  }
-
-  return(cases_cdt_predict)
+  # return predictions
+  structure(list(predictions = dat_augmented$lag_cases_1,
+            predict_function = nowcast_baseline_augment,
+            class = c("nowcast_baseline", "nowcast_model")))
 }
 
-#' @noRd
-na_empty <- function(x){
-  na_var <- switch(class(x), "numeric" = NA_integer_, "character" = NA_character_)
-  if(!length(x))  x <- na_var
-  return(x)
+
+#' Get baseline actual cases
+#' @import repeldata dplyr tidyr
+#' @importFrom assertthat assert_that has_name
+#' @export
+nowcast_score <- function(model, newdata, conn){
+
+  # assert that newdata has columns needed for model
+  assertthat::has_name(newdata, c("country_iso3c", "report_year", "report_semester", "disease", "taxa"))
+
+  # run augment function
+  newdata_augmented <- nowcast_baseline_augment(conn, newdata)
+
+  # return predictions & real values & performance statistic & residuals
+  out <- newdata_augmented %>%
+    rename(actual_cases = cases, predicted_cases = lag_cases_1,) %>%
+    mutate(residual_error = abs(actual_cases - predicted_cases)) %>%
+    select(-starts_with("lag"))
+
+  rmse <- sqrt(mean(out$residual_error, na.rm = TRUE)^2)
+
+  return(list(out, rmse))
 }
+
+#TODO separate validate functions
+# 1. nowcast_score() = generic to lookup real values
+#    augment predict + real values + performance statistic + residuals
+#    (give NAs for no real values avail)
+# 2. nowcast_validate() = run nowcast_test() on the validation dataset
+#    bootstap validate dataset - return performance statistic (w bootstrap noise)
+#TODO function for handling missing results - new diseases, etc
+
+
