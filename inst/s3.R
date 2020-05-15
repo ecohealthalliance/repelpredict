@@ -1,5 +1,6 @@
 library(tidyverse)
 library(repeldata)
+devtools::load_all()
 
 # example data
 conn <- repel_remote_conn()
@@ -23,7 +24,7 @@ repel_predict <- function(x){
 #TODO ??? is this right
 repel_predict.nowcast_baseline <- function(model_object, conn, newdata){
 
-    model_object$predict_function(conn = conn, newdata = newdata)
+  model_object$predict_function(conn = conn, newdata = newdata)
 
 }
 
@@ -31,35 +32,3 @@ repel_predict.nowcast_baseline(model_object, conn, newdata)
 
 predict()
 score()
-
-
-
-
-
-
-
-
-# s3 methods
-
-
-repel_predict.nowcast_baseline <- function(model_object, newdata, conn){
-
-  #nowcast_baseline_augment()
-
-  model$predict_function(newdata)
-}
-
-
-nowcast_baseline_obj <- structure(list(predict_function = function(df) {return(list(predictions = NA))}),
-                                  class = c("nowcast_baseline", "nowcast_model"))
-
-augment
-
-repel_predict.nowcast_baseline <- function(model, newdata, conn){
-
-  #nowcast_baseline_augment()
-
-  model$predict_function(newdata)
-}
-
-repel_predict(nowcast_baseline_obj)
