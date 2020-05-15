@@ -47,10 +47,12 @@ nowcast_baseline_augment <- function(conn, newdata, n_semesters = NULL){
 
   model_lookup <- repel_cases_split(conn) %>%
     mutate(report_period = as.numeric(paste0(report_year, report_semester))) %>% # temp for filtering
+    left_join(expand(., nesting(country_iso3c, disease, taxa), report_period), .) %>%
+    mutate(cases = replace_na(cases, 0)) %>%
     group_by(country_iso3c, disease, taxa) %>%
-    mutate(lag_cases_1 = lag(cases, order_by = report_period, n = 1)) %>%
-    mutate(lag_cases_2 = lag(cases, order_by = report_period, n = 2)) %>%
-    mutate(lag_cases_3 = lag(cases, order_by = report_period, n = 3)) %>%
+    mutate(lag_cases1 = lag(cases, order_by = report_period, n = 1, default = 0)) %>%
+    mutate(lag_cases2 = lag(cases, order_by = report_period, n = 2, default = 0)) %>%
+    mutate(lag_cases3 = lag(cases, order_by = report_period, n = 3, default = 0)) %>%
     ungroup() %>%
     mutate(lag_sum = apply(select(., starts_with("lag_cases")), 1, sum_na)) %>%
     select(country_iso3c, disease, taxa, report_period, cases, starts_with("lag"))
