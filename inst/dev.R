@@ -1,40 +1,27 @@
-#' @import repeldata dplyr tidyr
-#' @importFrom DBI dbDisconnect
-#' @importFrom digest digest2int
-#' @noRd
-repel_cases_split <- function(conn){
-  tbl(conn, "annual_reports_animal_hosts") %>%
-    filter(!is.na(cases)) %>%
-    filter(report_semester != "0") %>%
-    mutate_at(.vars = c("report_year", "report_semester"), ~as.numeric(.)) %>%
-    select(report, country, country_iso3c, report_year, report_semester, disease, disease_population, serotype, disease_status, taxa, cases) %>%
-    collect() %>%
-    mutate(validation_set = digest::digest2int(paste0(report, disease, disease_population, serotype, disease_status, taxa)) %% 5 == 1)
-
-  #TODO all diseases and taxa need to be in training?
-}
+devtools::load_all()
+model_object <- nowcast_baseline_model()
+conn <- repel_local_conn()
+newdata <- repel_cases_train(conn) %>%
+  select("country_iso3c", "report_year", "report_semester", "disease", "taxa") %>%
+  slice(sample(1:nrow(.), size = 150))
 
 
-#' Get cases training set (~80%)
-#' @import repeldata dplyr tidyr
-#' @return a tibble
-#' @export
-repel_cases_train <- function(conn){
-  repel_cases_split(conn) %>%
-    filter(!validation_set) %>%
-    select(-validation_set)
-}
+##
 
 
-#' Get cases validation set (~20%)
-#' @import repeldata dplyr tidyr
-#' @return a tibble
-#' @export
-repel_cases_validate <- function(conn){
-  repel_cases_split(conn) %>%
-    filter(validation_set) %>%
-    select(-validation_set)
-}
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 #' Augment data with predictions
 #' @import repeldata dplyr tidyr
@@ -78,9 +65,9 @@ nowcast_baseline_model <- function(conn, dat){
 
   # return predictions
   structure(list(predictions = dat_augmented$cases_lag1,
-            predict_function = nowcast_baseline_augment,
-            score_function = nowcast_baseline_augment,
-            class = c("nowcast_baseline", "nowcast_model")))
+                 predict_function = nowcast_baseline_augment,
+                 score_function = nowcast_baseline_augment,
+                 class = c("nowcast_baseline", "nowcast_model")))
 }
 
 

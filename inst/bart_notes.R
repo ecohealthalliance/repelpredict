@@ -4,7 +4,7 @@ library(httr)
 library(jsonlite)
 
 devtools::load_all()
-conn <- repel_remote_conn()
+conn <- repel_local_conn()
 db_list_tables(conn)
 
 library(dbarts)
@@ -13,18 +13,21 @@ fit_nowcast_bart <- function(conn){
 
   traindat <- repel_cases_train(conn) %>%
     select("country_iso3c", "report_year", "report_semester", "disease", "taxa") %>%
-    # filter out aquatic taxa?
+    # filter out aquatic taxa
     filter(taxa %in% c("goats", "sheep",  "sheep/goats",
+                       # handling for multiple species, sheep/goats (combine all sheep goats?)
                        "cattle", "birds", "camelidae", "dogs", "equidae",
                        "cats", "cervidae" , "swine" , "buffaloes", "hares/rabbits"))
-  #TODO filter min year (3 semesters) by country?
+  #TODO summary table of taxa by disease - looking at sheep/goat combo - forcast needs assertion on taxa type (could propogate from elsewhere) - in error slot of forecase (400 code)
+
 
   # generate lag values (using augument) for last 3 semesters -> mean imputation if missing
   traindat_augment <- nowcast_baseline_augment(conn = conn, newdata = traindat)
+  # have return NA from previous semester if dne (augment step) - handling nas with predict
 
   # get summed lag values of adjacent countries
   borders <- tbl(conn, "connect_static_vars") %>%
-    filter(shared_border) %>%
+    filter(shared_border == "t") %>%
     select(country_origin, country_destination) %>%
     collect()
 
@@ -39,7 +42,7 @@ fit_nowcast_bart <- function(conn){
     select(-cases) %>%
     pivot_longer(cols = c(cases_lag1, cases_lag2, cases_lag3)) %>%
     group_by(country_origin, disease, taxa, report_year, report_semester) %>%
-    summarize(cases_border_countries = sum(value)) %>%
+    summarize(cases_border_countries = sum(as.numeric(value))) %>%
     ungroup() %>%
     rename(country_iso3c = country_origin)
 
@@ -78,6 +81,31 @@ fit_nowcast_bart <- function(conn){
     mutate(report_year = as.integer(report_year))
 
   traindat_augment <- left_join(traindat_augment, gdp)
+
+
+  #TODO - cases lag 0s as NAs - make sure all NAs are true nas versus 0s
+  #TODO - NA handling  - taxa fromFAO, most recent value for vets
+
+  # sep models for present+suspected/absent and for counts
+  # prediciton on present/suspected, if it is, then number of log(cases) - 0s filtered out
+
+  traindat_augment_mod <- traindat_augment %>%
+    mutate_at(.vars = c("cases", "cases_lag1", "cases_lag2", "cases_lag3"), ~as.numeric(.)) %>%
+    mutate_if(.predicate = is.character, ~as.factor(.)) %>%
+    select(-report_year, -report_period) %>%
+    drop_na(cases)
+
+  hist(traindat_augment_mod$cases)
+
+  traindat_augment_mod %>%
+    filter(cases == 0) %>%
+    nrow()
+
+  hosts <- tbl(conn, "annual_reports_animal_hosts") %>%
+    collect()
+
+  #model object is list of two objects - augment to add both outcomes - can predict off of either model - score true values error (needed for score too)
+  # baseline needs binary and numeric value
 
 
   # call dbart package - predict - return list structure with class  (class(obj), nowcast_bart, nowcast_model) (in this order)
