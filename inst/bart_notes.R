@@ -104,7 +104,7 @@ fit_nowcast_bart <- function(conn){
   hosts <- tbl(conn, "annual_reports_animal_hosts") %>%
     collect()
 
-  #model object is list of two objects - augment to add both outcomes - can predict off of either model - score true values error (needed for score too)
+  #model object is list of two objects - augment to add both outcomes - can predict off of either model - score true values error (needed for baseline too)
   # baseline needs binary and numeric value
 
 

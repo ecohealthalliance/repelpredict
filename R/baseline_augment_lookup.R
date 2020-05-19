@@ -30,3 +30,12 @@ baseline_augment_lookup_specs <- function(){
     cases_lag3 = col_integer()
   )
 }
+
+
+#' read in augment lookup for the baseline model
+#' @import readr
+#TODO use vroom? save to aws or database?
+get_baseline_augment_lookup <- function(){
+  readr::read_csv(system.file("files", "baseline_augment_lookup.csv.xz", package = "repelpredict"),
+                               col_types = baseline_augment_lookup_specs())
+}

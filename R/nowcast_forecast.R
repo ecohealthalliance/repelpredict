@@ -4,7 +4,7 @@ repel_forecast <- function(x){
 }
 
 forecast.nowcast_model <- function(model_object, conn, newdata) {
-  augmented_data <- augment(model_object, conn, newdata)
-  predictions <- predict(model_object, augmented_data)
-  returns(predictions)
+  augmented_data <- repel_augment(model_object, conn, newdata)
+  predictions <- repel_predict(model_object, augmented_data)
+  return(predictions)
 }

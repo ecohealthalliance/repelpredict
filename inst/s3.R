@@ -8,12 +8,14 @@ conn <- repel_local_conn()
 dat <- repel_cases_train(conn) %>%
   select("country_iso3c", "report_year", "report_semester", "disease", "taxa") %>%
   slice(sample(1:nrow(.), size = 150))
+
 model_object <- nowcast_baseline_model(conn, dat)
 
 # new data
 newdata <- repel_cases_train(conn) %>%
   select("country_iso3c", "report_year", "report_semester", "disease", "taxa") %>%
   slice(sample(1:nrow(.), size = 150))
+
 
 # define generic predict
 repel_predict <- function(x){
