@@ -63,8 +63,6 @@ nowcast_baseline_augment <- function(conn, newdata, n_semesters = NULL){
   return(out)
 }
 
-
-
 #' Get baseline cases nowcast
 #' @import repeldata dplyr tidyr
 #' @importFrom assertthat assert_that has_name
@@ -79,8 +77,9 @@ nowcast_baseline_model <- function(conn, dat){
   dat_augmented <- nowcast_baseline_augment(conn, newdata = dat)
 
   # return predictions
-  structure(list(predictions = dat_augmented$lag_cases_1,
+  structure(list(predictions = dat_augmented$cases_lag1,
             predict_function = nowcast_baseline_augment,
+            score_function = nowcast_baseline_augment,
             class = c("nowcast_baseline", "nowcast_model")))
 }
 
