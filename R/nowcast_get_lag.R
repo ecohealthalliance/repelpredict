@@ -15,6 +15,7 @@ get_nowcast_lag <- function(case_dat){
 
   # get cases and last three semesters
   case_dat %>%
+    select(-suppressWarnings(one_of("cases"))) %>%
     mutate(report_period = as.integer(paste0(report_year, report_semester))) %>%
     left_join(model_lookup, by = c("country_iso3c", "disease", "taxa", "report_period"))
 
