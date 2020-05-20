@@ -1,9 +1,9 @@
-#' Support function to generate the augment lookup for the baseline model
+#' Support function to generate lag lookup for case data
 #' @param conn either repel_local_conn or repel_remote_conn objects from 'repeldata'
 #' @import repeldata dplyr tidyr
 
 #TODO this should be triggered with db updated
-baseline_augment_lookup <- function(conn){
+case_lag_lookup <- function(conn){
   repel_cases_split(conn) %>%
     mutate(report_period = as.numeric(paste0(report_year, report_semester))) %>% # temp for filtering
     left_join(expand(., nesting(country_iso3c, disease, taxa), report_period), .) %>%
@@ -16,9 +16,9 @@ baseline_augment_lookup <- function(conn){
 }
 
 
-#' column specs for reading in baseline_augment_lookup csv
+#' column specs for reading in case_lag_lookup csv
 #' @import readr
-baseline_augment_lookup_specs <- function(){
+case_lag_lookup_specs <- function(){
   cols(
     country_iso3c = col_character(),
     disease = col_character(),
@@ -32,10 +32,10 @@ baseline_augment_lookup_specs <- function(){
 }
 
 
-#' read in augment lookup for the baseline model
+#' read in lag lookup for case data
 #' @import readr
 #TODO use vroom? save to aws or database?
-get_baseline_augment_lookup <- function(){
-  readr::read_csv(system.file("files", "baseline_augment_lookup.csv.xz", package = "repelpredict"),
-                               col_types = baseline_augment_lookup_specs())
+get_case_lag_lookup <- function(){
+  readr::read_csv(system.file("files", "case_lag_lookup.csv.xz", package = "repelpredict"),
+                               col_types = case_lag_lookup_specs())
 }
