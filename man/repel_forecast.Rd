@@ -4,7 +4,7 @@
 \alias{repel_forecast}
 \title{define generic augment}
 \usage{
-repel_forecast(x)
+repel_forecast(x, ...)
 }
 \description{
 define generic augment

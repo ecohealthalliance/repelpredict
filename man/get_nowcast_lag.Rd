@@ -4,7 +4,7 @@
 \alias{get_nowcast_lag}
 \title{Get lags for case data}
 \usage{
-get_nowcast_lag(case_dat)
+get_nowcast_lag(conn, casedat)
 }
 \description{
 Get lags for case data

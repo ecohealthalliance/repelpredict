@@ -1,5 +1,5 @@
 # define generic predict
-repel_predict <- function(x){
+repel_predict <- function(x, ...){
   UseMethod("repel_predict")
 }
 

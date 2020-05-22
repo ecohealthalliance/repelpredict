@@ -1,5 +1,5 @@
 #' define generic augment
-repel_forecast <- function(x){
+repel_forecast <- function(x, ...){
   UseMethod("repel_forecast")
 }
 
