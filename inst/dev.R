@@ -1,7 +1,9 @@
 devtools::load_all()
 library(tictoc)
-
-conn <- repel_local_conn()
+library(dbarts)
+library(ceterisParibus)
+#repeldata::repel_local_download()
+conn <- repeldata::repel_local_conn()
 
 # Baseline ----------------------------------------------------------------
 sample_size <- 150
@@ -12,6 +14,9 @@ newdata <- repel_cases_train(conn) %>%
 
 augmented_data <- repel_augment(model_object = model_object, conn = conn, newdata = newdata)
 assertthat::are_equal(sample_size, nrow(augmented_data)) # TODO ^ NEED TO HANDLE DUPEs (related to serotypes and disease populations, I think. Should be included in primary grouping vars)
+# default to domestic. by disease, predominantly domestic or wild
+# maybe menu selection - specify avaialble population
+# split out serotypes - avian influenzas can be very diff - default to predict on both (in interface)
 
 predicted_data <- repel_predict(model_object = model_object, augmented_data = augmented_data)
 
@@ -24,18 +29,43 @@ model_object <- nowcast_bart_model()
 
 traindat <- repel_cases_train(conn) %>%
   mutate(cases = ifelse(disease_status == "absent", 0, cases)) %>% # this is temporary
-  drop_na(cases)
+  drop_na(cases) %>%
+  select("country_iso3c", "report_year", "report_semester", "disease", "taxa", "disease_status")
 
-#summary table of taxa by disease - looking at sheep/goat combo - forecast needs assertion on taxa type (could propogate from elsewhere) - in error slot of forecast (400 code)
+# summary table of taxa by disease - looking at sheep/goat combo - forecast needs assertion on taxa type (could propogate from elsewhere) - in error slot of forecast (400 code)
 traindat %>%
   group_by(taxa, disease) %>%
-  count() %>%
-  View
+  count()
 
 augmented_data <- repel_augment(model_object = model_object, conn = conn, traindat = traindat)
 
-# #TODO - NA handling  - taxa fromFAO, most recent value for vets
-#
+# BART model to predict presence/abense
+aug_dat1 <- augmented_data %>%
+  select(-cases, -report_period) %>%
+  mutate(disease_status = recode(disease_status, "present" = 1, suspected = 1, absent = 0))
+
+bart_mod1 <- bart(select(aug_dat1, -disease_status),
+                 aug_dat1$disease_status,
+                 ndpost=1000,
+                 keeptrees = TRUE)
+
+# function for bart model predict
+bart_predict <- function(model, newdat) {
+  apply(predict(object = model, test = newdat), 2, mean)
+}
+
+bartexp <- DALEX::explain(bart_mod1, data = aug_dat1, y = aug_dat1$disease_status,
+                          predict_function = bart_predict, label = "BART")
+bartcpm <- ceteris_paribus(bartexp, observations = aug_dat1, y =aug_dat1$disease_status)
+
+# ICE
+# SHAP scores - identify parameters of importance for subsets of data
+
+# hurdle model?
+# flter data to >0 cases, predict off this
+
+
+
 # # sep models for present+suspected/absent and for counts
 # # prediciton on present/suspected, if it is, then number of log(cases) - 0s filtered out
 #
