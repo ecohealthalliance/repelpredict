@@ -62,8 +62,13 @@ bartcpm <- ceteris_paribus(bartexp, observations = aug_dat1, y =aug_dat1$disease
 # SHAP scores - identify parameters of importance for subsets of data
 
 # hurdle model?
-# flter data to >0 cases, predict off this
+# flter data to >0 cases, predict off this - 0s become -0.5
 
+# impute in some way (0, mean, filling in missing) - add another column present/absent, first year reporting...
+# gam = rndom effects for missing value flags. bart doesnt but should learn this
+# missing values and flags in augment
+# how well does it do with missing data - score - widert interval on NA data
+# hurdle removes 0, have it predict log of number of cases
 
 
 # # sep models for present+suspected/absent and for counts

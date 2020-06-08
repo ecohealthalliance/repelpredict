@@ -10,7 +10,7 @@ repel_augment <- function(x, ...){
 #'
 repel_augment.nowcast_baseline <- function(model_object, conn, newdata) {
 
- get_nowcast_lag(conn, casedat = newdata) %>%
+  get_nowcast_lag(conn, casedat = newdata) %>%
     select(-cases_lag2, -cases_lag3)
 
 }
@@ -20,6 +20,9 @@ repel_augment.nowcast_baseline <- function(model_object, conn, newdata) {
 #' @importFrom assertthat has_name assert_that
 #'
 repel_augment.nowcast_bart <- function(model_object, conn, traindat) {
+
+  # disease_status column needed for bart model
+  assertthat::has_name(traindat, c("disease_status"))
 
   # get lag cases
   traindat_augment <- get_nowcast_lag(conn, casedat = traindat)
@@ -32,7 +35,7 @@ repel_augment.nowcast_bart <- function(model_object, conn, traindat) {
 
   traindat_augment_borders <- traindat_augment %>%
     distinct(country_origin = country_iso3c, disease, taxa, report_year, report_semester) %>%
-    left_join(borders) %>%
+    left_join(borders,  by = "country_origin") %>%
     rename(country_iso3c = country_destination)
 
   borders_augment <- get_nowcast_lag(conn, casedat = traindat_augment_borders)
@@ -45,39 +48,36 @@ repel_augment.nowcast_bart <- function(model_object, conn, traindat) {
     ungroup() %>%
     rename(country_iso3c = country_origin)
 
-  traindat_augment <- left_join(traindat_augment, borders_sum)
+  traindat_augment <- left_join(traindat_augment, borders_sum, by = c("country_iso3c", "report_year", "report_semester", "disease", "taxa"))
 
-  # measures of vet capacity - counts
+  # measures of vet capacity - counts ()
   vets <- tbl(conn, "annual_reports_veterinarians") %>%
     collect() %>%
     group_by(country_iso3c, report_year) %>%
-    summarize(veterinarian_count = sum(as.integer(total_count), na.rm = TRUE)) %>%
+    summarize(veterinarian_count = sum(suppressWarnings(as.integer(total_count)), na.rm = TRUE)) %>%
     ungroup() %>%
     mutate(report_year = as.integer(report_year))
 
-  traindat_augment <- left_join(traindat_augment, vets)
+  traindat_augment <- left_join(traindat_augment, vets, by = c("country_iso3c", "report_year"))
 
-  # taxa population (to be replaces with Fao)
-  taxa <- tbl(conn, "annual_reports_animal_population") %>%
-    filter(population_units == "animals") %>%
+  # taxa population
+  taxa <- tbl(conn, "country_taxa_population") %>%
     collect() %>%
-    group_by(country_iso3c, report_year, taxa) %>%
-    summarize(taxa_pop_count = sum(as.integer(population_count), na.rm = TRUE)) %>%
-    ungroup() %>%
-    mutate(report_year = as.integer(report_year))
+    rename(report_year = year, taxa_population = population)
 
-  traindat_augment <- left_join(traindat_augment, taxa)
+  traindat_augment <- left_join(traindat_augment, taxa, by = c("country_iso3c", "report_year", "taxa"))
 
-  # GDP - to come from db
-  gdp <- jsonlite::fromJSON(paste0("http://api.worldbank.org/v2/country/all/indicator/NY.GDP.MKTP.CD?per_page=20000&format=json"))
-  gdp <- gdp[[2]] %>%
-    dplyr::select(report_year = date, gdp = value, country_iso3c = countryiso3code) %>%
-    as_tibble() %>%
-    filter(country_iso3c != "") %>%
-    drop_na() %>%
-    mutate(report_year = as.integer(report_year))
+  # GDP
+  gdp <-  tbl(conn, "country_gdp") %>%
+    collect() %>%
+    rename(report_year = year)
 
-  traindat_augment <- left_join(traindat_augment, gdp)
+  traindat_augment <- left_join(traindat_augment, gdp,  by = c("country_iso3c", "report_year"))
+
+  # finalize
+  traindat_augment <- traindat_augment %>%
+    select(-cases, -report_period) %>%
+    mutate(disease_status = recode(disease_status, "present" = 1, "suspected" = 1, "absent" = 0))
 
   return(traindat_augment)
 
