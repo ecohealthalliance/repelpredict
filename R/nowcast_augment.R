@@ -19,10 +19,7 @@ repel_augment.nowcast_baseline <- function(model_object, conn, newdata) {
 #' @import repeldata dplyr tidyr
 #' @importFrom assertthat has_name assert_that
 #'
-repel_augment.nowcast_bart <- function(model_object, conn, traindat) {
-
-  # disease_status column needed for bart model
-  assertthat::has_name(traindat, c("disease_status"))
+repel_augment.nowcast_bart <- function(model_object, conn, traindat, binary_outcome = TRUE) {
 
   # get lag cases
   traindat_augment <- get_nowcast_lag(conn, casedat = traindat)
@@ -44,7 +41,7 @@ repel_augment.nowcast_bart <- function(model_object, conn, traindat) {
     select(-cases) %>%
     pivot_longer(cols = c(cases_lag1, cases_lag2, cases_lag3)) %>%
     group_by(country_origin, disease, taxa, report_year, report_semester) %>%
-    summarize(cases_border_countries = sum(as.numeric(value))) %>%
+    summarize(cases_border_countries = sum_na(as.integer(value))) %>%
     ungroup() %>%
     rename(country_iso3c = country_origin)
 
@@ -54,7 +51,7 @@ repel_augment.nowcast_bart <- function(model_object, conn, traindat) {
   vets <- tbl(conn, "annual_reports_veterinarians") %>%
     collect() %>%
     group_by(country_iso3c, report_year) %>%
-    summarize(veterinarian_count = sum(suppressWarnings(as.integer(total_count)), na.rm = TRUE)) %>%
+    summarize(veterinarian_count = sum_na(suppressWarnings(as.integer(total_count)))) %>%
     ungroup() %>%
     mutate(report_year = as.integer(report_year))
 
@@ -75,10 +72,15 @@ repel_augment.nowcast_bart <- function(model_object, conn, traindat) {
   traindat_augment <- left_join(traindat_augment, gdp,  by = c("country_iso3c", "report_year"))
 
   # finalize
-  traindat_augment <- traindat_augment %>%
-    select(-cases, -report_period) %>%
-    mutate(disease_status = recode(disease_status, "present" = 1, "suspected" = 1, "absent" = 0))
+  if(binary_outcome){
+    # disease_status column needed for binary bart model
+    assertthat::has_name(traindat_augment, c("disease_status"))
 
+    traindat_augment <- traindat_augment %>%
+      select(-cases) %>%
+      mutate(disease_status = recode(disease_status, "present" = 1, "suspected" = 1, "absent" = 0))
+  }
   return(traindat_augment)
 
 }
+

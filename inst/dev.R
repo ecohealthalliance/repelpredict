@@ -1,7 +1,10 @@
 devtools::load_all()
+library(tidyverse)
 library(tictoc)
 library(dbarts)
 library(ceterisParibus)
+set.seed(99)
+
 #repeldata::repel_local_download()
 conn <- repeldata::repel_local_conn()
 
@@ -13,10 +16,12 @@ newdata <- repel_cases_train(conn) %>%
   slice(sample(1:nrow(.), size = sample_size))
 
 augmented_data <- repel_augment(model_object = model_object, conn = conn, newdata = newdata)
-assertthat::are_equal(sample_size, nrow(augmented_data)) # TODO ^ NEED TO HANDLE DUPEs (related to serotypes and disease populations, I think. Should be included in primary grouping vars)
-# default to domestic. by disease, predominantly domestic or wild
-# maybe menu selection - specify avaialble population
-# split out serotypes - avian influenzas can be very diff - default to predict on both (in interface)
+assertthat::are_equal(sample_size, nrow(augmented_data))
+# TODO ^ NEED TO HANDLE DUPEs (related to serotypes and disease populations)
+# diseases should be either wild or domestic. depends on what they are predominantly classified as. default to domestic.
+  # later in UI - have a menu selection to allow user to choose from available population
+# split out serotypes (avian influenzas can be very diff)
+  # default to predict separately on serotypes (in interface)
 
 predicted_data <- repel_predict(model_object = model_object, augmented_data = augmented_data)
 
@@ -32,68 +37,132 @@ traindat <- repel_cases_train(conn) %>%
   drop_na(cases) %>%
   select("country_iso3c", "report_year", "report_semester", "disease", "taxa", "disease_status")
 
-# summary table of taxa by disease - looking at sheep/goat combo - forecast needs assertion on taxa type (could propogate from elsewhere) - in error slot of forecast (400 code)
-traindat %>%
-  group_by(taxa, disease) %>%
-  count()
+# summary table of taxa by disease - looking at sheep/goat combo
+# traindat %>%
+#   group_by(taxa, disease) %>%
+#   count()
 
-augmented_data <- repel_augment(model_object = model_object, conn = conn, traindat = traindat)
+augmented_data <- repel_augment(model_object = model_object, conn = conn, traindat = traindat, binary_outcome = TRUE) %>%
+  arrange(country_iso3c, disease, taxa, report_year, report_semester)
 
-# BART model to predict presence/abense
-aug_dat1 <- augmented_data %>%
-  select(-cases, -report_period) %>%
-  mutate(disease_status = recode(disease_status, "present" = 1, suspected = 1, absent = 0))
+## Imputation heuristics (to be moved to augment)
+# use trend lines for veterinarians, taxa population, gdp
+# if the NA is first or last in series, use next or previous value
+# if it's in the middle of the time series, linear interpolation
+non_case_vars <-  c("veterinarian_count", "taxa_population", "gdp_dollars")
+for(var in non_case_vars){
 
-bart_mod1 <- bart(select(aug_dat1, -disease_status),
-                 aug_dat1$disease_status,
-                 ndpost=1000,
-                 keeptrees = TRUE)
+  augmented_data <- augmented_data %>%
+    mutate(!!paste0(var, "_missing") := is.na(get(var)))
+
+  if(var=="taxa_population"){
+    select_vars <- c("country_iso3c", "report_year", "report_semester", "taxa", var)
+    group_vars <- c("country_iso3c", "taxa")
+    join_vars <- c("country_iso3c", "report_year", "report_semester", "taxa")
+  }else{
+    select_vars <- c("country_iso3c", "report_year", var)
+    group_vars <- c("country_iso3c")
+    join_vars <- c("country_iso3c", "report_year")
+  }
+
+  interp <- augmented_data %>%
+    arrange(country_iso3c, report_year, report_semester, taxa) %>%
+    select(all_of(select_vars)) %>%
+    distinct() %>%
+    group_by_at(group_vars) %>%
+    filter(sum(!is.na(get(var))) > 1) %>%
+    mutate(!!var := imputeTS::na_interpolation(get(var))) %>%
+    ungroup()
+
+  augmented_data <- left_join(augmented_data, interp, by = join_vars) %>%
+    mutate(!!var := coalesce(get(paste0(var, ".x")), get(paste0(var, ".y")))) %>%
+    select(-ends_with(".x"), -ends_with(".y"))
+}
+
+# handling remaining NAs in these vars
+map(augmented_data, ~sum(is.na(.)))
+# remove rows from countries without GDP data
+augmented_data <- augmented_data %>%
+  drop_na(gdp_dollars)
+# use neighboring country values? for now, assume small values
+augmented_data %>% filter(is.na(taxa_population)) %>% distinct(country_iso3c) %>% pull(country_iso3c) %>% countrycode::countrycode(., origin = "iso3c", destination = "country.name")
+augmented_data %>% filter(is.na(veterinarian_count)) %>% distinct(country_iso3c) %>% pull(country_iso3c) %>% countrycode::countrycode(., origin = "iso3c", destination = "country.name")
+augmented_data <- augmented_data %>%
+  mutate(veterinarian_count = ifelse(is.na(veterinarian_count), rpois(sum(is.na(veterinarian_count)), 20), veterinarian_count)) %>%
+  mutate(taxa_population = ifelse(is.na(taxa_population), rpois(sum(is.na(taxa_population)), 50), taxa_population))
+
+# case NAs - replace with 0s?
+case_vars <- c("cases_lag1", "cases_lag2", "cases_lag3", "cases_border_countries")
+for(var in case_vars){
+  augmented_data <- augmented_data %>%
+    mutate(!!paste0(var, "_missing") := is.na(get(var)))
+}
+augmented_data <- augmented_data %>%
+  mutate_at(.vars = c("cases_lag1", "cases_lag2", "cases_lag3", "cases_border_countries"), ~replace_na(., 0))
+
+# add column to indicate first year country reporting
+augmented_data <- augmented_data %>%
+  mutate(report_period = as.integer(paste0(report_year, report_semester))) %>%
+  group_by(country_iso3c) %>%
+  mutate(first_reporting_semester = report_period == min(report_period)) %>%
+  ungroup() %>%
+  select(-report_period)
+
+# for now, do predictions for top 20 diseases
+top_diseases <- augmented_data %>%
+  group_by(disease) %>%
+  count(sort = TRUE) %>%
+  slice(1:20)
+augmented_data <- augmented_data %>%
+  filter(disease %in% top_diseases$disease) %>%
+  mutate(disease_status = as.logical(disease_status))
+
+# BART model to predict presence/abense - https://github.com/vdorie/dbarts/issues/12
+bart_mod <- bart2(formula = disease_status ~ ., data = augmented_data, test = select(augmented_data, -disease_status),
+              verbose = TRUE)
+
+write_rds(bart_mod, "bart_presence_model.rds")
+
+# to transform to probabilities:
+# pnorm(bart_mod$yhat.train)
+# posterior means:
+# apply(pnorm(bart_mod$yhat.train), 3, mean)
+# test against predictions using the predict function:
+mean(abs(bart_mod$yhat.train - predict(bart_mod, select(augmented_data, -disease_status))))
+
 
 # function for bart model predict
 bart_predict <- function(model, newdat) {
   apply(predict(object = model, test = newdat), 2, mean)
 }
 
-bartexp <- DALEX::explain(bart_mod1, data = aug_dat1, y = aug_dat1$disease_status,
-                          predict_function = bart_predict, label = "BART")
-bartcpm <- ceteris_paribus(bartexp, observations = aug_dat1, y =aug_dat1$disease_status)
+bart_predictions <- predict(object = bart_mod, test = select(augmented_data, -disease_status))
 
+bartexp <- DALEX::explain(bart_mod,
+                          data = select(augmented_data, -disease_status),
+                          y = augmented_data$disease_status,
+                          predict_function = bart_predict, label = "BART")
+write_rds(bartexp, "bart_presence_model_explainer.rds")
+
+bartcpm <- ceteris_paribus(bartexp,
+                           observations = select(augmented_data, -disease_status),
+                           y= augmented_data$disease_status)
+
+# Next:
 # ICE
 # SHAP scores - identify parameters of importance for subsets of data
 
-# hurdle model?
-# flter data to >0 cases, predict off this - 0s become -0.5
+# hurdle model
+# flter data to >0 cases, predict off this (0s become -0.5, log cases)
 
-# impute in some way (0, mean, filling in missing) - add another column present/absent, first year reporting...
-# gam = rndom effects for missing value flags. bart doesnt but should learn this
-# missing values and flags in augment
-# how well does it do with missing data - score - widert interval on NA data
-# hurdle removes 0, have it predict log of number of cases
+# how well does it do with missing data - score - expect wider interval on NA data
 
-
-# # sep models for present+suspected/absent and for counts
-# # prediciton on present/suspected, if it is, then number of log(cases) - 0s filtered out
-#
-# traindat_augment_mod <- traindat_augment %>%
-#   mutate_at(.vars = c("cases", "cases_lag1", "cases_lag2", "cases_lag3"), ~as.numeric(.)) %>%
-#   mutate_if(.predicate = is.character, ~as.factor(.)) %>%
-#   select(-report_year, -report_period) %>%
-#   drop_na(cases)
-
-#model object is list of two objects - augment to add both outcomes - can predict off of either model - score true values error (needed for baseline too)
 # baseline needs binary and numeric value
 
+# need validate(model_object, newdata)
 
-# call dbart package - predict - return list structure with class  (class(obj), nowcast_bart, nowcast_model) (in this order)
-# list contains model object, other slots for anything else (eg metadata)
-
-# score(model_object)
-
-# validate(model_object, newdata)
-
-# model object saved as .rds
-# drake? (later)
 # objects loaded in package (load with sys.file)? or plumber api (separate from this package)
+
 # tidymodels - strip down model objects with butcher?
 
 
