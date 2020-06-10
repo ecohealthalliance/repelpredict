@@ -47,40 +47,120 @@ repel_augment.nowcast_bart <- function(model_object, conn, traindat, binary_outc
 
   traindat_augment <- left_join(traindat_augment, borders_sum, by = c("country_iso3c", "report_year", "report_semester", "disease", "taxa"))
 
-  # measures of vet capacity - counts ()
+  # vet capacity
   vets <- tbl(conn, "annual_reports_veterinarians") %>%
     collect() %>%
     group_by(country_iso3c, report_year) %>%
-    summarize(veterinarian_count = sum_na(suppressWarnings(as.integer(total_count)))) %>%
+    summarize(veterinarian_count = sum_na(suppressWarnings(as.integer(total_count)))) %>% # summarize over different types of vets
     ungroup() %>%
-    mutate(report_year = as.integer(report_year))
+    mutate(report_year = as.integer(report_year)) %>%
+    right_join(expand(traindat_augment, country_iso3c, report_year),  by = c("country_iso3c", "report_year")) %>%
+    mutate(veterinarian_count_missing = is.na(veterinarian_count)) %>%
+    arrange(country_iso3c, report_year) %>%
+    group_split(country_iso3c) %>%
+    map_df(~na_interp(., "veterinarian_count")) %>%
+    select(-veterinarian_count) %>%
+    rename(veterinarian_count = veterinarian_count_imputed)
 
   traindat_augment <- left_join(traindat_augment, vets, by = c("country_iso3c", "report_year"))
 
   # taxa population
   taxa <- tbl(conn, "country_taxa_population") %>%
     collect() %>%
-    rename(report_year = year, taxa_population = population)
+    rename(report_year = year, taxa_population = population) %>%
+    right_join(expand(traindat_augment, country_iso3c, report_year, taxa),  by = c("country_iso3c", "report_year", "taxa")) %>%
+    mutate(taxa_population_missing = is.na(taxa_population)) %>%
+    arrange(country_iso3c, taxa, report_year) %>%
+    group_split(country_iso3c, taxa) %>%
+    map_df(~na_interp(., "taxa_population")) %>%
+    select(-taxa_population) %>%
+    rename(taxa_population = taxa_population_imputed)
 
   traindat_augment <- left_join(traindat_augment, taxa, by = c("country_iso3c", "report_year", "taxa"))
 
   # GDP
   gdp <-  tbl(conn, "country_gdp") %>%
     collect() %>%
-    rename(report_year = year)
+    rename(report_year = year) %>%
+    right_join(expand(traindat_augment, country_iso3c, report_year),  by = c("country_iso3c", "report_year")) %>%
+    mutate(gdp_dollars_missing = is.na(gdp_dollars)) %>%
+    arrange(country_iso3c, report_year) %>%
+    group_split(country_iso3c) %>%
+    map_df(~na_interp(., "gdp_dollars")) %>%
+    select(-gdp_dollars) %>%
+    rename(gdp_dollars = gdp_dollars_imputed)
 
   traindat_augment <- left_join(traindat_augment, gdp,  by = c("country_iso3c", "report_year"))
+
+  # handle remaining NAs in vets, taxa pop, gdp
+  # map(traindat_augment, ~sum(is.na(.)))
+
+  # remove rows from countries without GDP data?
+  removing_gdp  <- traindat_augment %>%
+    filter(is.na(gdp_dollars))
+  na_countries <- unique(removing_gdp$country_iso3c) %>%
+    countrycode::countrycode(., origin = "iso3c", destination = "country.name", warn = FALSE)
+  na_countries <- na_countries[!is.na(na_countries)]
+  traindat_augment <- traindat_augment %>%
+    drop_na(gdp_dollars)
+  warning(paste("Dropping", nrow(removing_gdp), "rows of data with missing GDP values from following countries:", paste(na_countries, collapse = ", ")))
+
+  # use neighboring country values for vets and taxa? for now, assume small values
+  traindat_augment %>% filter(is.na(taxa_population)) %>% distinct(country_iso3c) %>% pull(country_iso3c) %>% countrycode::countrycode(., origin = "iso3c", destination = "country.name")
+  traindat_augment %>% filter(is.na(veterinarian_count)) %>% distinct(country_iso3c) %>% pull(country_iso3c) %>% countrycode::countrycode(., origin = "iso3c", destination = "country.name")
+  traindat_augment <- traindat_augment %>%
+    mutate(veterinarian_count = ifelse(is.na(veterinarian_count), rpois(sum(is.na(veterinarian_count)), 20), veterinarian_count)) %>%
+    mutate(taxa_population = ifelse(is.na(taxa_population), rpois(sum(is.na(taxa_population)), 50), taxa_population))
+
+  # case NAs - replace with 0s?
+  case_vars <- c("cases_lag1", "cases_lag2", "cases_lag3", "cases_border_countries")
+  for(var in case_vars){
+    traindat_augment <- traindat_augment %>%
+      mutate(!!paste0(var, "_missing") := is.na(get(var))) %>%
+      mutate(!!var := replace_na(get(var), 0))
+  }
+
+  # add column to indicate first year country reporting
+  traindat_augment <- traindat_augment %>%
+    mutate(report_period = as.integer(paste0(report_year, report_semester))) %>%
+    group_by(country_iso3c) %>%
+    mutate(first_reporting_semester = report_period == min(report_period)) %>%
+    ungroup() %>%
+    select(-report_period)
 
   # finalize
   if(binary_outcome){
     # disease_status column needed for binary bart model
     assertthat::has_name(traindat_augment, c("disease_status"))
-
-    traindat_augment <- traindat_augment %>%
+  traindat_augment <- traindat_augment %>%
       select(-cases) %>%
       mutate(disease_status = recode(disease_status, "present" = 1, "suspected" = 1, "absent" = 0))
+  }else{
+    traindat_augment <- traindat_augment %>%
+      select(-disease_status)
   }
   return(traindat_augment)
 
 }
+
+
+#' Adds more NA handling functionality to imputeTS::na_interpolation
+#' @import dplyr tidyr
+#' @importFrom imputeTS na_interpolation
+#' @noRd
+na_interp <- function(df, var){
+  if(sum(!is.na(df[,var])) == 0){
+    out <- mutate(df, !!paste0(var, "_imputed") := NA_integer_)
+  }
+  if(sum(!is.na(df[,var])) == 1){
+    out <- mutate(df,  !!paste0(var, "_imputed") := get(var)[!is.na(get(var))])
+  }
+  if(sum(!is.na(df[,var])) > 1){
+    out <- mutate(df,  !!paste0(var, "_imputed") := imputeTS::na_interpolation(get(var)))
+  }
+  return(out)
+}
+
+
+
 
