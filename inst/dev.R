@@ -51,21 +51,33 @@ traindat <- repel_cases_train(conn) %>%
 augmented_data <- repel_augment(model_object = model_object, conn = conn, traindat = traindat, binary_outcome = TRUE) %>%
   arrange(country_iso3c, disease, taxa, report_year, report_semester)
 
-## Imputation heuristics (to be moved to augment)
-# use trend lines for veterinarians, taxa population, gdp
-# if the NA is first or last in series, use next or previous value
-# if it's in the middle of the time series, linear interpolation
-
-
-# for now, do predictions for top 20 diseases
-top_diseases <- augmented_data %>%
+rare_diseases <- augmented_data %>%
   group_by(disease) %>%
   count(sort = TRUE) %>%
-  slice(1:20)
+  filter(n<=1000) %>%
+  ungroup()
+
+# augmented_data <- augmented_data %>%
+#   mutate(rare_disease = disease %in% rare_diseases$disease)
 
 augmented_data <- augmented_data %>%
-  filter(disease %in% top_diseases$disease) %>%
   mutate(disease_status = as.logical(disease_status))
+
+treatments <- vtreat::designTreatmentsC(dframe = augmented_data,
+                                        varlist = 'disease',
+                                        outcomename = 'rare_disease',
+                                        outcometarget = TRUE,
+                                        verbose=TRUE)
+
+
+treatments <- designTreatmentsC(augmented_data, colnames(augmented_data), 'disease_status', TRUE,
+                                 verbose=TRUE)
+augmented_data_treated <-  vtreat::prepare(treatments, augmented_data, pruneSig=1.0, scale = TRUE)
+
+vars <- setdiff(colnames(augmented_data_treated), "disease_status" )
+# all input variables should be mean 0
+sapply(augmented_data_treated[, vars, drop=FALSE], mean)
+
 
 # BART model to predict presence/abense --------------------------------------------------------------------
 # https://github.com/vdorie/dbarts/issues/12
