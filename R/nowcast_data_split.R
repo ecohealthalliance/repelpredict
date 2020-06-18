@@ -6,7 +6,7 @@ taxa_list <- c("goats", "sheep",  "sheep/goats", # handling for multiple species
 #' @importFrom DBI dbDisconnect
 #' @importFrom digest digest2int
 #' @noRd
-repel_cases_split <- function(conn){
+repel_cases <- function(conn){
   tbl(conn, "annual_reports_animal_hosts") %>%
     filter(taxa %in% taxa_list) %>%
     filter(report_semester != "0") %>%
@@ -22,7 +22,7 @@ repel_cases_split <- function(conn){
 #' @return a tibble
 #' @export
 repel_cases_train <- function(conn){
-  repel_cases_split(conn) %>%
+  repel_cases(conn) %>%
     filter(!validation_set) %>%
     select(-validation_set)
 }
@@ -33,7 +33,7 @@ repel_cases_train <- function(conn){
 #' @return a tibble
 #' @export
 repel_cases_validate <- function(conn){
-  repel_cases_split(conn) %>%
+  repel_cases(conn) %>%
     filter(validation_set) %>%
     select(-validation_set)
 }

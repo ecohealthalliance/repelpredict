@@ -3,7 +3,7 @@
 #' @import repeldata dplyr tidyr
 
 case_lag_lookup <- function(conn){
-  repel_cases_split(conn) %>%
+  repel_cases(conn) %>%
     mutate(report_period = as.numeric(paste0(report_year, report_semester))) %>% # temp for filtering
     left_join(expand(., nesting(country_iso3c, disease, taxa), report_period), .,  by = c("country_iso3c", "disease", "taxa", "report_period")) %>%
     group_by(country_iso3c, disease, taxa) %>%
