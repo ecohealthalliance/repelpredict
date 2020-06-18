@@ -2,6 +2,8 @@ taxa_list <- c("goats", "sheep",  "sheep/goats", # handling for multiple species
                "cattle", "birds", "camelidae", "dogs", "equidae",
                "cats", "cervidae" , "swine" , "buffaloes", "hares/rabbits")
 
+group_vars <- c("country_iso3c", "report_year", "report_semester", "disease", "disease_population", "taxa")
+
 #' @import repeldata dplyr tidyr
 #' @importFrom DBI dbDisconnect
 #' @importFrom digest digest2int

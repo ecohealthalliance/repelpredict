@@ -14,20 +14,16 @@ bart_predict <- function(model, newdata) {
 }
 
 # Baseline ----------------------------------------------------------------
+#TODO - define seprate outcomes - binary versus count. keep in mind disease_status can be present but with NA cases (so you need to lag disease status)
+
 sample_size <- 150
 model_object <- nowcast_baseline_model()
 newdata <- repel_cases_train(conn) %>%
-  select("country_iso3c", "report_year", "report_semester", "disease", "taxa") %>%
+  select(all_of(group_vars)) %>%
   slice(sample(1:nrow(.), size = sample_size))
 
 augmented_data <- repel_augment(model_object = model_object, conn = conn, newdata = newdata)
 assertthat::are_equal(sample_size, nrow(augmented_data))
-# TODO ^ NEED TO HANDLE DUPEs (related to serotypes and disease populations)
-# diseases should be either wild or domestic. depends on what they are predominantly classified as. default to domestic.
-# later in UI - have a menu selection to allow user to choose from available population
-# split out serotypes (avian influenzas can be very diff)
-# default to predict separately on serotypes (in interface)
-# NEED TO CLEAN SEROTYPE FIELD
 
 predicted_data <- repel_predict(model_object = model_object, augmented_data = augmented_data)
 

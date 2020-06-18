@@ -5,13 +5,13 @@
 case_lag_lookup <- function(conn){
   repel_cases(conn) %>%
     mutate(report_period = as.numeric(paste0(report_year, report_semester))) %>% # temp for filtering
-    left_join(expand(., nesting(country_iso3c, disease, taxa), report_period), .,  by = c("country_iso3c", "disease", "taxa", "report_period")) %>%
-    group_by(country_iso3c, disease, taxa) %>%
+    left_join(expand(., nesting(country_iso3c, disease, disease_population, taxa), report_period), .,  by = c("country_iso3c", "disease", "disease_population", "taxa", "report_period")) %>%
+    group_by(country_iso3c, disease, disease_population, taxa) %>%
     mutate(cases_lag1 = lag(cases, order_by = report_period, n = 1, default = NA)) %>%
     mutate(cases_lag2 = lag(cases, order_by = report_period, n = 2, default = NA)) %>%
     mutate(cases_lag3 = lag(cases, order_by = report_period, n = 3, default = NA)) %>%
     ungroup() %>%
-    select(country_iso3c, disease, taxa, report_period, starts_with("cases"))
+    select(country_iso3c, disease, disease_population, taxa, report_period, disease_status, starts_with("cases"))
 }
 
 
