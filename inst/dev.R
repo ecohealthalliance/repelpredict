@@ -3,19 +3,18 @@ library(tidyverse)
 library(tictoc)
 library(dbarts)
 library(ceterisParibus)
-set.seed(99)
 
 #repeldata::repel_local_download()
 conn <- repeldata::repel_local_conn()
 
 # function for bart model predict
 bart_predict <- function(model, newdata) {
-  apply(predict(object = model, test = newdata), 2, mean)
+  apply(predict(model, newdata), 2, mean)
 }
 
 # Baseline ----------------------------------------------------------------
 #TODO - define seprate outcomes - binary versus count. keep in mind disease_status can be present but with NA cases (so you need to lag disease status)
-#TODO - WAHIS: if disease is present and absent, select only present
+#TODO - WAHIS: if disease is present and absent, select only present (hosts table)
 
 sample_size <- 150
 model_object <- nowcast_baseline_model()
@@ -44,52 +43,34 @@ traindat <- repel_cases_train(conn) %>%
 #   group_by(taxa, disease) %>%
 #   count()
 
+# BART model to predict presence/abense --------------------------------------------------------------------
+# https://github.com/vdorie/dbarts/issues/12
+
 augmented_data <- repel_augment(model_object = model_object, conn = conn, traindat = traindat, binary_outcome = TRUE) %>%
   arrange(country_iso3c, disease, taxa, report_year, report_semester)
 
-rare_diseases <- augmented_data %>%
-  group_by(disease) %>%
-  count(sort = TRUE) %>%
-  filter(n<=1000) %>%
-  ungroup()
-
-# augmented_data <- augmented_data %>%
-#   mutate(rare_disease = disease %in% rare_diseases$disease)
-
-augmented_data <- augmented_data %>%
-  mutate(disease_status = as.logical(disease_status))
-
-treatments <- vtreat::designTreatmentsC(dframe = augmented_data,
-                                        varlist = 'disease',
-                                        outcomename = 'rare_disease',
-                                        outcometarget = TRUE,
-                                        verbose=TRUE)
-
-
-treatments <- designTreatmentsC(augmented_data, colnames(augmented_data), 'disease_status', TRUE,
-                                 verbose=TRUE)
-augmented_data_treated <-  vtreat::prepare(treatments, augmented_data, pruneSig=1.0, scale = TRUE)
-
-vars <- setdiff(colnames(augmented_data_treated), "disease_status" )
-# all input variables should be mean 0
-sapply(augmented_data_treated[, vars, drop=FALSE], mean)
-
-
-# BART model to predict presence/abense --------------------------------------------------------------------
-# https://github.com/vdorie/dbarts/issues/12
-bart_mod <- bart2(formula = disease_status ~ ., data = augmented_data, test = select(augmented_data, -disease_status),
+bart_mod <- bart2(formula = disease_status ~ .,
+                  data = augmented_data,
+                  test = select(augmented_data, -disease_status),
+                  keepTrees = TRUE,
                   verbose = TRUE)
-write_rds(bart_mod, "bart_presence_model.rds")
 
-# to transform to probabilities:
-# pnorm(bart_mod$yhat.train)
+# generated 2020-06-19 4:38pm, 12.gb - full augmented training set
+# write_rds(bart_mod, "bart_presence_model.rds")
+# bart_mod <- read_rds("bart_presence_model.rds")
+
 # posterior means:
-# apply(pnorm(bart_mod$yhat.train), 3, mean)
-# test against predictions using the predict function:
-mean(abs(bart_mod$yhat.train - predict(bart_mod, select(augmented_data, -disease_status))))
+bart_mod_means <- apply(pnorm(bart_mod$yhat.train), 3, mean)
+hist(bart_mod_means)
+bart_mod_eval <- tibble(predicted = bart_mod_means, actual = augmented_data$disease_status) %>%
+  mutate(match = round(predicted) == actual)
 
+# percent accuracy
+perc <- table(bart_mod_eval$match)
+perc[['TRUE']]/nrow(bart_mod_eval)
 
-bart_predictions <- predict(object = bart_mod, test = select(augmented_data, -disease_status))
+# below fails to run, but predict should return the same as yhat.train, I think? https://github.com/vdorie/dbarts/issues/12
+# bart_predictions <- predict(object = bart_mod, newdata = select(augmented_data, -disease_status))
 
 bartexp <- DALEX::explain(bart_mod,
                           data = select(augmented_data, -disease_status),
@@ -97,10 +78,10 @@ bartexp <- DALEX::explain(bart_mod,
                           predict_function = bart_predict, label = "BART")
 write_rds(bartexp, "bart_presence_model_explainer.rds")
 
+# eek Error: cannot allocate vector of size 176.4 Gb
 bartcpm <- ceteris_paribus(bartexp,
                            observations = select(augmented_data, -disease_status),
                            y= augmented_data$disease_status)
-
 
 # Next:
 # ICE
@@ -111,18 +92,19 @@ augmented_data <- repel_augment(model_object = model_object, conn = conn, traind
   arrange(country_iso3c, disease, taxa, report_year, report_semester)
 
 augmented_data <- augmented_data %>%
-  filter(cases>0) %>%
-  mutate_if(is.numeric, ~log(replace_na(na_if(., 0), 0.5)))
+  filter(cases>0)
 
-bart_mod <- bart(x.train = select(augmented_data, -cases),
-                 y.train = pull(augmented_data, cases),
-                 verbose = TRUE,
-                 keeptrees = TRUE)
+bart_mod <- bart2(formula = cases ~ .,
+                  data = augmented_data,
+                  test = select(augmented_data, -cases),
+                  keepTrees = TRUE,
+                  verbose = TRUE)
 
-plot(bart_mod)
+# write_rds(bart_mod, "bart_count_model.rds")
 
 bart_predictions <- bart_predict(model = bart_mod, newdata = select(augmented_data, -cases))
 augmented_data$cases_predicted <- bart_predictions
+
 plot(augmented_data$cases, augmented_data$cases_predicted)
 
 bartexp <- DALEX::explain(bart_mod,
@@ -137,8 +119,6 @@ bartcpm <- ceteris_paribus(bartexp,
 
 
 # how well does it do with missing data - score - expect wider interval on NA data
-
-# baseline needs binary and numeric value
 
 # need validate(model_object, newdata)
 

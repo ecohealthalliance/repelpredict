@@ -31,7 +31,9 @@ repel_augment.nowcast_bart <- function(model_object, conn, traindat, binary_outc
     collect()
 
   traindat_augment_borders <- traindat_augment %>%
-    distinct(country_origin = country_iso3c, disease, taxa, report_year, report_semester) %>%
+    select(all_of(grouping_vars)) %>%
+    distinct() %>%
+    rename(country_origin = country_iso3c) %>%
     left_join(borders,  by = "country_origin") %>%
     rename(country_iso3c = country_destination)
 
@@ -40,12 +42,12 @@ repel_augment.nowcast_bart <- function(model_object, conn, traindat, binary_outc
   borders_sum <- borders_augment %>%
     select(-cases) %>%
     pivot_longer(cols = c(cases_lag1, cases_lag2, cases_lag3)) %>%
-    group_by(country_origin, disease, taxa, report_year, report_semester) %>%
+    group_by(country_origin, disease, disease_population, taxa, report_year, report_semester) %>%
     summarize(cases_border_countries = sum_na(as.integer(value))) %>%
     ungroup() %>%
     rename(country_iso3c = country_origin)
 
-  traindat_augment <- left_join(traindat_augment, borders_sum, by = c("country_iso3c", "report_year", "report_semester", "disease", "taxa"))
+  traindat_augment <- left_join(traindat_augment, borders_sum, by = grouping_vars)
 
   # vet capacity
   vets <- tbl(conn, "annual_reports_veterinarians") %>%
@@ -132,7 +134,7 @@ repel_augment.nowcast_bart <- function(model_object, conn, traindat, binary_outc
   if(binary_outcome){
     # disease_status column needed for binary bart model
     assertthat::has_name(traindat_augment, c("disease_status"))
-  traindat_augment <- traindat_augment %>%
+    traindat_augment <- traindat_augment %>%
       select(-cases) %>%
       mutate(disease_status = recode(disease_status, "present" = 1, "suspected" = 1, "absent" = 0))
   }else{
