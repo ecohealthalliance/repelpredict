@@ -9,7 +9,7 @@ get_nowcast_lag <- function(conn, casedat){
   model_lookup <- case_lag_lookup(conn)
 
   # check casedat has correct input vars
-  assertthat::has_name(casedat, group_vars)
+  assertthat::has_name(casedat, grouping_vars)
 
   # check that taxa in casedat are relevant
   assertthat::assert_that(all(unique(casedat$taxa) %in% taxa_list))
@@ -25,7 +25,7 @@ get_nowcast_lag <- function(conn, casedat){
   #TODO - move this to WAHIS (it's done for the animal diseases but not animal host tables)
   lagdat <- lagdat %>%
     mutate(disease_status_rank = recode(disease_status, "present" = 1, "suspected" = 1, "absent" = 2, "unreported" = 3)) %>%
-    group_by_at(.vars = group_vars) %>%
+    group_by_at(.vars = grouping_vars) %>%
     filter(disease_status_rank == min(disease_status_rank)) %>%
     ungroup() %>%
     select(-disease_status_rank)

@@ -15,11 +15,12 @@ bart_predict <- function(model, newdata) {
 
 # Baseline ----------------------------------------------------------------
 #TODO - define seprate outcomes - binary versus count. keep in mind disease_status can be present but with NA cases (so you need to lag disease status)
+#TODO - WAHIS: if disease is present and absent, select only present
 
 sample_size <- 150
 model_object <- nowcast_baseline_model()
 newdata <- repel_cases_train(conn) %>%
-  select(all_of(group_vars)) %>%
+  select(all_of(grouping_vars)) %>%
   slice(sample(1:nrow(.), size = sample_size))
 
 augmented_data <- repel_augment(model_object = model_object, conn = conn, newdata = newdata)
@@ -35,9 +36,8 @@ scored_data <- repel_score(model_object = model_object, augmented_data = augment
 model_object <- nowcast_bart_model()
 
 traindat <- repel_cases_train(conn) %>%
-  mutate(cases = ifelse(disease_status == "absent", 0, cases)) %>% # this is temporary
   drop_na(cases) %>%
-  select("country_iso3c", "report_year", "report_semester", "disease", "taxa", "disease_status")
+  select(all_of(grouping_vars))
 
 # summary table of taxa by disease - looking at sheep/goat combo
 # traindat %>%
