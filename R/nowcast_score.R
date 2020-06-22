@@ -9,32 +9,49 @@ repel_score <- function(x, ...){
 #'
 repel_score.nowcast_baseline <- function(model_object, augmented_data, predicted_data) {
 
-  cases_actual <- augmented_data$cases
-  disease_status_actual <-  augmented_data$disease_status
-
   cases_predicted <- predicted_data$predicted_cases
   disease_status_predicted <-  predicted_data$predicted_disease_status
 
   cases_comp <- augmented_data %>%
-    select(all_of(grouping_vars)) %>%
-    mutate(cases_actual = cases_actual) %>%
+    select(all_of(grouping_vars), cases_actual = cases, cases_lag1) %>%
     mutate(cases_predicted = cases_predicted) %>%
-    mutate(diff = abs(cases_actual - cases_predicted))
+    mutate(cases_lag1 = replace_na(cases_lag1, 0)) %>% # this is same assumption as predict function
+    mutate(cases_abs_diff = abs(cases_actual - cases_predicted)) %>%
+    mutate(cases_dirchange_actual = cases_actual - cases_lag1) %>%
+    mutate(cases_dirchange_predicted = cases_predicted - cases_lag1) %>%
+    mutate_at(.vars = c("cases_dirchange_actual", "cases_dirchange_predicted"),
+              ~case_when(. == 0 ~ "no change",
+                         . > 0 ~ "increase",
+                         . < 0 ~ "decrease")) %>%
+    mutate(cases_dirchange_match = cases_dirchange_actual == cases_dirchange_predicted)
+
 
   disease_status_comp <- augmented_data %>%
-    select(all_of(grouping_vars), disease_status_lag1) %>%
-    mutate(disease_status_lag1 = replace_na(disease_status_lag1, 0)) %>%
-    mutate(disease_status_actual = disease_status_actual) %>%
-    mutate(disease_status_change = disease_status_actual - disease_status_lag1) %>%
-    #mutate(disease_status_change = recode(disease_status_change, `1` = "new presence"))
+    select(all_of(grouping_vars), disease_status_actual = disease_status, disease_status_lag1) %>%
+    mutate(disease_status_lag1 = replace_na(disease_status_lag1, 0)) %>% # this is same assumption as predict function
     mutate(disease_status_predicted = disease_status_predicted) %>%
-    mutate(disease_status_match = disease_status_actual == disease_status_predicted)
+    mutate(disease_status_match = disease_status_actual == disease_status_predicted) %>%
+    mutate(disease_status_switch_actual = disease_status_actual - disease_status_lag1) %>%
+    mutate(disease_status_switch_predicted = disease_status_predicted - disease_status_lag1) %>%
+    mutate_at(.vars = c("disease_status_switch_actual", "disease_status_switch_predicted"), ~recode(.,
+                                                                                                    `1` = "new presence",
+                                                                                                    `0` = "no switch",
+                                                                                                    `-1` = "eliminated")) %>%
+    mutate(disease_status_switch_match = disease_status_switch_actual == disease_status_switch_predicted)
 
-  list(cases_comp,
-       cases_score = median(cases_comp$diff, na.rm = TRUE),
-       disease_status_comp,
-       cases_presence_confusion_matrix = table(disease_status_comp %>% select(disease_status_actual, disease_status_predicted)),
-       cases_presence_score = sum(disease_status_comp$match)/nrow(disease_status_comp)
-       )
+  list(
+    # case count model
+    cases_tibble = cases_comp %>%
+      select(all_of(grouping_vars), cases_actual, cases_predicted, cases_abs_diff),
+    cases_direction_confusion_matrix = table(cases_comp %>% select(cases_dirchange_actual, cases_dirchange_predicted)), #this automatically removes NA
+    cases_direction_prediction_accuracy = sum(cases_comp$cases_dirchange_match, na.rm = TRUE)/nrow(cases_comp %>% drop_na(cases_dirchange_match)),
+    # binary disease status model
+    disease_status_tibble = disease_status_comp %>%
+      select(all_of(grouping_vars), disease_status_actual, disease_status_predicted, disease_status_match),
+    disease_status_confusion_matrix = table(disease_status_comp %>% select(disease_status_actual, disease_status_predicted)),
+    disease_status_prediction_accuracy = sum(disease_status_comp$disease_status_match)/nrow(disease_status_comp),
+    disease_status_switch_confusion_matrix = table(disease_status_comp %>% select(disease_status_switch_actual, disease_status_switch_predicted)),
+    disease_status_switch_confusion_accuracy = sum(disease_status_comp$disease_status_switch_match)/nrow(disease_status_comp)
+  )
 
 }
