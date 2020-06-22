@@ -8,10 +8,11 @@ repel_augment <- function(x, ...){
 #' @import repeldata dplyr tidyr
 #' @importFrom assertthat has_name assert_that
 #'
-repel_augment.nowcast_baseline <- function(model_object, conn, newdata) {
+repel_augment.nowcast_baseline <- function(model_object, conn, traindat) {
 
-  get_nowcast_lag(conn, casedat = newdata) %>%
-    select(-cases_lag2, -cases_lag3)
+  get_nowcast_lag(conn, casedat = traindat) %>%
+    select(-cases_lag2, -cases_lag3) %>%
+    mutate_at(.vars = c("disease_status", "disease_status_lag1", "disease_status_lag2", "disease_status_lag3"), ~recode(., "present" = 1, "suspected" = 1, "absent" = 0))
 
 }
 

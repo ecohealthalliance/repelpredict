@@ -16,20 +16,21 @@ bart_predict <- function(model, newdata) {
 #TODO - define seprate outcomes - binary versus count. keep in mind disease_status can be present but with NA cases (so you need to lag disease status)
 #TODO - WAHIS: if disease is present and absent, select only present (hosts table)
 
-sample_size <- 150
 model_object <- nowcast_baseline_model()
-newdata <- repel_cases_train(conn) %>%
+traindat <- repel_cases_train(conn) %>%
   select(all_of(grouping_vars)) %>%
-  slice(sample(1:nrow(.), size = sample_size))
+  distinct()
 
-augmented_data <- repel_augment(model_object = model_object, conn = conn, newdata = newdata)
-assertthat::are_equal(sample_size, nrow(augmented_data))
+augmented_data <- repel_augment(model_object = model_object, conn = conn, traindat = traindat)
+
+#assertthat::are_equal(nrow(traindat), nrow(augmented_data))
+# ^ there are some dupes in cases where both present and suspected have counts
 
 predicted_data <- repel_predict(model_object = model_object, augmented_data = augmented_data)
 
-repel_forecast(model_object = model_object, conn = conn, newdata = newdata)
+repel_forecast(model_object = model_object, conn = conn, newdata = traindat)
 
-scored_data <- repel_score(model_object = model_object, augmented_data = augmented_data)
+scored_data <- repel_score(model_object = model_object, augmented_data = augmented_data, predicted_data = predicted_data)
 
 # BART Prep --------------------------------------------------------------------
 model_object <- nowcast_bart_model()
@@ -101,6 +102,7 @@ bart_mod <- bart2(formula = cases ~ .,
                   verbose = TRUE)
 
 # write_rds(bart_mod, "bart_count_model.rds")
+read_rds("bart_count_model.rds")
 
 bart_predictions <- bart_predict(model = bart_mod, newdata = select(augmented_data, -cases))
 augmented_data$cases_predicted <- bart_predictions

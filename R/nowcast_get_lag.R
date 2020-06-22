@@ -16,19 +16,10 @@ get_nowcast_lag <- function(conn, casedat){
 
   # get cases and last three semesters
   lagdat <- casedat %>%
-    select(-suppressWarnings(one_of("cases"))) %>%
+    select(-suppressWarnings(one_of("cases")), -suppressWarnings(one_of("disease_status"))) %>%
     mutate(report_period = as.integer(paste0(report_year, report_semester))) %>%
     left_join(model_lookup, by = c("country_iso3c", "disease", "disease_population", "taxa", "report_period")) %>%
     select(-report_period)
-
-  # if disease is present and absent, select only present
-  #TODO - move this to WAHIS (it's done for the animal diseases but not animal host tables)
-  lagdat <- lagdat %>%
-    mutate(disease_status_rank = recode(disease_status, "present" = 1, "suspected" = 1, "absent" = 2, "unreported" = 3)) %>%
-    group_by_at(.vars = grouping_vars) %>%
-    filter(disease_status_rank == min(disease_status_rank)) %>%
-    ungroup() %>%
-    select(-disease_status_rank)
 
   return(lagdat)
 }
