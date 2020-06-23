@@ -16,7 +16,8 @@ repel_score.nowcast_baseline <- function(model_object, augmented_data, predicted
     select(all_of(grouping_vars), cases_actual = cases, cases_lag1) %>%
     mutate(cases_predicted = cases_predicted) %>%
     mutate(cases_lag1 = replace_na(cases_lag1, 0)) %>% # this is same assumption as predict function
-    mutate(cases_abs_diff = abs(cases_actual - cases_predicted)) %>%
+    mutate(cases_error = cases_actual - cases_predicted) %>%
+    mutate(cases_error_perc = 100*abs(cases_error/cases_actual)) %>%
     mutate(cases_dirchange_actual = cases_actual - cases_lag1) %>%
     mutate(cases_dirchange_predicted = cases_predicted - cases_lag1) %>%
     mutate_at(.vars = c("cases_dirchange_actual", "cases_dirchange_predicted"),
@@ -25,6 +26,9 @@ repel_score.nowcast_baseline <- function(model_object, augmented_data, predicted
                          . < 0 ~ "decrease")) %>%
     mutate(cases_dirchange_match = cases_dirchange_actual == cases_dirchange_predicted)
 
+  cases_error <-  cases_comp %>%
+    filter(!is.na(cases_actual) & cases_actual != 0) %>%
+    pull(cases_error_perc)
 
   disease_status_comp <- augmented_data %>%
     select(all_of(grouping_vars), disease_status_actual = disease_status, disease_status_lag1) %>%
@@ -42,9 +46,11 @@ repel_score.nowcast_baseline <- function(model_object, augmented_data, predicted
   list(
     # case count model
     cases_tibble = cases_comp %>%
-      select(all_of(grouping_vars), cases_actual, cases_predicted, cases_abs_diff),
+      select(all_of(grouping_vars), cases_actual, cases_predicted, cases_error),
     cases_direction_confusion_matrix = table(cases_comp %>% select(cases_dirchange_actual, cases_dirchange_predicted)), #this automatically removes NA
     cases_direction_prediction_accuracy = sum(cases_comp$cases_dirchange_match, na.rm = TRUE)/nrow(cases_comp %>% drop_na(cases_dirchange_match)),
+    mean_abs_perc_error = mean(cases_error),
+    p95_abs_perc_error = quantile(cases_error, 0.95),
     # binary disease status model
     disease_status_tibble = disease_status_comp %>%
       select(all_of(grouping_vars), disease_status_actual, disease_status_predicted, disease_status_match),
