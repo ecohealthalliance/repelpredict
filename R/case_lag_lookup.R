@@ -3,17 +3,8 @@
 #' @import repeldata dplyr tidyr
 
 case_lag_lookup <- function(conn){
-
   # if disease is present and absent, select only present
-  #TODO - move this to WAHIS (it's done for the animal diseases but not animal host tables)
-  lagdat <- repel_cases(conn) %>%
-    mutate(disease_status_rank = recode(disease_status, "present" = 1, "suspected" = 1, "absent" = 2, "unreported" = 3)) %>%
-    group_by_at(.vars = grouping_vars) %>%
-    filter(disease_status_rank == min(disease_status_rank)) %>%
-    ungroup() %>%
-    select(-disease_status_rank)
-
-  lagdat  %>%
+ repel_cases(conn) %>%
     mutate(report_period = as.numeric(paste0(report_year, report_semester))) %>% # temp for filtering
     left_join(expand(., nesting(country_iso3c, disease, disease_population, taxa), report_period), .,  by = c("country_iso3c", "disease", "disease_population", "taxa", "report_period")) %>%
     group_by(country_iso3c, disease, disease_population, taxa) %>%
