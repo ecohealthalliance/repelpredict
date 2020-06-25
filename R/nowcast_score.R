@@ -4,18 +4,19 @@ repel_score <- function(x, ...){
 }
 
 
-#' Score accuracy of nowcast baseline model object
+#' Score accuracy of nowcast baseline or bart model object
 #' @return list containing predicted count and whether disease is expected or not (T/F)
 #'
-repel_score.nowcast_baseline <- function(model_object, augmented_data, predicted_data) {
+repel_score.nowcast_model <- function(model_object, augmented_data, predicted_data) {
 
   cases_predicted <- predicted_data$predicted_cases
   disease_status_predicted <-  predicted_data$predicted_disease_status
 
-  cases_comp <- augmented_data %>%
+  cases_comp <-
+    modify_augmented_data(augmented_data = augmented_data,
+                          outcome_var = "cases") %>%
     select(all_of(grouping_vars), cases_actual = cases, cases_lag1) %>%
     mutate(cases_predicted = cases_predicted) %>%
-    mutate(cases_lag1 = replace_na(cases_lag1, 0)) %>% # this is same assumption as predict function
     mutate(cases_error = cases_actual - cases_predicted) %>%
     mutate(cases_error_perc = 100*abs(cases_error/cases_actual)) %>%
     mutate(cases_dirchange_actual = cases_actual - cases_lag1) %>%
@@ -30,7 +31,9 @@ repel_score.nowcast_baseline <- function(model_object, augmented_data, predicted
     filter(!is.na(cases_actual) & cases_actual != 0) %>%
     pull(cases_error_perc)
 
-  disease_status_comp <- augmented_data %>%
+  disease_status_comp <-
+    modify_augmented_data(augmented_data = augmented_data,
+                          outcome_var = "disease_status") %>%
     select(all_of(grouping_vars), disease_status_actual = disease_status, disease_status_lag1) %>%
     mutate(disease_status_lag1 = replace_na(disease_status_lag1, 0)) %>% # this is same assumption as predict function
     mutate(disease_status_predicted = disease_status_predicted) %>%

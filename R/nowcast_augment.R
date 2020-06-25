@@ -11,9 +11,12 @@ repel_augment <- function(x, ...){
 repel_augment.nowcast_baseline <- function(model_object, conn, traindat) {
 
   get_nowcast_lag(conn, casedat = traindat) %>%
-    select(-cases_lag2, -cases_lag3) %>%
-    mutate_at(.vars = c("disease_status", "disease_status_lag1", "disease_status_lag2", "disease_status_lag3"),
-              ~recode(., "present" = 1, "suspected" = 1, "absent" = 0))
+    select(-cases_lag2, -cases_lag3, -disease_status_lag2, -disease_status_lag3) %>%
+    mutate_at(.vars = c("disease_status", "disease_status_lag1"),
+              ~recode(., "present" = 1, "suspected" = 1, "absent" = 0)) %>%
+    # cases and disease_status can have NAs, but assume 0 for lags
+    mutate(disease_status_lag1 = replace_na(disease_status_lag1, 0)) %>%
+    mutate(cases_lag1 = replace_na(cases_lag1, 0))
 
 }
 
@@ -21,7 +24,7 @@ repel_augment.nowcast_baseline <- function(model_object, conn, traindat) {
 #' @import repeldata dplyr tidyr
 #' @importFrom assertthat has_name assert_that
 #'
-repel_augment.nowcast_bart <- function(model_object, conn, traindat, binary_outcome = TRUE) {
+repel_augment.nowcast_bart <- function(model_object, conn, traindat) {
 
   # get lag cases
   traindat_augment <- get_nowcast_lag(conn, casedat = traindat)
@@ -116,6 +119,13 @@ repel_augment.nowcast_bart <- function(model_object, conn, traindat, binary_outc
     mutate(veterinarian_count = ifelse(is.na(veterinarian_count), rpois(sum(is.na(veterinarian_count)), 20), veterinarian_count)) %>%
     mutate(taxa_population = ifelse(is.na(taxa_population), rpois(sum(is.na(taxa_population)), 50), taxa_population))
 
+
+  # recode disease status
+  traindat_augment <- traindat_augment %>%
+    mutate_at(.vars = c("disease_status_lag1",  "disease_status_lag2",  "disease_status_lag3"),
+              ~recode(., "present" = 1, "suspected" = 1, "absent" = 0, .missing = 0)) %>%
+    mutate(disease_status = recode(disease_status, "present" = 1, "suspected" = 1, "absent" = 0))
+
   # case NAs - replace with 0s?
   case_vars <- c("cases_lag1", "cases_lag2", "cases_lag3", "cases_border_countries")
   for(var in case_vars){
@@ -132,17 +142,6 @@ repel_augment.nowcast_bart <- function(model_object, conn, traindat, binary_outc
     ungroup() %>%
     select(-report_period)
 
-  # finalize
-  if(binary_outcome){
-    # disease_status column needed for binary bart model
-    assertthat::has_name(traindat_augment, c("disease_status"))
-    traindat_augment <- traindat_augment %>%
-      select(-cases) %>%
-      mutate(disease_status = recode(disease_status, "present" = 1, "suspected" = 1, "absent" = 0))
-  }else{
-    traindat_augment <- traindat_augment %>%
-      select(-disease_status)
-  }
   return(traindat_augment)
 
 }
@@ -163,6 +162,25 @@ na_interp <- function(df, var){
     out <- mutate(df,  !!paste0(var, "_imputed") := imputeTS::na_interpolation(get(var)))
   }
   return(out)
+}
+
+
+#'@noRd
+modify_augmented_data <- function(augmented_data, outcome_var){
+
+  stopifnot(outcome_var %in% c("disease_status", "cases"))
+
+  if(outcome_var == "disease_status"){
+    modified_data <- augmented_data %>%
+      select(-cases)
+  }
+  if(outcome_var == "cases"){
+    modified_data <- augmented_data %>%
+      select(-disease_status) %>%
+      drop_na(cases) %>%
+      filter(cases > 0)
+  }
+  return(modified_data)
 }
 
 

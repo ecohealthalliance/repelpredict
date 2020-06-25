@@ -11,5 +11,5 @@ repel_forecast <- function(x, ...){
 repel_forecast.nowcast_model <- function(model_object, conn, newdata) {
   augmented_data <- repel_augment(model_object, conn, newdata)
   predictions <- repel_predict(model_object, augmented_data)
-  return(predictions)
+  return(list(augmented_data = augmented_data, predicted_data = predictions))
 }
