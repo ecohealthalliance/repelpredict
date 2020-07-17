@@ -3,6 +3,25 @@ repel_augment <- function(x, ...){
   UseMethod("repel_augment")
 }
 
+#' Augment nowcast baseline model object
+#'
+
+repel_augment.nowcast_gam <- function(model_object, conn, newdata, lags = 1:3, rare = 1000) {
+  dat <- repel_augment.nowcast_bart(model_object, conn, newdata, binary_outcome = FALSE, lags = lags)
+  dat <- dat %>%
+    mutate(condition = factor(paste(dat$disease, taxa, sep = "-"))) %>%
+    mutate(condition = fct_lump_min(condition, rare, other_level = "rare_condition")) %>%
+    mutate(log10_gdp = log10(gdp_dollars)) %>%
+    mutate_at(vars(cases_lag1_missing, cases_border_countries_missing, first_reporting_semester, veterinarian_count_missing, taxa_population_missing, gdp_dollars_missing),
+              ~as.numeric(!.))
+  dat$cases_lagged <- as.matrix(select(dat, matches("^cases_lag\\d+$")))
+  dat <- select(dat, -matches("^cases_lag\\d+$"))
+  dat$lags <- matrix(lags, ncol = length(lags), nrow = nrow(dat), byrow = TRUE)
+  dat$condition_lagged <- matrix(rep(as.integer(dat$condition), length(lags)), nrow = nrow(dat), ncol = length(lags), byrow = FALSE)
+  return(dat)
+}
+
+
 
 #' Augment nowcast baseline model object
 #' @import repeldata dplyr tidyr
@@ -10,8 +29,7 @@ repel_augment <- function(x, ...){
 #'
 repel_augment.nowcast_baseline <- function(model_object, conn, traindat) {
 
-  get_nowcast_lag(conn, casedat = traindat) %>%
-    select(-cases_lag2, -cases_lag3) %>%
+  get_nowcast_lag(conn, casedat = traindat, lags = 1) %>%
     mutate_at(.vars = c("disease_status", "disease_status_lag1", "disease_status_lag2", "disease_status_lag3"), ~recode(., "present" = 1, "suspected" = 1, "absent" = 0))
 
 }
@@ -20,10 +38,10 @@ repel_augment.nowcast_baseline <- function(model_object, conn, traindat) {
 #' @import repeldata dplyr tidyr
 #' @importFrom assertthat has_name assert_that
 #'
-repel_augment.nowcast_bart <- function(model_object, conn, traindat, binary_outcome = TRUE) {
+repel_augment.nowcast_bart <- function(model_object, conn, traindat, binary_outcome = TRUE, lags = 1:3) {
 
   # get lag cases
-  traindat_augment <- get_nowcast_lag(conn, casedat = traindat)
+  traindat_augment <- get_nowcast_lag(conn, casedat = traindat, lags = lags)
 
   # get summed lag values of adjacent countries
   borders <- tbl(conn, "connect_static_vars") %>%
@@ -41,8 +59,7 @@ repel_augment.nowcast_bart <- function(model_object, conn, traindat, binary_outc
   borders_augment <- get_nowcast_lag(conn, casedat = traindat_augment_borders)
 
   borders_sum <- borders_augment %>%
-    select(-cases) %>%
-    pivot_longer(cols = c(cases_lag1, cases_lag2, cases_lag3)) %>%
+    pivot_longer(cols = starts_with("cases_lag")) %>%
     group_by(country_origin, disease, disease_population, taxa, report_year, report_semester) %>%
     summarize(cases_border_countries = sum_na(as.integer(value))) %>%
     ungroup() %>%
