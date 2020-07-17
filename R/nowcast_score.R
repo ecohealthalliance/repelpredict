@@ -1,4 +1,5 @@
-# define generic score
+#' define generic score
+#' @export
 repel_score <- function(x, ...){
   UseMethod("repel_score")
 }
@@ -6,6 +7,7 @@ repel_score <- function(x, ...){
 
 #' Score accuracy of nowcast baseline or bart model object
 #' @return list containing predicted count and whether disease is expected or not (T/F)
+#' @export
 #'
 repel_score.nowcast_model <- function(model_object, augmented_data, predicted_data) {
 
@@ -16,7 +18,6 @@ repel_score.nowcast_model <- function(model_object, augmented_data, predicted_da
     modify_augmented_data(augmented_data = augmented_data,
                           outcome_var = "cases") %>%
     select(all_of(grouping_vars), cases_actual = cases, cases_lag1) %>%
-    mutate(cases_predicted = cases_predicted) %>%
     mutate(cases_error = cases_actual - cases_predicted) %>%
     mutate(cases_error_perc = 100*abs(cases_error/cases_actual)) %>%
     mutate(cases_dirchange_actual = cases_actual - cases_lag1) %>%

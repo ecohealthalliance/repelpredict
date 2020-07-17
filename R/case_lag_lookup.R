@@ -1,6 +1,7 @@
 #' Support function to generate lag lookup for case data
 #' @param conn either repel_local_conn or repel_remote_conn objects from 'repeldata'
 #' @import repeldata dplyr tidyr
+#' @export
 
 case_lag_lookup <- function(conn){
   # if disease is present and absent, select only present
@@ -21,6 +22,7 @@ case_lag_lookup <- function(conn){
 
 #' column specs for reading in case_lag_lookup csv
 #' @import readr
+#' @export
 case_lag_lookup_specs <- function(){
   cols(
     country_iso3c = col_character(),
@@ -37,6 +39,7 @@ case_lag_lookup_specs <- function(){
 
 #' read in lag lookup for case data
 #' @import readr
+#' @export
 #TODO use vroom? save to aws or database?
 get_case_lag_lookup <- function(){
   readr::read_csv(system.file("files", "case_lag_lookup.csv.xz", package = "repelpredict"),

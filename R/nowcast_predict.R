@@ -1,4 +1,5 @@
 # define generic predict
+#' @export
 repel_predict <- function(x, ...){
   UseMethod("repel_predict")
 }
@@ -10,6 +11,7 @@ bart_predict <- function(model, newdata) {
 
 #' Predict from nowcast baseline model object
 #' @return list containing predicted count and whether disease is expected or not (T/F)
+#' @export
 #'
 repel_predict.nowcast_baseline <- function(model_object, augmented_data) {
   # this assumes NAs are 0s
@@ -25,6 +27,7 @@ repel_predict.nowcast_baseline <- function(model_object, augmented_data) {
 #' Predict from nowcast BART model object
 #' @return list containing predicted count and whether disease is expected or not (T/F)
 #' @importFrom here here
+#' @export
 #'
 repel_predict.nowcast_bart <- function(model_object, augmented_data) {
 

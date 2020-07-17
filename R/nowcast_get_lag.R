@@ -1,6 +1,7 @@
 #' Get lags for case data
 #' @import repeldata dplyr tidyr
 #' @importFrom assertthat has_name assert_that
+#' @export
 #'
 
 get_nowcast_lag <- function(conn, casedat){

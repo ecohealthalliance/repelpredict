@@ -1,4 +1,5 @@
 #' define generic augment
+#' @export
 repel_augment <- function(x, ...){
   UseMethod("repel_augment")
 }
@@ -7,6 +8,7 @@ repel_augment <- function(x, ...){
 #' Augment nowcast baseline model object
 #' @import repeldata dplyr tidyr
 #' @importFrom assertthat has_name assert_that
+#' @export
 #'
 repel_augment.nowcast_baseline <- function(model_object, conn, traindat) {
 
@@ -23,6 +25,7 @@ repel_augment.nowcast_baseline <- function(model_object, conn, traindat) {
 #' Augment nowcast bart model object
 #' @import repeldata dplyr tidyr
 #' @importFrom assertthat has_name assert_that
+#' @export
 #'
 repel_augment.nowcast_bart <- function(model_object, conn, traindat) {
 
