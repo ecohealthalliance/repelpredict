@@ -1,4 +1,5 @@
 # define generic fit
+#' @export
 repel_fit <- function(x, ...){
   UseMethod("repel_fit")
 }
@@ -7,7 +8,7 @@ repel_fit <- function(x, ...){
 #' @return list containing predicted count and whether disease is expected or not (T/F)
 #' @import dplyr tidyr
 #' @importFrom dbarts bart2
-#'
+#' @export
 repel_fit.nowcast_bart <- function(model_object,
                                    augmented_data,
                                    outcome_var,

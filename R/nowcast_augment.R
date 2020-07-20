@@ -9,24 +9,15 @@ repel_augment <- function(x, ...){
 #' @import repeldata dplyr tidyr
 #' @importFrom assertthat has_name assert_that
 #' @export
-#'
 repel_augment.nowcast_baseline <- function(model_object, conn, traindat) {
-
-  get_nowcast_lag(conn, casedat = traindat) %>%
-    select(-cases_lag2, -cases_lag3, -disease_status_lag2, -disease_status_lag3) %>%
-    mutate_at(.vars = c("disease_status", "disease_status_lag1"),
-              ~recode(., "present" = 1, "suspected" = 1, "absent" = 0)) %>%
-    # cases and disease_status can have NAs, but assume 0 for lags
-    mutate(disease_status_lag1 = replace_na(disease_status_lag1, 0)) %>%
-    mutate(cases_lag1 = replace_na(cases_lag1, 0))
-
+  get_nowcast_lag(conn, casedat = traindat, lags = 1) %>%
+    mutate_at(.vars = c("disease_status", "disease_status_lag1"),  ~recode(., "present" = 1, "suspected" = 1, "absent" = 0))
 }
 
 #' Augment nowcast bart model object
 #' @import repeldata dplyr tidyr
 #' @importFrom assertthat has_name assert_that
 #' @export
-#'
 repel_augment.nowcast_bart <- function(model_object, conn, traindat) {
 
   # get lag cases
@@ -179,9 +170,9 @@ modify_augmented_data <- function(augmented_data, outcome_var){
   }
   if(outcome_var == "cases"){
     modified_data <- augmented_data %>%
-      select(-disease_status) %>%
-      drop_na(cases) %>%
-      filter(cases > 0)
+      select(-disease_status)
+      # drop_na(cases) %>%
+      # filter(cases > 0)
   }
   return(modified_data)
 }

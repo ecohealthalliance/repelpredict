@@ -16,9 +16,9 @@ bart_predict <- function(model, newdata) {
 repel_predict.nowcast_baseline <- function(model_object, augmented_data) {
   # this assumes NAs are 0s
   list(
-    predicted_cases = replace_na(augmented_data$cases_lag1, 0),
+    predicted_cases = augmented_data$cases_lag1,
     predicted_disease_status_probability = NA,
-    predicted_disease_status = replace_na(augmented_data$disease_status_lag1, 0),
+    predicted_disease_status = augmented_data$disease_status_lag1,
     na_predicted_cases = which(is.na(augmented_data$cases_lag1)),
     na_predicted_disease_status = which(is.na(augmented_data$disease_status_lag1))
   )
