@@ -15,6 +15,7 @@ repel_augment.nowcast_baseline <- function(model_object, conn, traindat) {
 }
 
 #' Augment nowcast bart model object
+#'
 #' @import repeldata dplyr tidyr
 #' @importFrom assertthat has_name assert_that
 #' @export
@@ -140,6 +141,27 @@ repel_augment.nowcast_bart <- function(model_object, conn, traindat) {
 
 }
 
+
+#' Augment nowcast GAM model object
+#'
+#' @import repeldata dplyr tidyr
+#' @importFrom assertthat has_name assert_that
+#' @export
+#'
+repel_augment.nowcast_gam <- function(model_object, conn, newdata, rare = 1000) {
+  dat <- repel_augment.nowcast_bart(model_object, conn, newdata, lags = lags)
+  dat <- dat %>%
+    mutate(condition = factor(paste(dat$disease, taxa, sep = "-"))) %>%
+    mutate(condition = fct_lump_min(condition, rare, other_level = "rare_condition")) %>%
+    mutate(log10_gdp = log10(gdp_dollars)) %>%
+    mutate_at(vars(cases_lag1_missing, cases_border_countries_missing, first_reporting_semester, veterinarian_count_missing, taxa_population_missing, gdp_dollars_missing),
+              ~as.numeric(!.))
+  dat$cases_lagged <- as.matrix(select(dat, matches("^cases_lag\\d+$")))
+  dat <- select(dat, -matches("^cases_lag\\d+$"))
+  dat$lags <- matrix(lags, ncol = length(lags), nrow = nrow(dat), byrow = TRUE)
+  dat$condition_lagged <- matrix(rep(as.integer(dat$condition), length(lags)), nrow = nrow(dat), ncol = length(lags), byrow = FALSE)
+  return(dat)
+}
 
 #' Adds more NA handling functionality to imputeTS::na_interpolation
 #' @import dplyr tidyr
