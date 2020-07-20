@@ -10,8 +10,18 @@ repel_augment <- function(x, ...){
 #' @importFrom assertthat has_name assert_that
 #' @export
 repel_augment.nowcast_baseline <- function(model_object, conn, traindat) {
-  get_nowcast_lag(conn, casedat = traindat, lags = 1) %>%
-    mutate_at(.vars = c("disease_status", "disease_status_lag1"),  ~recode(., "present" = 1, "suspected" = 1, "absent" = 0))
+
+  lagged_dat <- get_nowcast_lag(conn, casedat = traindat, lags = 1) %>%
+    mutate_at(names(.)[str_detect(names(.), "disease_status")],  ~recode(., "present" = 1, "suspected" = 1, "absent" = 0))
+
+  lag_vars <- colnames(lagged_dat)[str_detect(names(lagged_dat), "disease_status_lag|cases_lag")]
+  for(var in lag_vars){
+    lagged_dat <- lagged_dat %>%
+      mutate(!!paste0(var, "_missing") := is.na(get(var))) %>%
+      mutate_at(var, ~replace_na(., 0))
+  }
+
+  return(lagged_dat)
 }
 
 #' Augment nowcast bart model object
@@ -22,7 +32,7 @@ repel_augment.nowcast_baseline <- function(model_object, conn, traindat) {
 repel_augment.nowcast_bart <- function(model_object, conn, traindat) {
 
   # get lag cases
-  traindat_augment <- get_nowcast_lag(conn, casedat = traindat)
+  traindat_augment <- get_nowcast_lag(conn, casedat = traindat, lags = 1:3)
 
   # get summed lag values of adjacent countries
   borders <- tbl(conn, "connect_static_vars") %>%
@@ -192,9 +202,9 @@ modify_augmented_data <- function(augmented_data, outcome_var){
   }
   if(outcome_var == "cases"){
     modified_data <- augmented_data %>%
-      select(-disease_status)
-      # drop_na(cases) %>%
-      # filter(cases > 0)
+      select(-disease_status) %>%
+      drop_na(cases)
+    # filter(cases > 0)
   }
   return(modified_data)
 }

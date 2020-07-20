@@ -14,10 +14,8 @@ repel_score.nowcast_model <- function(model_object, augmented_data, predicted_da
   cases_predicted <- predicted_data$predicted_cases
   disease_status_predicted <-  predicted_data$predicted_disease_status
 
-  # only score for positive cases
-  cases_comp <-
-    modify_augmented_data(augmented_data = augmented_data,
-                          outcome_var = "cases") %>%
+  # only score for non-na actual cases
+  cases_comp <- augmented_data %>%
     select(all_of(grouping_vars), cases_actual = cases, cases_lag1) %>%
     mutate(cases_predicted = cases_predicted) %>%
     mutate(cases_error = abs(cases_actual - cases_predicted)) %>%
@@ -28,17 +26,14 @@ repel_score.nowcast_model <- function(model_object, augmented_data, predicted_da
                          . > 0 ~ "increase",
                          . < 0 ~ "decrease")) %>%
     mutate(cases_dirchange_match = cases_dirchange_actual == cases_dirchange_predicted) %>%
-    drop_na(cases_actual, cases_predicted)
+    drop_na(cases_actual)
 
   cases_error <-  cases_comp %>%
     pull(cases_error)
 
   # disease status for all cases
-  disease_status_comp <-
-    modify_augmented_data(augmented_data = augmented_data,
-                          outcome_var = "disease_status") %>%
+  disease_status_comp <- augmented_data %>%
     select(all_of(grouping_vars), disease_status_actual = disease_status, disease_status_lag1) %>%
-    mutate(disease_status_lag1 = replace_na(disease_status_lag1, 0)) %>% # this is same assumption as predict function
     mutate(disease_status_predicted = disease_status_predicted) %>%
     mutate(disease_status_match = disease_status_actual == disease_status_predicted) %>%
     mutate(disease_status_switch_actual = disease_status_actual - disease_status_lag1) %>%
@@ -48,7 +43,7 @@ repel_score.nowcast_model <- function(model_object, augmented_data, predicted_da
                                                                                                     `0` = "no switch",
                                                                                                     `-1` = "eliminated")) %>%
     mutate(disease_status_switch_match = disease_status_switch_actual == disease_status_switch_predicted) %>%
-    drop_na(disease_status_actual, disease_status_predicted)
+    drop_na(disease_status_actual)
 
 
   list(

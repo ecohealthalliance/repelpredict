@@ -4,15 +4,17 @@ library(tictoc)
 library(dbarts)
 library(ceterisParibus)
 
+RhpcBLASctl::omp_set_num_threads(36)
+RhpcBLASctl::blas_set_num_threads(36)
+
 #repeldata::repel_local_download()
 conn <- repeldata::repel_local_conn()
 
 # Baseline ----------------------------------------------------------------
-
 # Notes on NA handling
-#   predict NA for cases and disease status when lag1 is NA
-#   count model scoring only calculated for !is.na(cases_actual) & !is.na(cases_predicted)
-#   binary model scoring only calculated for !is.na(disease_status_actual) & !is.na(disease_status_predicted)
+#   count model scoring only calculated for !is.na(cases_actual)
+#   binary model scoring only calculated for !is.na(disease_status_actual)
+#TODO fill as far back as need to, otherwise 0
 
 model_object <- nowcast_baseline_model()
 
@@ -23,7 +25,7 @@ traindat <- repel_cases_train(conn) %>%
 augmented_data <- repel_augment(model_object = model_object, conn = conn, traindat = traindat)
 #assertthat::are_equal(nrow(traindat), nrow(augmented_data))
 # ^ there are some dupes in cases where both present and suspected have counts
-map(augmented_data, ~any(is.na(.))) # should be in cases, and lags
+map(augmented_data, ~any(is.na(.))) # can be in cases and disease status only
 
 predicted_data <- repel_predict(model_object = model_object, augmented_data = augmented_data)
 
@@ -51,27 +53,38 @@ forcasted_data <- repel_forecast(model_object = model_object, conn = conn, newda
 scored_new_data <- repel_score(model_object = model_object,  augmented_data = forcasted_data$augmented_data, predicted_data = forcasted_data$predicted_data)
 
 # BART models --------------------------------------------------------------------
+
+# Notes on NA handling
+#   Impute NAs for lags: assume 0 for NAs
+
 model_object <- nowcast_bart_model()
 
 traindat <- repel_cases_train(conn) %>%
   select(all_of(grouping_vars)) %>%
   distinct()
 
+#TODO make sure this is flexible with dynamic lags and follows logic of NA and missing cols
 augmented_data <- repel_augment(model_object = model_object, conn = conn, traindat = traindat) %>%
   arrange(country_iso3c, disease, taxa, report_year, report_semester)
 map(augmented_data, ~any(is.na(.)))
 
+augmented_data_sub <- augmented_data %>%
+  filter(country_iso3c %in% c("USA", "BEL"))
+
+tic("status model")
 repel_fit(model_object = model_object,
           augmented_data = augmented_data,
           outcome_var = "disease_status",
           output_directory = here::here("models"))
-
+toc()
+tic("cases model")
 repel_fit(model_object = model_object,
           augmented_data = augmented_data,
           outcome_var = "cases",
           output_directory = here::here("models"))
+toc()
 
-predicted_data <- repel_predict(model_object = model_object, augmented_data = augmented_data)
+predicted_data <- repel_predict(model_object = model_object, augmented_data = augmented_data_sub)
 
 scored_data <- repel_score(model_object = model_object, augmented_data = augmented_data, predicted_data = predicted_data)
 
