@@ -16,11 +16,11 @@ bart_predict <- function(model, newdata) {
 repel_predict.nowcast_baseline <- function(model_object, augmented_data) {
   # this assumes NAs are 0s
   list(
-    predicted_cases = replace_na(augmented_data$cases_lag1, 0),
+    predicted_cases = augmented_data$cases_lag1,
     predicted_disease_status_probability = NA,
-    predicted_disease_status = replace_na(augmented_data$disease_status_lag1, 0),
-    na_predicted_cases = which(is.na(augmented_data$cases_lag1)),
-    na_predicted_disease_status = which(is.na(augmented_data$disease_status_lag1))
+    predicted_disease_status = augmented_data$disease_status_lag1,
+    na_predicted_cases = which(augmented_data$cases_lag1_missing),
+    na_predicted_disease_status = which(augmented_data$disease_status_lag1_missing)
   )
 }
 
@@ -30,7 +30,6 @@ repel_predict.nowcast_baseline <- function(model_object, augmented_data) {
 #' @export
 #'
 repel_predict.nowcast_bart <- function(model_object, augmented_data) {
-
 
   bart_mod_disease_status <- read_rds(here::here("models/bart_mod_disease_status.rds"))
   bart_mod_cases <- read_rds(here::here("models/bart_mod_cases.rds"))
@@ -44,5 +43,8 @@ repel_predict.nowcast_bart <- function(model_object, augmented_data) {
     na_predicted_cases = which(is.na(predicted_cases)),
     na_predicted_disease_status = which(is.na(predicted_disease_status))
   )
-  #predicted_means = apply(bart_mod_cases$yhat.train, 3, mean)
+
+
+
+
 }
