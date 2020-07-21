@@ -98,8 +98,8 @@ repel_augment.nowcast_bart <- function(model_object, conn, traindat) {
            human_population_missing = is.na(human_population)) %>%
     arrange(country_iso3c, report_year) %>%
     group_split(country_iso3c) %>%
-    map_df(~na_interp(., "gdp_dollars")) %>%
-    map_df(~na_interp(., "human_population")) %>%
+    map_dfr(~na_interp(., "gdp_dollars") %>%
+              na_interp(., "human_population")) %>%
     select(-gdp_dollars,
            -human_population) %>%
     rename(gdp_dollars = gdp_dollars_imputed,
