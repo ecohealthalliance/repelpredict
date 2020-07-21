@@ -69,7 +69,7 @@ repel_augment.nowcast_bart <- function(model_object, conn, traindat) {
     mutate(veterinarian_count_missing = is.na(veterinarian_count)) %>%
     arrange(country_iso3c, report_year) %>%
     group_split(country_iso3c) %>%
-    map_df(~na_interp(., "veterinarian_count")) %>%
+    map_dfr(~na_interp(., "veterinarian_count")) %>%
     select(-veterinarian_count) %>%
     rename(veterinarian_count = veterinarian_count_imputed)
 
@@ -83,7 +83,7 @@ repel_augment.nowcast_bart <- function(model_object, conn, traindat) {
     mutate(taxa_population_missing = is.na(taxa_population)) %>%
     arrange(country_iso3c, taxa, report_year) %>%
     group_split(country_iso3c, taxa) %>%
-    map_df(~na_interp(., "taxa_population")) %>%
+    map_dfr(~na_interp(., "taxa_population")) %>%
     select(-taxa_population) %>%
     rename(taxa_population = taxa_population_imputed)
 
@@ -107,9 +107,6 @@ repel_augment.nowcast_bart <- function(model_object, conn, traindat) {
 
   lagged_dat <- left_join(lagged_dat, wbi,  by = c("country_iso3c", "report_year"))
 
-  # handle remaining NAs in vets, taxa pop, gdp
-  # map(lagged_dat, ~sum(is.na(.)))
-
   # remove rows from countries without GDP data?
   removing_gdp  <- lagged_dat %>%
     filter(is.na(gdp_dollars))
@@ -119,13 +116,6 @@ repel_augment.nowcast_bart <- function(model_object, conn, traindat) {
   lagged_dat <- lagged_dat %>%
     drop_na(gdp_dollars)
   warning(paste("Dropping", nrow(removing_gdp), "rows of data with missing GDP values from following countries:", paste(na_countries, collapse = ", ")))
-
-  # use neighboring country values for vets and taxa? for now, assume small values
-  lagged_dat %>% filter(is.na(taxa_population)) %>% distinct(country_iso3c) %>% pull(country_iso3c) %>% countrycode::countrycode(., origin = "iso3c", destination = "country.name")
-  lagged_dat %>% filter(is.na(veterinarian_count)) %>% distinct(country_iso3c) %>% pull(country_iso3c) %>% countrycode::countrycode(., origin = "iso3c", destination = "country.name")
-  lagged_dat <- lagged_dat %>%
-    mutate(veterinarian_count = ifelse(is.na(veterinarian_count), rpois(sum(is.na(veterinarian_count)), 20), veterinarian_count)) %>%
-    mutate(taxa_population = ifelse(is.na(taxa_population), rpois(sum(is.na(taxa_population)), 50), taxa_population))
 
   # recode disease status
   lagged_dat <- lagged_dat %>%
