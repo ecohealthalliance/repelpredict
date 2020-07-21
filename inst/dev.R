@@ -4,8 +4,8 @@ library(tictoc)
 library(dbarts)
 library(ceterisParibus)
 
-RhpcBLASctl::omp_set_num_threads(36)
-RhpcBLASctl::blas_set_num_threads(36)
+RhpcBLASctl::omp_set_num_threads(4)
+RhpcBLASctl::blas_set_num_threads(1)
 
 #repeldata::repel_local_download()
 conn <- repeldata::repel_local_conn()
@@ -63,13 +63,14 @@ traindat <- repel_cases_train(conn) %>%
   select(all_of(grouping_vars)) %>%
   distinct()
 
-#TODO make sure this is flexible with dynamic lags and follows logic of NA and missing cols
 augmented_data <- repel_augment(model_object = model_object, conn = conn, traindat = traindat) %>%
   arrange(country_iso3c, disease, taxa, report_year, report_semester)
 map(augmented_data, ~any(is.na(.)))
 
 augmented_data_sub <- augmented_data %>%
-  filter(country_iso3c %in% c("USA", "BEL"))
+  filter(country_iso3c %in% c("USA", "BEL", "AUS", "AFG", "CAN", "IND", "CHN", "MEX"))
+write_rds(augmented_data_sub, "inst/test_augmented_data.rds")
+
 
 tic("status model")
 repel_fit(model_object = model_object,
