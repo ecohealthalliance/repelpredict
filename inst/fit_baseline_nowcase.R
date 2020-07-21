@@ -1,11 +1,5 @@
 devtools::load_all()
 library(tidyverse)
-library(tictoc)
-library(dbarts)
-library(ceterisParibus)
-
-RhpcBLASctl::omp_set_num_threads(4)
-RhpcBLASctl::blas_set_num_threads(1)
 
 #repeldata::repel_local_download()
 conn <- repeldata::repel_local_conn()
@@ -51,44 +45,3 @@ newdat <- tibble(country_iso3c = "AFG",
 
 forcasted_data <- repel_forecast(model_object = model_object, conn = conn, newdata = newdat)
 scored_new_data <- repel_score(model_object = model_object,  augmented_data = forcasted_data$augmented_data, predicted_data = forcasted_data$predicted_data)
-
-# BART models --------------------------------------------------------------------
-
-# Notes on NA handling
-#   Impute NAs for lags: assume 0 for NAs
-
-model_object <- nowcast_bart_model()
-
-traindat <- repel_cases_train(conn) %>%
-  select(all_of(grouping_vars)) %>%
-  distinct()
-
-augmented_data <- repel_augment(model_object = model_object, conn = conn, traindat = traindat) %>%
-  arrange(country_iso3c, disease, taxa, report_year, report_semester)
-map(augmented_data, ~any(is.na(.)))
-
-augmented_data_sub <- augmented_data %>%
-  filter(country_iso3c %in% c("USA", "BEL", "AUS", "AFG", "CAN", "IND", "CHN", "MEX"))
-write_rds(augmented_data_sub, "inst/test_augmented_data.rds")
-
-
-tic("status model")
-repel_fit(model_object = model_object,
-          augmented_data = augmented_data,
-          outcome_var = "disease_status",
-          output_directory = here::here("models"))
-toc()
-tic("cases model")
-repel_fit(model_object = model_object,
-          augmented_data = augmented_data,
-          outcome_var = "cases",
-          output_directory = here::here("models"))
-toc()
-
-predicted_data <- repel_predict(model_object = model_object, augmented_data = augmented_data_sub)
-
-scored_data <- repel_score(model_object = model_object, augmented_data = augmented_data, predicted_data = predicted_data)
-
-repel_local_disconnect()
-
-
