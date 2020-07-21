@@ -90,19 +90,23 @@ repel_augment.nowcast_bart <- function(model_object, conn, traindat) {
 
   traindat_augment <- left_join(traindat_augment, taxa, by = c("country_iso3c", "report_year", "taxa"))
 
-  # GDP
-  gdp <-  tbl(conn, "country_gdp") %>%
+  # World Bank indicators
+  wbi <-  tbl(conn, "worldbank_indicators") %>%
     collect() %>%
     rename(report_year = year) %>%
     right_join(expand(traindat_augment, country_iso3c, report_year),  by = c("country_iso3c", "report_year")) %>%
-    mutate(gdp_dollars_missing = is.na(gdp_dollars)) %>%
+    mutate(gdp_dollars_missing = is.na(gdp_dollars),
+           human_population_missing = is.na(human_population)) %>%
     arrange(country_iso3c, report_year) %>%
     group_split(country_iso3c) %>%
-    map_df(~na_interp(., "gdp_dollars")) %>%
-    select(-gdp_dollars) %>%
-    rename(gdp_dollars = gdp_dollars_imputed)
+    map_dfr(~na_interp(., "gdp_dollars") %>%
+              na_interp(., "human_population")) %>%
+    select(-gdp_dollars,
+           -human_population) %>%
+    rename(gdp_dollars = gdp_dollars_imputed,
+           human_population = human_population_imputed)
 
-  traindat_augment <- left_join(traindat_augment, gdp,  by = c("country_iso3c", "report_year"))
+  traindat_augment <- left_join(traindat_augment, wbi,  by = c("country_iso3c", "report_year"))
 
   # handle remaining NAs in vets, taxa pop, gdp
   # map(traindat_augment, ~sum(is.na(.)))
@@ -159,17 +163,18 @@ repel_augment.nowcast_bart <- function(model_object, conn, traindat) {
 #' @export
 #'
 repel_augment.nowcast_gam <- function(model_object, conn, newdata, rare = 1000) {
-  dat <- repel_augment.nowcast_bart(model_object, conn, newdata, lags = lags)
+  dat <- repel_augment.nowcast_bart(model_object, conn, newdata)
   dat <- dat %>%
     mutate(condition = factor(paste(dat$disease, taxa, sep = "-"))) %>%
     mutate(condition = fct_lump_min(condition, rare, other_level = "rare_condition")) %>%
     mutate(log10_gdp = log10(gdp_dollars)) %>%
     mutate_at(vars(cases_lag1_missing, cases_border_countries_missing, first_reporting_semester, veterinarian_count_missing, taxa_population_missing, gdp_dollars_missing),
               ~as.numeric(!.))
-  dat$cases_lagged <- as.matrix(select(dat, matches("^cases_lag\\d+$")))
+  dat$cases_lagged <-
+    as.matrix(select(dat, matches("^cases_lag\\d+$")))
   dat <- select(dat, -matches("^cases_lag\\d+$"))
-  dat$lags <- matrix(lags, ncol = length(lags), nrow = nrow(dat), byrow = TRUE)
-  dat$condition_lagged <- matrix(rep(as.integer(dat$condition), length(lags)), nrow = nrow(dat), ncol = length(lags), byrow = FALSE)
+  dat$lags <- matrix(seq_len(ncol(dat$cases_lagged)), ncol = ncol(dat$cases_lagged), nrow = nrow(dat), byrow = TRUE)
+  dat$condition_lagged <- matrix(rep(as.integer(dat$condition), ncol(dat$cases_lagged)), nrow = nrow(dat), ncol = ncol(dat$cases_lagged), byrow = FALSE)
   return(dat)
 }
 
