@@ -61,6 +61,14 @@ repel_augment.nowcast_bart <- function(model_object, conn, traindat) {
   # vet capacity
   vets <- tbl(conn, "annual_reports_veterinarians") %>%
     collect() %>%
+    filter(veterinarian_field %in% c(
+      "animal health and welfare activities",
+      "veterinary public health activities",
+      "laboratories",
+      "private clinical practice",
+      "academic activities and education",
+      "pharmaceutical industry"
+    )) %>%
     group_by(country_iso3c, report_year) %>%
     summarize(veterinarian_count = sum_na(suppressWarnings(as.integer(total_count)))) %>% # summarize over different types of vets
     ungroup() %>%
