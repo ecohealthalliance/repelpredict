@@ -28,6 +28,8 @@ repel_augment.nowcast_baseline <- function(model_object, conn, traindat) {
 #'
 #' @import repeldata dplyr tidyr
 #' @importFrom assertthat has_name assert_that
+#' @importFrom readr read_csv
+#' @importFrom here here
 #' @export
 repel_augment.nowcast_bart <- function(model_object, conn, traindat) {
 
@@ -144,6 +146,13 @@ repel_augment.nowcast_bart <- function(model_object, conn, traindat) {
     ungroup() %>%
     select(-report_period)
 
+  # recode diseases as rare
+  traindat_diseases_recode <- readr::read_csv(here::here("inst", "lookup", "traindat_diseases_recode.csv"))
+  lagged_dat <- lagged_dat %>%
+    left_join(traindat_diseases_recode, by = "disease") %>%
+    select(-disease) %>%
+    select(disease = disease_recode, taxa, everything())
+
   return(lagged_dat)
 
 }
@@ -205,6 +214,21 @@ modify_augmented_data <- function(augmented_data, outcome_var){
       drop_na(cases)
     # filter(cases > 0)
   }
+
+  # TODO: eventually move this to augment bart function (part of pre-processing to run model)
+  modified_data <- modified_data %>%
+    # taxa pop and vet count handling
+    mutate_at(.vars = c("taxa_population",  "veterinarian_count"), ~log10(./human_population)) %>%
+    mutate_at(.vars = c("taxa_population",  "veterinarian_count"), ~prepvar(.)) %>%
+    select(-veterinarian_count_missing, -taxa_population_missing) %>%
+    # gdp and human pop
+    mutate_at(.vars = c("human_population",  "gdp_dollars"), log10) %>%
+    select(-human_population_missing, -gdp_dollars_missing) %>%
+    # handling data types
+    mutate_if(is.character, as.factor) %>%
+    mutate_if(is.logical, as.integer)
+
+
   return(modified_data)
 }
 
