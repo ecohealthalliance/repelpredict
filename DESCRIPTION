@@ -20,7 +20,8 @@ Imports:
     dplyr,
     digest, 
     assertthat,
-    imputeTS
+    imputeTS,
+    qs
 Suggests:
     spelling, 
     testthat,
