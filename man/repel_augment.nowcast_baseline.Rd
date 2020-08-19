@@ -4,7 +4,7 @@
 \alias{repel_augment.nowcast_baseline}
 \title{Augment nowcast baseline model object}
 \usage{
-\method{repel_augment}{nowcast_baseline}(model_object, conn, traindat)
+\method{repel_augment}{nowcast_baseline}(model_object, conn, dat)
 }
 \description{
 Augment nowcast baseline model object

@@ -2,7 +2,7 @@
 % Please edit documentation in R/nowcast_score.R
 \name{repel_score.nowcast_model}
 \alias{repel_score.nowcast_model}
-\title{Score accuracy of nowcast baseline or bart model object}
+\title{Score accuracy of nowcast baseline model object}
 \usage{
 \method{repel_score}{nowcast_model}(model_object, augmented_data, predicted_data)
 }
@@ -10,5 +10,5 @@
 list containing predicted count and whether disease is expected or not (T/F)
 }
 \description{
-Score accuracy of nowcast baseline or bart model object
+Score accuracy of nowcast baseline model object
 }

@@ -2,18 +2,36 @@
 #' @import repeldata dplyr tidyr
 #' @importFrom assertthat has_name assert_that
 #' @export
-get_nowcast_lag <- function(conn, casedat, lags = 1:3){
+get_nowcast_lag <- function(conn, dat, lags = 1:3){
 
-  # check casedat has correct input vars
-  assertthat::has_name(casedat, grouping_vars)
+  # check dat has correct input vars
+  assertthat::has_name(dat, grouping_vars)
 
-  # check that taxa in casedat are relevant
-  assertthat::assert_that(all(unique(casedat$taxa) %in% taxa_list))
+  # check that taxa in dat are relevant
+  assertthat::assert_that(all(unique(dat$taxa) %in% taxa_list))
 
-  # lookup table for augmenting
-  model_lookup <-
-    repel_cases(conn) %>%
-    mutate(report_period = as.numeric(paste0(report_year, report_semester))) %>% # temp for filtering
+  # start lookup table for augmenting
+  repel_cases <- repel_cases(conn)
+
+  # add 2 semesters into future
+  last_two <- repel_cases %>%
+    arrange(report_year, report_semester) %>%
+    distinct(report_year, report_semester) %>%
+    tail(2)
+
+  if(n_distinct(last_two$report_year) == 1){
+    future_two <- tibble(report_year = max(last_two$report_year) + 1, report_semester = 1:2)
+  }else{
+    future_two <- tibble(report_year = c(max(last_two$report_year), max(last_two$report_year) + 1), report_semester = 2:1)
+  }
+
+  future_reports <- repel_cases %>%
+    distinct(country_iso3c, disease, disease_population, taxa) %>%
+    expand_grid(future_two)
+
+  model_lookup <- repel_cases %>%
+    bind_rows(future_reports) %>%
+    mutate(report_period = as.numeric(paste0(report_year, report_semester))) %>%
     left_join(expand(., nesting(country_iso3c, disease, disease_population, taxa), report_period), .,  by = c("country_iso3c", "disease", "disease_population", "taxa", "report_period")) %>%
     group_by(country_iso3c, disease, disease_population, taxa)
 
@@ -28,11 +46,11 @@ get_nowcast_lag <- function(conn, casedat, lags = 1:3){
     select(country_iso3c, disease, disease_population, taxa, report_period, disease_status, starts_with("cases"), starts_with("disease_status"))
 
   # get cases and last three semesters
-  lagged_data <- casedat %>%
+  lagged_dat <- dat %>%
     select(-suppressWarnings(one_of("cases")), -suppressWarnings(one_of("disease_status"))) %>%
     mutate(report_period = as.integer(paste0(report_year, report_semester))) %>%
     left_join(model_lookup, by = c("country_iso3c", "disease", "disease_population", "taxa", "report_period")) %>%
     select(-report_period)
 
-  return(lagged_data)
+  return(lagged_dat)
 }

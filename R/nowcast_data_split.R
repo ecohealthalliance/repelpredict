@@ -32,7 +32,7 @@ repel_cases_train <- function(conn){
  if(n_distinct(all_dat$country) != n_distinct(train_dat$country)){
    warning("Not all countries are represented in training dataset")
  }
-
+ return(train_dat)
 }
 
 

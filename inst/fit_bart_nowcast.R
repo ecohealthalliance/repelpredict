@@ -23,26 +23,23 @@ traindat <- repel_cases_train(conn) %>%
 
 augmented_data <- read_rds("inst/test_augmented_data.rds")
 
-augmented_data_sub <- augmented_data %>%
-  filter(country_iso3c %in% c("USA", "BEL", "CAN"))
-
-
 tic("cases model")
 fit_object <- repel_fit(model_object = model_object,
-          augmented_data = augmented_data_sub,
+          augmented_data = augmented_data[1:100000,],
           outcome_var = "cases",
           output_directory = here::here("models"))
 toc()
 
-# tic("status model")
-# repel_fit(model_object = model_object,
-#           augmented_data = augmented_data,
-#           outcome_var = "disease_status",
-#           output_directory = here::here("models"))
-# toc()
+tic("status model")
+repel_fit(model_object = model_object,
+          augmented_data = augmented_data[1:10000,],
+          outcome_var = "disease_status",
+          output_directory = here::here("models"))
+toc()
 
 
-predicted_data <- repel_predict(model_object = model_object, newdata = augmented_data_sub %>% filter(country_iso3c != "CAN"))
+predicted_data <- repel_predict(model_object = model_object,
+                                newdata =  augmented_data[1:3000,])
 #
 # scored_data <- repel_score(model_object = model_object, augmented_data = augmented_data, predicted_data = predicted_data)
 

@@ -9,9 +9,9 @@ repel_augment <- function(x, ...){
 #' @import repeldata dplyr tidyr
 #' @importFrom assertthat has_name assert_that
 #' @export
-repel_augment.nowcast_baseline <- function(model_object, conn, traindat) {
+repel_augment.nowcast_baseline <- function(model_object, conn, dat) {
 
-  lagged_dat <- get_nowcast_lag(conn, casedat = traindat, lags = 1) %>%
+  lagged_dat <- get_nowcast_lag(conn, dat, lags = 1) %>%
     mutate_at(names(.)[str_detect(names(.), "disease_status")],  ~recode(., "present" = 1, "suspected" = 1, "absent" = 0))
 
   lag_vars <- colnames(lagged_dat)[str_detect(names(lagged_dat), "disease_status_lag|cases_lag")]
@@ -206,7 +206,8 @@ modify_augmented_data <- function(augmented_data, outcome_var){
   if(outcome_var == "disease_status"){
     modified_data <- augmented_data %>%
       select(-cases) %>%
-      drop_na(disease_status)
+      drop_na(disease_status) %>%
+      mutate(disease_status = as.integer(disease_status))
   }
   if(outcome_var == "cases"){
     modified_data <- augmented_data %>%

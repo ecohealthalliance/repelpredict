@@ -5,7 +5,7 @@ repel_score <- function(x, ...){
 }
 
 
-#' Score accuracy of nowcast baseline or bart model object
+#' Score accuracy of nowcast baseline model object
 #' @return list containing predicted count and whether disease is expected or not (T/F)
 #' @export
 #'

@@ -4,7 +4,7 @@
 \alias{repel_predict.nowcast_baseline}
 \title{Predict from nowcast baseline model object}
 \usage{
-\method{repel_predict}{nowcast_baseline}(model_object, augmented_data)
+\method{repel_predict}{nowcast_baseline}(model_object, newdata)
 }
 \value{
 list containing predicted count and whether disease is expected or not (T/F)
