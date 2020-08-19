@@ -26,13 +26,13 @@ augmented_data <- read_rds("inst/test_augmented_data.rds")
 augmented_data_sub <- augmented_data %>%
   filter(country_iso3c %in% c("USA", "BEL", "CAN"))
 
+
 tic("cases model")
-repel_fit(model_object = model_object,
+fit_object <- repel_fit(model_object = model_object,
           augmented_data = augmented_data_sub,
           outcome_var = "cases",
           output_directory = here::here("models"))
 toc()
-
 
 # tic("status model")
 # repel_fit(model_object = model_object,

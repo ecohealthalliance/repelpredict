@@ -9,27 +9,34 @@ grouping_vars <- c("country_iso3c", "report_year", "report_semester", "disease",
 #' @importFrom digest digest2int
 #' @noRd
 repel_cases <- function(conn){
-  tbl(conn, "annual_reports_animal_hosts") %>%
+   tbl(conn, "annual_reports_animal_hosts") %>%
     filter(taxa %in% taxa_list) %>%
     filter(report_semester != "0") %>%
     select(report, country, country_iso3c, report_year, report_semester, disease, disease_population, serotype, disease_status, taxa, cases) %>%
     collect() %>%
     mutate_at(.vars = c("report_year", "report_semester", "cases"), ~suppressWarnings(as.integer(.))) %>%
     mutate(validation_set = digest::digest2int(paste0(report, disease, disease_population, serotype, disease_status, taxa)) %% 5 == 1)
-}
+
+  }
 
 #' Get cases training set (~80%)
 #' @import repeldata dplyr tidyr
 #' @return a tibble
 #' @export
 repel_cases_train <- function(conn){
-  repel_cases(conn) %>%
+ all_dat <- repel_cases(conn)
+ train_dat <- all_dat %>%
     filter(!validation_set) %>%
     select(-validation_set)
+ # Adding this check out of curiousity--it may not be necessary
+ if(n_distinct(all_dat$country) != n_distinct(train_dat$country)){
+   warning("Not all countries are represented in training dataset")
+ }
+
 }
 
 
-#' Get cases validation set (~20%)
+#' Hold out validation set (~20%)
 #' @import repeldata dplyr tidyr
 #' @return a tibble
 #' @export

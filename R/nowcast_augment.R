@@ -211,8 +211,11 @@ modify_augmented_data <- function(augmented_data, outcome_var){
   if(outcome_var == "cases"){
     modified_data <- augmented_data %>%
       select(-disease_status) %>%
-      drop_na(cases)
-    # filter(cases > 0)
+      drop_na(cases) %>%
+      filter(cases > 0) %>%
+      mutate(cases = log10(cases))
+    message("Filtering for positive case count")
+    message("Log10 transforming cases")
   }
 
   # TODO: eventually move this to augment bart function (part of pre-processing to run model)

@@ -2,7 +2,7 @@
 % Please edit documentation in R/nowcast_data_split.R
 \name{repel_cases_validate}
 \alias{repel_cases_validate}
-\title{Get cases validation set (~20\%)}
+\title{Hold out validation set (~20\%)}
 \usage{
 repel_cases_validate(conn)
 }
@@ -10,5 +10,5 @@ repel_cases_validate(conn)
 a tibble
 }
 \description{
-Get cases validation set (~20\%)
+Hold out validation set (~20\%)
 }
