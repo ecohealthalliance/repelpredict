@@ -2,10 +2,10 @@
 % Please edit documentation in R/nowcast_get_lag.R
 \name{get_nowcast_lag}
 \alias{get_nowcast_lag}
-\title{Get lags for case data}
+\title{Get case and status lags}
 \usage{
-get_nowcast_lag(conn, dat, lags = 1:3)
+get_nowcast_lag(conn, newdata, lags = 1:3)
 }
 \description{
-Get lags for case data
+Get case and status lags
 }

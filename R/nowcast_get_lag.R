@@ -1,14 +1,14 @@
-#' Get lags for case data
+#' Get case and status lags
 #' @import repeldata dplyr tidyr
 #' @importFrom assertthat has_name assert_that
 #' @export
-get_nowcast_lag <- function(conn, dat, lags = 1:3){
+get_nowcast_lag <- function(conn, newdata, lags = 1:3){
 
-  # check dat has correct input vars
-  assertthat::has_name(dat, grouping_vars)
+  # check newdata has correct input vars
+  assertthat::has_name(newdata, grouping_vars)
 
-  # check that taxa in dat are relevant
-  assertthat::assert_that(all(unique(dat$taxa) %in% taxa_list))
+  # check that taxa in newdata are relevant
+  assertthat::assert_that(all(unique(newdata$taxa) %in% taxa_list))
 
   # start lookup table for augmenting
   repel_cases <- repel_cases(conn)
@@ -46,11 +46,11 @@ get_nowcast_lag <- function(conn, dat, lags = 1:3){
     select(country_iso3c, disease, disease_population, taxa, report_period, disease_status, starts_with("cases"), starts_with("disease_status"))
 
   # get cases and last three semesters
-  lagged_dat <- dat %>%
+  lagged_newdata <- newdata %>%
     select(-suppressWarnings(one_of("cases")), -suppressWarnings(one_of("disease_status"))) %>%
     mutate(report_period = as.integer(paste0(report_year, report_semester))) %>%
     left_join(model_lookup, by = c("country_iso3c", "disease", "disease_population", "taxa", "report_period")) %>%
     select(-report_period)
 
-  return(lagged_dat)
+  return(lagged_newdata)
 }

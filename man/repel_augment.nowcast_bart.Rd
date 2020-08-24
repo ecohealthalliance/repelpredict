@@ -4,7 +4,7 @@
 \alias{repel_augment.nowcast_bart}
 \title{Augment nowcast bart model object}
 \usage{
-\method{repel_augment}{nowcast_bart}(model_object, conn, traindat)
+\method{repel_augment}{nowcast_bart}(model_object, conn, newdata)
 }
 \description{
 Augment nowcast bart model object

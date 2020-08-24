@@ -9,19 +9,19 @@ repel_augment <- function(x, ...){
 #' @import repeldata dplyr tidyr
 #' @importFrom assertthat has_name assert_that
 #' @export
-repel_augment.nowcast_baseline <- function(model_object, conn, dat) {
+repel_augment.nowcast_baseline <- function(model_object, conn, newdata) {
 
-  lagged_dat <- get_nowcast_lag(conn, dat, lags = 1) %>%
+  lagged_newdata <- get_nowcast_lag(conn, newdata, lags = 1) %>%
     mutate_at(names(.)[str_detect(names(.), "disease_status")],  ~recode(., "present" = 1, "suspected" = 1, "absent" = 0))
 
-  lag_vars <- colnames(lagged_dat)[str_detect(names(lagged_dat), "disease_status_lag|cases_lag")]
+  lag_vars <- colnames(lagged_newdata)[str_detect(names(lagged_newdata), "disease_status_lag|cases_lag")]
   for(var in lag_vars){
-    lagged_dat <- lagged_dat %>%
+    lagged_newdata <- lagged_newdata %>%
       mutate(!!paste0(var, "_missing") := is.na(get(var))) %>%
       mutate_at(var, ~replace_na(., 0))
   }
 
-  return(lagged_dat)
+  return(lagged_newdata)
 }
 
 #' Augment nowcast bart model object
@@ -31,10 +31,10 @@ repel_augment.nowcast_baseline <- function(model_object, conn, dat) {
 #' @importFrom readr read_csv
 #' @importFrom here here
 #' @export
-repel_augment.nowcast_bart <- function(model_object, conn, traindat) {
+repel_augment.nowcast_bart <- function(model_object, conn, newdata) {
 
   # get lag cases
-  lagged_dat <- get_nowcast_lag(conn, casedat = traindat, lags = 1:3)
+  lagged_newdata <- get_nowcast_lag(conn, newdata, lags = 1:3)
 
   # get summed lag values of adjacent countries
   borders <- tbl(conn, "connect_static_vars") %>%
@@ -42,13 +42,13 @@ repel_augment.nowcast_bart <- function(model_object, conn, traindat) {
     select(country_origin, country_destination) %>%
     collect()
 
-  lagged_borders <- lagged_dat %>%
+  lagged_borders <- lagged_newdata %>%
     select(all_of(grouping_vars)) %>%
     distinct() %>%
     rename(country_origin = country_iso3c) %>%
     left_join(borders,  by = "country_origin") %>%
     rename(country_iso3c = country_destination) %>%
-    get_nowcast_lag(conn, casedat = ., lags = 1:3)
+    get_nowcast_lag(conn, newdata = ., lags = 1:3)
 
   lagged_borders_sum <- lagged_borders %>%
     select(-cases) %>%
@@ -58,7 +58,7 @@ repel_augment.nowcast_bart <- function(model_object, conn, traindat) {
     ungroup() %>%
     rename(country_iso3c = country_origin)
 
-  lagged_dat <- left_join(lagged_dat, lagged_borders_sum, by = grouping_vars)
+  lagged_newdata <- left_join(lagged_newdata, lagged_borders_sum, by = grouping_vars)
 
   # vet capacity
   vets <- tbl(conn, "annual_reports_veterinarians") %>%
@@ -75,7 +75,7 @@ repel_augment.nowcast_bart <- function(model_object, conn, traindat) {
     summarize(veterinarian_count = sum_na(suppressWarnings(as.integer(total_count)))) %>% # summarize over different types of vets
     ungroup() %>%
     mutate(report_year = as.integer(report_year)) %>%
-    right_join(expand(lagged_dat, country_iso3c, report_year),  by = c("country_iso3c", "report_year")) %>%
+    right_join(expand(lagged_newdata, country_iso3c, report_year),  by = c("country_iso3c", "report_year")) %>%
     mutate(veterinarian_count_missing = is.na(veterinarian_count)) %>%
     arrange(country_iso3c, report_year) %>%
     group_split(country_iso3c) %>%
@@ -83,13 +83,13 @@ repel_augment.nowcast_bart <- function(model_object, conn, traindat) {
     select(-veterinarian_count) %>%
     rename(veterinarian_count = veterinarian_count_imputed)
 
-  lagged_dat <- left_join(lagged_dat, vets, by = c("country_iso3c", "report_year"))
+  lagged_newdata <- left_join(lagged_newdata, vets, by = c("country_iso3c", "report_year"))
 
   # taxa population
   taxa <- tbl(conn, "country_taxa_population") %>%
     collect() %>%
     rename(report_year = year, taxa_population = population) %>%
-    right_join(expand(lagged_dat, country_iso3c, report_year, taxa),  by = c("country_iso3c", "report_year", "taxa")) %>%
+    right_join(expand(lagged_newdata, country_iso3c, report_year, taxa),  by = c("country_iso3c", "report_year", "taxa")) %>%
     mutate(taxa_population_missing = is.na(taxa_population)) %>%
     arrange(country_iso3c, taxa, report_year) %>%
     group_split(country_iso3c, taxa) %>%
@@ -97,13 +97,13 @@ repel_augment.nowcast_bart <- function(model_object, conn, traindat) {
     select(-taxa_population) %>%
     rename(taxa_population = taxa_population_imputed)
 
-  lagged_dat <- left_join(lagged_dat, taxa, by = c("country_iso3c", "report_year", "taxa"))
+  lagged_newdata <- left_join(lagged_newdata, taxa, by = c("country_iso3c", "report_year", "taxa"))
 
   # World Bank indicators
   wbi <-  tbl(conn, "worldbank_indicators") %>%
     collect() %>%
     rename(report_year = year) %>%
-    right_join(expand(lagged_dat, country_iso3c, report_year),  by = c("country_iso3c", "report_year")) %>%
+    right_join(expand(lagged_newdata, country_iso3c, report_year),  by = c("country_iso3c", "report_year")) %>%
     mutate(gdp_dollars_missing = is.na(gdp_dollars),
            human_population_missing = is.na(human_population)) %>%
     arrange(country_iso3c, report_year) %>%
@@ -115,31 +115,31 @@ repel_augment.nowcast_bart <- function(model_object, conn, traindat) {
     rename(gdp_dollars = gdp_dollars_imputed,
            human_population = human_population_imputed)
 
-  lagged_dat <- left_join(lagged_dat, wbi,  by = c("country_iso3c", "report_year"))
+  lagged_newdata <- left_join(lagged_newdata, wbi,  by = c("country_iso3c", "report_year"))
 
   # remove rows from countries without GDP data?
-  removing_gdp  <- lagged_dat %>%
+  removing_gdp  <- lagged_newdata %>%
     filter(is.na(gdp_dollars))
   na_countries <- unique(removing_gdp$country_iso3c) %>%
     countrycode::countrycode(., origin = "iso3c", destination = "country.name", warn = FALSE)
   na_countries <- na_countries[!is.na(na_countries)]
-  lagged_dat <- lagged_dat %>%
+  lagged_newdata <- lagged_newdata %>%
     drop_na(gdp_dollars)
   warning(paste("Dropping", nrow(removing_gdp), "rows of data with missing GDP values from following countries:", paste(na_countries, collapse = ", ")))
 
   # recode disease status
-  lagged_dat <- lagged_dat %>%
+  lagged_newdata <- lagged_newdata %>%
     mutate_at(names(.)[str_detect(names(.), "disease_status")],  ~recode(., "present" = 1, "suspected" = 1, "absent" = 0))
 
-  lag_vars <- colnames(lagged_dat)[str_detect(names(lagged_dat), "disease_status_lag|cases_lag|cases_border_countries")]
+  lag_vars <- colnames(lagged_newdata)[str_detect(names(lagged_newdata), "disease_status_lag|cases_lag|cases_border_countries")]
   for(var in c(lag_vars)){
-    lagged_dat <- lagged_dat %>%
+    lagged_newdata <- lagged_newdata %>%
       mutate(!!paste0(var, "_missing") := is.na(get(var))) %>%
       mutate_at(var, ~replace_na(., 0))
   }
 
   # add column to indicate first year country reporting
-  lagged_dat <- lagged_dat %>%
+  lagged_newdata <- lagged_newdata %>%
     mutate(report_period = as.integer(paste0(report_year, report_semester))) %>%
     group_by(country_iso3c) %>%
     mutate(first_reporting_semester = report_period == min(report_period)) %>%
@@ -147,14 +147,29 @@ repel_augment.nowcast_bart <- function(model_object, conn, traindat) {
     select(-report_period)
 
   # recode diseases as rare
-  traindat_diseases_recode <- readr::read_csv(here::here("inst", "lookup", "traindat_diseases_recode.csv"))
-  lagged_dat <- lagged_dat %>%
+  traindat_diseases_recode <- readr::read_csv(here::here("inst", "lookup", "traindat_diseases_recode.csv"), col_types = cols(
+    disease = col_character(),
+    disease_recode = col_character()
+  ))
+  lagged_newdata <- lagged_newdata %>%
     left_join(traindat_diseases_recode, by = "disease") %>%
     select(-disease) %>%
     select(disease = disease_recode, taxa, everything())
 
-  return(lagged_dat)
+  # final feature engineering
+  lagged_newdata <- lagged_newdata %>%
+    # taxa pop and vet count handling
+    mutate_at(.vars = c("taxa_population",  "veterinarian_count"), ~log10(./human_population)) %>%
+    mutate_at(.vars = c("taxa_population",  "veterinarian_count"), ~prepvar(.)) %>%
+    select(-veterinarian_count_missing, -taxa_population_missing) %>%
+    # gdp and human pop
+    mutate_at(.vars = c("human_population",  "gdp_dollars"), log10) %>%
+    select(-human_population_missing, -gdp_dollars_missing) %>%
+    # handling data types
+    mutate_if(is.character, as.factor) %>%
+    mutate_if(is.logical, as.integer)
 
+  return(lagged_newdata)
 }
 
 
@@ -197,8 +212,7 @@ na_interp <- function(df, var){
   return(out)
 }
 
-
-#'@noRd
+#' @noRd
 modify_augmented_data <- function(augmented_data, outcome_var){
 
   stopifnot(outcome_var %in% c("disease_status", "cases"))
@@ -207,32 +221,18 @@ modify_augmented_data <- function(augmented_data, outcome_var){
     modified_data <- augmented_data %>%
       select(-cases) %>%
       drop_na(disease_status) %>%
+      mutate_at(.vars = c("cases_lag1",  "cases_lag2",  "cases_lag3"), ~log10(. + 1)) %>%
       mutate(disease_status = as.integer(disease_status))
   }
   if(outcome_var == "cases"){
+
     modified_data <- augmented_data %>%
       select(-disease_status) %>%
       drop_na(cases) %>%
-      filter(cases > 0) %>%
-      mutate(cases = log10(cases))
-    message("Filtering for positive case count")
-    message("Log10 transforming cases")
+      mutate_at(.vars = c("cases", "cases_lag1",  "cases_lag2",  "cases_lag3"), ~log10(. + 1))
+    # message("Filtering for positive case count")
+     message("Log10 transforming cases")
   }
-
-  # TODO: eventually move this to augment bart function (part of pre-processing to run model)
-  modified_data <- modified_data %>%
-    # taxa pop and vet count handling
-    mutate_at(.vars = c("taxa_population",  "veterinarian_count"), ~log10(./human_population)) %>%
-    mutate_at(.vars = c("taxa_population",  "veterinarian_count"), ~prepvar(.)) %>%
-    select(-veterinarian_count_missing, -taxa_population_missing) %>%
-    # gdp and human pop
-    mutate_at(.vars = c("human_population",  "gdp_dollars"), log10) %>%
-    select(-human_population_missing, -gdp_dollars_missing) %>%
-    # handling data types
-    mutate_if(is.character, as.factor) %>%
-    mutate_if(is.logical, as.integer)
-
-
   return(modified_data)
 }
 
