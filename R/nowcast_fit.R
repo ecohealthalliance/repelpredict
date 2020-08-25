@@ -14,6 +14,7 @@ repel_fit.nowcast_bart <- function(model_object,
                                    augmented_data,
                                    outcome_var,
                                    output_directory,
+                                   n_chains = dbarts::guessNumCores(),
                                    verbose = interactive()) {
 
   modified_data <- modify_augmented_data(augmented_data = augmented_data,
@@ -24,6 +25,7 @@ repel_fit.nowcast_bart <- function(model_object,
   bart_mod <- dbarts::bart2(formula = as.formula(paste(outcome_var, "~.")),
                     data = modified_data,
                     test = select(modified_data, -!!outcome_var),
+                    n.chains = n_chains,
                     keepTrees = TRUE,
                     combineChains = TRUE,
                     verbose = verbose)
