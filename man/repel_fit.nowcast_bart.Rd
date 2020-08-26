@@ -9,6 +9,7 @@
   augmented_data,
   outcome_var,
   output_directory,
+  n_chains = dbarts::guessNumCores(),
   verbose = interactive()
 )
 }
