@@ -7,8 +7,6 @@ library(ceterisParibus)
 #repeldata::repel_local_download()
 conn <- repeldata::repel_local_conn()
 
-#TODO for lags, fill from latest available year, otherwise 0
-
 model_object <- nowcast_bart_model()
 
 traindat <- repel_cases_train(conn) %>%
@@ -38,7 +36,7 @@ toc()
 
 # predicted_data <- repel_predict(model_object = model_object,
 #                                 newdata = augmented_data[1:10000,])
-#
+
 # scored_data <- repel_score(model_object = model_object,
 #                            augmented_data = augmented_data[1:10000,],
 #                            predicted_data = predicted_data)

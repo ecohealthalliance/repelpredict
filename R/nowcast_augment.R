@@ -20,7 +20,6 @@ repel_augment.nowcast_baseline <- function(model_object, conn, newdata) {
       mutate(!!paste0(var, "_missing") := is.na(get(var))) %>%
       mutate_at(var, ~replace_na(., 0))
   }
-
   return(lagged_newdata)
 }
 
@@ -54,7 +53,7 @@ repel_augment.nowcast_bart <- function(model_object, conn, newdata) {
     select(-cases) %>%
     pivot_longer(cols = c(cases_lag1, cases_lag2, cases_lag3)) %>%
     group_by(country_origin, disease, disease_population, taxa, report_year, report_semester) %>%
-    summarize(cases_border_countries = sum_na(as.integer(value))) %>%
+    summarize(cases_lag_sum_border_countries = sum_na(as.integer(value))) %>%
     ungroup() %>%
     rename(country_iso3c = country_origin)
 
@@ -81,7 +80,8 @@ repel_augment.nowcast_bart <- function(model_object, conn, newdata) {
     group_split(country_iso3c) %>%
     map_dfr(~na_interp(., "veterinarian_count")) %>%
     select(-veterinarian_count) %>%
-    rename(veterinarian_count = veterinarian_count_imputed)
+    rename(veterinarian_count = veterinarian_count_imputed) %>%
+    mutate
 
   lagged_newdata <- left_join(lagged_newdata, vets, by = c("country_iso3c", "report_year"))
 
@@ -131,7 +131,26 @@ repel_augment.nowcast_bart <- function(model_object, conn, newdata) {
   lagged_newdata <- lagged_newdata %>%
     mutate_at(names(.)[str_detect(names(.), "disease_status")],  ~recode(., "present" = 1, "suspected" = 1, "absent" = 0))
 
-  lag_vars <- colnames(lagged_newdata)[str_detect(names(lagged_newdata), "disease_status_lag|cases_lag|cases_border_countries")]
+  # disease ever in country (any taxa)
+  ever <- lagged_newdata %>%
+    arrange(country_iso3c, disease, report_year, report_semester) %>%
+    group_by(country_iso3c, disease, taxa, report_year, report_semester) %>% #summarize over wild/domestic
+    summarize(disease_status = as.integer(1 %in% disease_status)) %>%
+    group_by(country_iso3c, disease, taxa) %>%
+    mutate(cumulative_disease_status = cumsum(disease_status)) %>%
+    mutate(first_appearance = cumulative_disease_status == 1 & (row_number() == 1 | lag(cumulative_disease_status) == 0)) %>%
+    mutate(ever_in_taxa_country = case_when(first_appearance ~ 1)) %>%
+    fill(ever_in_taxa_country, .direction = "down") %>%
+    mutate(ever_in_taxa_country =  case_when(first_appearance | is.na(ever_in_taxa_country) ~ 0,
+                                        TRUE ~ 1)) %>%
+    ungroup() %>%
+    select(-first_appearance, -cumulative_disease_status, -disease_status)
+
+  lagged_newdata <- left_join(lagged_newdata, ever,
+                              by = c("country_iso3c", "report_year", "report_semester", "disease", "taxa"))
+
+  # mark missingness
+  lag_vars <- colnames(lagged_newdata)[str_detect(names(lagged_newdata), "disease_status_lag|cases_lag")]
   for(var in c(lag_vars)){
     lagged_newdata <- lagged_newdata %>%
       mutate(!!paste0(var, "_missing") := is.na(get(var))) %>%
@@ -154,20 +173,31 @@ repel_augment.nowcast_bart <- function(model_object, conn, newdata) {
   lagged_newdata <- lagged_newdata %>%
     left_join(traindat_diseases_recode, by = "disease") %>%
     select(-disease) %>%
-    select(disease = disease_recode, taxa, everything())
+    rename(disease = disease_recode)
 
-  # final feature engineering
+  # final feature engineering - transformations etc
   lagged_newdata <- lagged_newdata %>%
-    # taxa pop and vet count handling
-    mutate_at(.vars = c("taxa_population",  "veterinarian_count"), ~log10(./human_population)) %>%
-    mutate_at(.vars = c("taxa_population",  "veterinarian_count"), ~prepvar(.)) %>%
-    select(-veterinarian_count_missing, -taxa_population_missing) %>%
-    # gdp and human pop
-    mutate_at(.vars = c("human_population",  "gdp_dollars"), log10) %>%
-    select(-human_population_missing, -gdp_dollars_missing) %>%
+    mutate(log_gdp_per_capita = prepvar(gdp_dollars/human_population, trans_fn = log10)) %>%
+    select(-gdp_dollars) %>%
+    mutate(log_veterinarians_per_capita = prepvar(veterinarian_count/taxa_population, trans_fn = log10)) %>%
+    select(-veterinarian_count) %>%
+    mutate(log_taxa_population = prepvar(taxa_population, trans_fn = log10)) %>%
+    select(-taxa_population) %>%
+    mutate(log_human_population = prepvar(human_population, trans_fn = log10)) %>%
+    select(-human_population) %>%
     # handling data types
     mutate_if(is.character, as.factor) %>%
-    mutate_if(is.logical, as.integer)
+    mutate_if(is.logical, as.integer) %>%
+    #reorder
+    select(report_year, report_semester, disease, taxa, country_iso3c, disease_population,
+           starts_with("cases"), starts_with("disease_status"),
+           ever_in_taxa_country,
+           log_human_population, human_population_missing,
+           log_taxa_population, taxa_population_missing,
+           log_veterinarians_per_capita, veterinarian_count_missing,
+           log_gdp_per_capita, gdp_dollars_missing,
+           first_reporting_semester,
+           everything()) # make sure we don't accidentally drop any columns
 
   return(lagged_newdata)
 }
@@ -231,7 +261,7 @@ modify_augmented_data <- function(augmented_data, outcome_var){
       drop_na(cases) %>%
       mutate_at(.vars = c("cases", "cases_lag1",  "cases_lag2",  "cases_lag3"), ~log10(. + 1))
     # message("Filtering for positive case count")
-     message("Log10 transforming cases")
+    message("Log10 transforming cases")
   }
   return(modified_data)
 }
