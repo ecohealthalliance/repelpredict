@@ -17,6 +17,10 @@ repel_fit.nowcast_bart <- function(model_object,
                                    n_chains = dbarts::guessNumCores(),
                                    verbose = interactive()) {
 
+  existing_blas <- RhpcBLASctl::blas_get_num_procs()
+  RhpcBLASctl::blas_set_num_threads(1)
+  on.exit(RhpcBLASctl::blas_set_num_threads(existing_blas))
+
   modified_data <- modify_augmented_data(augmented_data = augmented_data,
                                          outcome_var = outcome_var)
 
@@ -34,6 +38,7 @@ repel_fit.nowcast_bart <- function(model_object,
   invisible(bart_mod$fit$state)
 
   qsave(list(bart_mod, modified_data), paste0(output_directory, "/bart_mod_", outcome_var, ".qs"))
+
 
   return(bart_mod)
 }
