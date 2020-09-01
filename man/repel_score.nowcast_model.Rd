@@ -4,7 +4,7 @@
 \alias{repel_score.nowcast_model}
 \title{Score accuracy of nowcast baseline model object}
 \usage{
-\method{repel_score}{nowcast_model}(model_object, augmented_data, predicted_data)
+\method{repel_score}{nowcast_model}(model_object, augmented_data, cases_predicted)
 }
 \value{
 list containing predicted count and whether disease is expected or not (T/F)

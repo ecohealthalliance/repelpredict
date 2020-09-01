@@ -29,6 +29,8 @@ repel_augment.nowcast_baseline <- function(model_object, conn, newdata) {
 #' @importFrom assertthat has_name assert_that
 #' @importFrom readr read_csv
 #' @importFrom here here
+#' @importFrom purrr map
+#' @importFrom stringr str_starts str_ends
 #' @export
 repel_augment.nowcast_bart <- function(model_object, conn, newdata) {
 
@@ -131,23 +133,73 @@ repel_augment.nowcast_bart <- function(model_object, conn, newdata) {
   lagged_newdata <- lagged_newdata %>%
     mutate_at(names(.)[str_detect(names(.), "disease_status")],  ~recode(., "present" = 1, "suspected" = 1, "absent" = 0))
 
-  # disease ever in country (any taxa)
-  ever <- lagged_newdata %>%
-    arrange(country_iso3c, disease, report_year, report_semester) %>%
-    group_by(country_iso3c, disease, taxa, report_year, report_semester) %>% #summarize over wild/domestic
-    summarize(disease_status = as.integer(1 %in% disease_status)) %>%
-    group_by(country_iso3c, disease, taxa) %>%
-    mutate(cumulative_disease_status = cumsum(disease_status)) %>%
-    mutate(first_appearance = cumulative_disease_status == 1 & (row_number() == 1 | lag(cumulative_disease_status) == 0)) %>%
-    mutate(ever_in_taxa_country = case_when(first_appearance ~ 1)) %>%
-    fill(ever_in_taxa_country, .direction = "down") %>%
-    mutate(ever_in_taxa_country =  case_when(first_appearance | is.na(ever_in_taxa_country) ~ 0,
-                                        TRUE ~ 1)) %>%
-    ungroup() %>%
-    select(-first_appearance, -cumulative_disease_status, -disease_status)
+  # disease ever ... 4 scenarios
+  scenarios <- c("country_given_taxa", "continent_given_taxa",
+                 "country_any_taxa",  "continent_any_taxa")
+  ever <- map(scenarios, function(iter){
 
-  lagged_newdata <- left_join(lagged_newdata, ever,
-                              by = c("country_iso3c", "report_year", "report_semester", "disease", "taxa"))
+    # columns for grouping
+    colname <- switch(iter,
+                      "country_any_taxa" = "country_iso3c",
+                      "country_given_taxa" = "country_iso3c",
+                      "continent_given_taxa" = "continent",
+                      "continent_any_taxa" = "continent"
+                      )
+    ever <- lagged_newdata
+
+    # get continents
+    if(stringr::str_starts(iter, "continent")){
+      ever <- mutate(ever, continent = countrycode::countrycode(country_iso3c, origin = "iso3c", destination = "continent"))
+      cont_lookup <- distinct(ever, country_iso3c, continent)
+    }
+
+    # this effectively excludes taxa from grouping without having to deal with removing the column
+    if(stringr::str_ends(iter, "any_taxa")){
+      ever <-  mutate(ever, taxa = "")
+    }
+
+    ever <- ever %>%
+      rename(grp_var = all_of(colname)) %>% # rename grouping column to avoid tidyeval
+      arrange(grp_var, disease, report_year, report_semester) %>%
+      # get whether disease has occurred within given grouping
+      group_by(grp_var, disease, taxa, report_year, report_semester) %>%
+      summarize(disease_status = as.integer(1 %in% disease_status)) %>%
+      group_by(grp_var, disease, taxa) %>%
+      # teasing out first appearance and then inferring whether the disease has exisited before in given grouping
+      mutate(cumulative_disease_status = cumsum(disease_status)) %>%
+      mutate(first_appearance = cumulative_disease_status == 1 & (row_number() == 1 | lag(cumulative_disease_status) == 0)) %>%
+      mutate(ever_in_grp = case_when(first_appearance ~ 1)) %>%
+      fill(ever_in_grp, .direction = "down") %>%
+      mutate(ever_in_grp =  case_when(first_appearance | is.na(ever_in_grp) ~ 0,
+                                      TRUE ~ 1)) %>%
+      ungroup() %>%
+      select(-first_appearance, -cumulative_disease_status, -disease_status)
+
+    # renaming and cleaning
+    names(ever)[names(ever) == "ever_in_grp"] <- paste0("ever_in_", iter)
+    names(ever)[names(ever) == "grp_var"] <- colname
+    if(stringr::str_starts(iter, "continent")){
+      ever <- left_join(ever, cont_lookup,  by = "continent") %>%
+        select(-continent)
+    }
+    if(stringr::str_ends(iter, "any_taxa")){
+      ever <- select(ever, -taxa)
+    }
+
+    return(ever)
+  })
+
+  names(ever) <- scenarios
+
+  for(sc in scenarios){
+    if(stringr::str_ends(sc, "any_taxa")){
+    lagged_newdata <- left_join(lagged_newdata, ever[[sc]],
+                                by = c("country_iso3c", "report_year", "report_semester", "disease"))
+    }else{
+      lagged_newdata <- left_join(lagged_newdata, ever[[sc]],
+                                  by = c("country_iso3c", "report_year", "report_semester", "disease", "taxa"))
+    }
+  }
 
   # mark missingness
   lag_vars <- colnames(lagged_newdata)[str_detect(names(lagged_newdata), "disease_status_lag|cases_lag")]
@@ -191,7 +243,7 @@ repel_augment.nowcast_bart <- function(model_object, conn, newdata) {
     #reorder
     select(report_year, report_semester, disease, taxa, country_iso3c, disease_population,
            starts_with("cases"), starts_with("disease_status"),
-           ever_in_taxa_country,
+           starts_with("ever_in"),
            log_human_population, human_population_missing,
            log_taxa_population, taxa_population_missing,
            log_veterinarians_per_capita, veterinarian_count_missing,
