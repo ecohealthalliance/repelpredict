@@ -7,7 +7,6 @@
 \method{repel_fit}{nowcast_bart}(
   model_object,
   augmented_data,
-  outcome_var,
   output_directory,
   n_chains = dbarts::guessNumCores(),
   verbose = interactive()

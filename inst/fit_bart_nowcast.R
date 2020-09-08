@@ -3,7 +3,7 @@ library(tidyverse)
 library(tictoc)
 library(dbarts)
 library(ceterisParibus)
-
+set.seed(101)
 #repeldata::repel_local_download()
 conn <- repeldata::repel_local_conn()
 
@@ -18,21 +18,15 @@ augmented_data <- repel_augment(model_object = model_object, conn = conn, newdat
 map(augmented_data, ~any(is.na(.)))
 write_rds(augmented_data, "inst/augmented_data.rds")
 
-augmented_data <- read_rds("inst/augmented_data.rds")
+augmented_data <- read_rds("inst/augmented_data.rds")[sample(425675, 100000, replace = F),]
 
-tic("cases model")
-fit_object <- repel_fit(model_object = model_object,
-                        augmented_data = augmented_data,
-                        outcome_var = "cases",
-                        output_directory = here::here("models"))
+
+tic("fit bart models")
+repel_fit(model_object, augmented_data, output_directory = here::here("models"))
 toc()
 
-tic("status model")
-repel_fit(model_object = model_object,
-          augmented_data = augmented_data,
-          outcome_var = "disease_status",
-          output_directory = here::here("models"))
-toc()
+repel_local_disconnect()
+
 
 # predicted_data <- repel_predict(model_object = model_object,
 #                                 newdata = augmented_data[1:10000,])
@@ -71,6 +65,5 @@ toc()
 #                                predicted_data = forcasted_data$predicted_data)
 
 
-repel_local_disconnect()
 
 

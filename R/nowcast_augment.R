@@ -29,7 +29,7 @@ repel_augment.nowcast_baseline <- function(model_object, conn, newdata) {
 #' @importFrom assertthat has_name assert_that
 #' @importFrom readr read_csv
 #' @importFrom here here
-#' @importFrom purrr map
+#' @importFrom purrr map map_lgl
 #' @importFrom stringr str_starts str_ends
 #' @export
 repel_augment.nowcast_bart <- function(model_object, conn, newdata) {
@@ -131,7 +131,7 @@ repel_augment.nowcast_bart <- function(model_object, conn, newdata) {
 
   # recode disease status
   lagged_newdata <- lagged_newdata %>%
-    mutate_at(names(.)[str_detect(names(.), "disease_status")],  ~recode(., "present" = 1, "suspected" = 1, "absent" = 0))
+    mutate_at(names(.)[str_detect(names(.), "disease_status")],  ~as.integer(recode(., "present" = 1, "suspected" = 1, "absent" = 0)))
 
   # disease ever ... 4 scenarios
   scenarios <- c("country_given_taxa", "continent_given_taxa",
@@ -144,7 +144,7 @@ repel_augment.nowcast_bart <- function(model_object, conn, newdata) {
                       "country_given_taxa" = "country_iso3c",
                       "continent_given_taxa" = "continent",
                       "continent_any_taxa" = "continent"
-                      )
+    )
     ever <- lagged_newdata
 
     # get continents
@@ -193,8 +193,8 @@ repel_augment.nowcast_bart <- function(model_object, conn, newdata) {
 
   for(sc in scenarios){
     if(stringr::str_ends(sc, "any_taxa")){
-    lagged_newdata <- left_join(lagged_newdata, ever[[sc]],
-                                by = c("country_iso3c", "report_year", "report_semester", "disease"))
+      lagged_newdata <- left_join(lagged_newdata, ever[[sc]],
+                                  by = c("country_iso3c", "report_year", "report_semester", "disease"))
     }else{
       lagged_newdata <- left_join(lagged_newdata, ever[[sc]],
                                   by = c("country_iso3c", "report_year", "report_semester", "disease", "taxa"))
@@ -231,9 +231,9 @@ repel_augment.nowcast_bart <- function(model_object, conn, newdata) {
   lagged_newdata <- lagged_newdata %>%
     mutate(log_gdp_per_capita = prepvar(gdp_dollars/human_population, trans_fn = log10)) %>%
     select(-gdp_dollars) %>%
-    mutate(log_veterinarians_per_capita = prepvar(veterinarian_count/taxa_population, trans_fn = log10)) %>%
+    mutate(log_veterinarians_per_taxa = prepvar((veterinarian_count+1)/(taxa_population+1), trans_fn = log10)) %>%
     select(-veterinarian_count) %>%
-    mutate(log_taxa_population = prepvar(taxa_population, trans_fn = log10)) %>%
+    mutate(log_taxa_population = prepvar(taxa_population+1, trans_fn = log10)) %>%
     select(-taxa_population) %>%
     mutate(log_human_population = prepvar(human_population, trans_fn = log10)) %>%
     select(-human_population) %>%
@@ -246,11 +246,12 @@ repel_augment.nowcast_bart <- function(model_object, conn, newdata) {
            starts_with("ever_in"),
            log_human_population, human_population_missing,
            log_taxa_population, taxa_population_missing,
-           log_veterinarians_per_capita, veterinarian_count_missing,
+           log_veterinarians_per_taxa, veterinarian_count_missing,
            log_gdp_per_capita, gdp_dollars_missing,
            first_reporting_semester,
            everything()) # make sure we don't accidentally drop any columns
 
+  assertthat::assert_that(!any(map_lgl(lagged_newdata, ~any(is.infinite(.)))))
   return(lagged_newdata)
 }
 
