@@ -22,48 +22,52 @@ augmented_data <- read_rds("inst/augmented_data.rds")[sample(425675, 100000, rep
 
 
 tic("fit bart models")
-repel_fit(model_object, augmented_data, output_directory = here::here("models"))
+repel_fit(model_object = model_object,
+          augmented_data = augmented_data,
+          output_directory = here::here("models"))
 toc()
 
+tic("predictions")
+predicted_cases <- repel_predict(model_object = model_object,
+                                newdata = augmented_data[1:10000,])
+toc()
+write_rds(predicted_cases, "inst/predicted_cases.rds")
+
+predicted_cases <- read_rds("inst/predicted_cases.rds")
+
+
+scored_data <- repel_score(model_object = model_object,
+                           augmented_data = augmented_data[1:10000,],
+                           predicted_cases = predicted_cases)
+
+
+newdata <- tibble(country_iso3c = "AFG",
+                  report_year = rep(2016:2020, each = 2),
+                  report_semester = rep(1:2, 5),
+                  disease = "foot-and-mouth disease",
+                  disease_population = "domestic",
+                  taxa = "cattle")
+
+forecasted_data <- repel_forecast(model_object = model_object,
+                                 conn = conn,
+                                 newdata = newdata)
+
+
+
+newdata <- tibble(country_iso3c = "AFG",
+                 report_year = rep(2016:2020, each = 2),
+                 report_semester = rep(1:2, 5),
+                 disease = "african horse sickness",
+                 disease_population = "domestic",
+                 taxa = "equidae")
+
+forecasted_data <- repel_forecast(model_object = model_object,
+                                 conn = conn,
+                                 newdata = newdata)
+
+scored_new_data <- repel_score(model_object = model_object,
+                               augmented_data = forecasted_data$augmented_data,
+                               predicted_cases = forecasted_data$predicted_cases)
+
 repel_local_disconnect()
-
-
-# predicted_data <- repel_predict(model_object = model_object,
-#                                 newdata = augmented_data[1:10000,])
-
-# scored_data <- repel_score(model_object = model_object,
-#                            augmented_data = augmented_data[1:10000,],
-#                            predicted_data = predicted_data)
-#
-# newdata <- tibble(country_iso3c = "AFG",
-#                   report_year = rep(2016:2020, each = 2),
-#                   report_semester = rep(1:2, 5),
-#                   disease = "foot-and-mouth disease",
-#                   disease_population = "domestic",
-#                   taxa = "cattle")
-#
-# forcasted_data <- repel_forecast(model_object = model_object,
-#                                  conn = conn,
-#                                  newdata = newdata)
-# scored_new_data <- repel_score(model_object = model_object,
-#                                augmented_data = forcasted_data$augmented_data,
-#                                predicted_data = forcasted_data$predicted_data)
-#
-#
-# newdata <- tibble(country_iso3c = "AFG",
-#                  report_year = rep(2016:2020, each = 2),
-#                  report_semester = rep(1:2, 5),
-#                  disease = "african horse sickness",
-#                  disease_population = "domestic",
-#                  taxa = "equidae")
-#
-# forcasted_data <- repel_forecast(model_object = model_object,
-#                                  conn = conn,
-#                                  newdata = newdata)
-# scored_new_data <- repel_score(model_object = model_object,
-#                                augmented_data = forcasted_data$augmented_data,
-#                                predicted_data = forcasted_data$predicted_data)
-
-
-
 

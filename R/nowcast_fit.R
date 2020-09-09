@@ -78,5 +78,5 @@ repel_fit.nowcast_bart <- function(model_object,
   invisible(bart_mod_cases$fit$state)
   qsave(list(bart_mod_cases, modified_cases_data), paste0(output_directory, "/bart_mod_", "cases", ".qs"))
 
-  return(bart_mod)
+  return(NULL)
 }

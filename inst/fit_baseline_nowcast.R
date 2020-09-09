@@ -17,9 +17,9 @@ augmented_data <- repel_augment(model_object = model_object, conn = conn, newdat
 # ^ there are some dupes in cases where both present and suspected have counts
 map(augmented_data, ~any(is.na(.))) # can be in cases and disease status only
 
-predicted_data <- repel_predict(model_object = model_object, newdata = augmented_data)
+predicted_cases <- repel_predict(model_object = model_object, newdata = augmented_data)
 
-scored_data <- repel_score(model_object = model_object, augmented_data = augmented_data, predicted_data = predicted_data)
+scored_data <- repel_score(model_object = model_object, augmented_data = augmented_data, predicted_cases = predicted_cases)
 
 # try new cases
 newdata <- tibble(country_iso3c = "AFG",
@@ -29,12 +29,13 @@ newdata <- tibble(country_iso3c = "AFG",
                   disease_population = "domestic",
                   taxa = "cattle")
 
-forcasted_data <- repel_forecast(model_object = model_object,
+forecasted_data <- repel_forecast(model_object = model_object,
                                  conn = conn,
                                  newdata = newdata)
+
 scored_new_data <- repel_score(model_object = model_object,
-                               augmented_data = forcasted_data$augmented_data,
-                               predicted_data = forcasted_data$predicted_data)
+                               augmented_data = forecasted_data$augmented_data,
+                               predicted_cases = forecasted_data$predicted_cases)
 
 newdata <- tibble(country_iso3c = "AFG",
                  report_year = rep(2016:2020, each = 2),
@@ -43,8 +44,8 @@ newdata <- tibble(country_iso3c = "AFG",
                  disease_population = "domestic",
                  taxa = "equidae")
 
-forcasted_data <- repel_forecast(model_object = model_object, conn = conn, newdata = newdata)
-scored_new_data <- repel_score(model_object = model_object,  augmented_data = forcasted_data$augmented_data, predicted_data = forcasted_data$predicted_data)
+forecasted_data <- repel_forecast(model_object = model_object, conn = conn, newdata = newdata)
+scored_new_data <- repel_score(model_object = model_object,  augmented_data = forecasted_data$augmented_data, predicted_data = forecasted_data$predicted_data)
 
 repel_local_disconnect()
 
