@@ -18,11 +18,21 @@ nowcast_bart_model <- function(){
 }
 
 
-#' Produces nowcast bart model object
+#' Produces nowcast gam model object
 #' @import repeldata dplyr tidyr
 #' @return a list with description and classes
 #' @export
 nowcast_gam_model <- function(){
-  structure(list(description = "Nowcast bart model"),
+  structure(list(description = "Nowcast GAM model"),
             class = c("nowcast_gam", "nowcast_model"))
 }
+
+#' Produces nowcast xgboost model object
+#' @import repeldata dplyr tidyr
+#' @return a list with description and classes
+#' @export
+nowcast_boost_model <- function(){
+    structure(list(description = "Nowcast XGBoost model"),
+            class = c("nowcast_boost", "nowcast_model"))
+}
+

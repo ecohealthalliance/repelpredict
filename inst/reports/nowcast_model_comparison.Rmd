@@ -1,44 +1,48 @@
-devtools::load_all()
+---
+title: "nowcast model comparison"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
 library(tidyverse)
-library(tictoc)
-library(dbarts)
-library(ceterisParibus)
+library(readr)
 library(tidymodels)
-set.seed(101)
-#repeldata::repel_local_download()
+library(repelpredict)
+library(qs)
+
 conn <- repeldata::repel_local_conn()
+grouping_vars <- c("country_iso3c", "report_year", "report_semester", "disease", "disease_population", "taxa")
 
-model_object <- nowcast_bart_model()
+```
 
+## Baseline
+This model predicts the last available semester case count (integer) or disease status (binary) for a given country + disease + taxa. `NA` values are imputed as `0`. 
+
+```{r baseline}
 traindat <- repel_cases_train(conn) %>%
   select(all_of(grouping_vars)) %>%
   distinct()
 
-augmented_data <- repel_augment(model_object = model_object, conn = conn, newdata = traindat) %>%
-  arrange(country_iso3c, disease, taxa, report_year, report_semester)
-map(augmented_data, ~any(is.na(.)))
-write_rds(augmented_data, "inst/augmented_data.rds")
+augmented_data <- repel_augment(model_object = nowcast_baseline_model(), conn = conn, newdata = traindat)
+predicted_cases <- repel_predict(model_object = nowcast_baseline_model(), newdata = augmented_data)
+scored_data <- repel_score(model_object = nowcast_baseline_model(), augmented_data = augmented_data, predicted_cases = predicted_cases)
+scored_data
+```
 
-augmented_data <- read_rds("inst/augmented_data.rds")
+## BART
+Model and scored results on full training set
+```{r bart}
 
-tic("fit bart models")
-repel_fit(model_object = model_object,
-          augmented_data = augmented_data,
-          output_directory = here::here("models"))
-toc()
+augmented_data <- read_rds(here::here("inst/augmented_data.rds"))
 
-
-# Model eval based on test set in model object (running predict is too slow)
-bart_mod_disease_status <- read_rds(here::here("models/bart_mod_disease_status.rds"))
-mod_disease_status_obj <- bart_mod_disease_status[[1]]
-mod_disease_status_dat <- bart_mod_disease_status[[2]]
+#assertthat::are_equal(nrow(traindat), nrow(augmented_data))
 
 bart_mod_cases <- read_rds(here::here("models/bart_mod_cases.rds"))
 mod_cases_obj <- bart_mod_cases[[1]]
 mod_cases_dat <- bart_mod_cases[[2]]
 
-predicted_disease_status_probability <- apply(pnorm(mod_disease_status_obj$yhat.test), 2, mean)
-write_rds(predicted_disease_status_probability, "models/predicted_disease_status_probability.rds")
+predicted_disease_status_probability <- read_rds(here::here("models/predicted_disease_status_probability.rds"))
 predicted_disease_status <- round(predicted_disease_status_probability)
 
 predicted_cases <- round(apply(mod_cases_obj$yhat.test, 2, mean))
@@ -79,6 +83,19 @@ cases_direction_confusion_matrix = table(cases_comp %>% select(cases_dirchange_a
 cases_direction_prediction_accuracy = sum(cases_comp$cases_dirchange_match, na.rm = TRUE)/nrow(cases_comp %>% drop_na(cases_dirchange_match))
 mean_abs_error = mean(cases_comp$cases_error, na.rm = TRUE)
 p95_abs_error = quantile(cases_comp$cases_error, 0.95, na.rm = TRUE)
+
+print("disease_status_confusion_matrix")
+disease_status_confusion_matrix
+print("disease_status_prediction_accuracy")
+disease_status_prediction_accuracy
+print("cases_direction_confusion_matrix")
+cases_direction_confusion_matrix
+print("cases_direction_prediction_accuracy")
+cases_direction_prediction_accuracy
+print("mean_abs_error")
+mean_abs_error
+print("p95_abs_error")
+p95_abs_error
 
 # confusion matrix by taxa
 taxa_disease_status <- disease_status_comp %>%
@@ -139,53 +156,6 @@ cases_comp %>%
   scale_x_log10() +
   theme_bw()
 
+```
 
-# disconnect
-repel_local_disconnect()
-
-# Archive workflow using predict and score functions ----------------------
-
-# tic("predictions")
-# predicted_cases <- repel_predict(model_object = model_object,
-#                                  newdata = augmented_data)
-# toc()
-# write_rds(predicted_cases, "inst/predicted_cases.rds")
-
-# predicted_cases <- read_rds("inst/predicted_cases.rds")
-#
-#
-# scored_data <- repel_score(model_object = model_object,
-#                            augmented_data = augmented_data[1:10000,],
-#                            predicted_cases = predicted_cases)
-#
-#
-# newdata <- tibble(country_iso3c = "AFG",
-#                   report_year = rep(2016:2020, each = 2),
-#                   report_semester = rep(1:2, 5),
-#                   disease = "foot-and-mouth disease",
-#                   disease_population = "domestic",
-#                   taxa = "cattle")
-#
-# forecasted_data <- repel_forecast(model_object = model_object,
-#                                  conn = conn,
-#                                  newdata = newdata)
-#
-#
-#
-# newdata <- tibble(country_iso3c = "AFG",
-#                  report_year = rep(2016:2020, each = 2),
-#                  report_semester = rep(1:2, 5),
-#                  disease = "african horse sickness",
-#                  disease_population = "domestic",
-#                  taxa = "equidae")
-#
-# forecasted_data <- repel_forecast(model_object = model_object,
-#                                  conn = conn,
-#                                  newdata = newdata)
-#
-# scored_new_data <- repel_score(model_object = model_object,
-#                                augmented_data = forecasted_data$augmented_data,
-#                                predicted_cases = forecasted_data$predicted_cases)
-#
-# repel_local_disconnect()
 

@@ -17,18 +17,18 @@ repel_predict.nowcast_baseline <- function(model_object, newdata) {
 #' Predict from nowcast BART model object
 #' @return list containing predicted count and whether disease is expected or not (T/F)
 #' @importFrom here here
-#' @importFrom qs qread
+#' @importFrom readr read_rds
 #' @importFrom assertthat assert_that
 #' @export
 #'
 repel_predict.nowcast_bart <- function(model_object, newdata) {
 
   # Load models
-  bart_mod_disease_status <- qread(here::here("models/bart_mod_disease_status.qs"))
+  bart_mod_disease_status <- read_rds(here::here("models/bart_mod_disease_status.rds"))
   mod_disease_status_obj <- bart_mod_disease_status[[1]]
   mod_disease_status_dat <- bart_mod_disease_status[[2]]
 
-  bart_mod_cases <- qread(here::here("models/bart_mod_cases.qs"))
+  bart_mod_cases <- read_rds(here::here("models/bart_mod_cases.rds"))
   mod_cases_obj <- bart_mod_cases[[1]]
   mod_cases_dat <- bart_mod_cases[[2]]
 

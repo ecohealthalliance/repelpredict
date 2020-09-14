@@ -278,6 +278,13 @@ repel_augment.nowcast_gam <- function(model_object, conn, newdata, rare = 1000) 
   return(dat)
 }
 
+#' @import repeldata dplyr tidyr
+#' @export
+#'
+repel_augment.nowcast_boost <- function(model_object, conn, newdata) {
+  repel_augment.nowcast_bart(model_object, conn, newdata)
+}
+
 #' Adds more NA handling functionality to imputeTS::na_interpolation
 #' @import dplyr tidyr
 #' @importFrom imputeTS na_interpolation
