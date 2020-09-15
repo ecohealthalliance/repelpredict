@@ -5,11 +5,8 @@ set.seed(2222)
 #repeldata::repel_local_download()
 conn <- repeldata::repel_local_conn()
 
-all_dat <- tbl(conn, "annual_reports_animal_hosts") %>%
-  filter(taxa %in% taxa_list) %>%
-  filter(report_semester != "0") %>%
+all_dat <- init_annual_reports_animal_hosts(conn) %>%
   select(country_iso3c, report_year, report_semester, taxa, disease, disease_population) %>%
-  collect() %>%
   arrange() %>%
   distinct()
 
@@ -42,4 +39,4 @@ all_dat <- all_dat %>%
 
 message(paste0("validation set is ", round(100*sum(all_dat$validation_set)/nrow(all_dat)), "% of data"))
 
-qsave(all_dat, here::here("inst/lookup/validation_split_lookup.qs"))
+readr::write_csv(all_dat, here::here("inst/lookup/validation_split_lookup.csv"))

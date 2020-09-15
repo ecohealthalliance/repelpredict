@@ -1,23 +1,28 @@
-taxa_list <- c("goats", "sheep",  "sheep/goats", # handling for multiple species, sheep/goats (combine all sheep goats?)
-               "cattle", "birds", "camelidae", "dogs", "equidae",
-               "cats", "cervidae" , "swine" , "buffaloes", "hares/rabbits")
+taxa_list <- c( "sheep/goats",
+                "cattle", "birds", "camelidae", "dogs", "equidae",
+                "cats", "cervidae" , "swine" , "buffaloes", "hares/rabbits")
 
 grouping_vars <- c("country_iso3c", "report_year", "report_semester", "disease", "disease_population", "taxa")
 
 #' @import repeldata dplyr tidyr
 #' @importFrom DBI dbDisconnect
 #' @importFrom digest digest2int
-#' @importFrom qs qread
+#' @importFrom readr read_csv
 #' @noRd
 repel_cases <- function(conn){
 
-  validation_split <- qread(here::here("inst", "lookup", "validation_split_lookup.qs"))
+  validation_split <- read_csv(here::here("inst", "lookup", "validation_split_lookup.csv"),
+                               col_types = cols(
+                                 country_iso3c = col_character(),
+                                 report_year = col_integer(),
+                                 report_semester = col_integer(),
+                                 taxa = col_character(),
+                                 disease = col_character(),
+                                 disease_population = col_character(),
+                                 validation_set = col_logical()
+                               ))
 
-  all_dat <- tbl(conn, "annual_reports_animal_hosts") %>%
-    filter(taxa %in% taxa_list) %>%
-    filter(report_semester != "0") %>%
-    select(report, country, country_iso3c, report_year, report_semester, taxa, disease, disease_population, disease_status, cases) %>%
-    collect() %>%
+  all_dat <- init_annual_reports_animal_hosts(conn) %>%
     mutate_at(.vars = c("report_year", "report_semester", "cases"), ~suppressWarnings(as.integer(.))) %>%
     arrange(country_iso3c, taxa, disease, disease_population, report_year, report_semester) %>%
     left_join(validation_split,  by = c("country_iso3c", "report_year", "report_semester", "taxa", "disease", "disease_population"))
