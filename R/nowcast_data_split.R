@@ -11,6 +11,7 @@ grouping_vars <- c("country_iso3c", "report_year", "report_semester", "disease",
 #' @noRd
 repel_cases <- function(conn){
 
+  # read in static file from inst/generate_data_split_lookup.R
   validation_split <- read_csv(here::here("inst", "lookup", "validation_split_lookup.csv"),
                                col_types = cols(
                                  country_iso3c = col_character(),
@@ -23,7 +24,6 @@ repel_cases <- function(conn){
                                ))
 
   all_dat <- init_annual_reports_animal_hosts(conn) %>%
-    mutate_at(.vars = c("report_year", "report_semester", "cases"), ~suppressWarnings(as.integer(.))) %>%
     arrange(country_iso3c, taxa, disease, disease_population, report_year, report_semester) %>%
     left_join(validation_split,  by = c("country_iso3c", "report_year", "report_semester", "taxa", "disease", "disease_population"))
 
@@ -43,8 +43,8 @@ repel_cases_train <- function(conn){
     filter(!validation_set) %>%
     select(-validation_set)
   # Adding this check out of curiosity--it may not be necessary
-  if(n_distinct(all_dat$country) != n_distinct(train_dat$country)){
-    warning("Not all countries are represented in training dataset")
+  if(n_distinct(all_dat$country_iso3c) != n_distinct(train_dat$country_iso3c)){
+    warning(paste(n_distinct(all_dat$country_iso3c) - n_distinct(train_dat$country_iso3c),"country iso3c(s) are not represented in training dataset"))
   }
   return(train_dat)
 }
