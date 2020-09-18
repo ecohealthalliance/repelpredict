@@ -7,19 +7,19 @@ library(tidymodels)
 set.seed(101)
 #repeldata::repel_local_download()
 # conn <- repeldata::repel_local_conn()
-#
+
 model_object <- nowcast_boost_model()
-#
+
 # traindat <- repel_cases_train(conn) %>%
 #   select(all_of(grouping_vars)) %>%
 #   distinct()
-#
+
 # augmented_data <- repel_augment(model_object = model_object, conn = conn, newdata = traindat) %>%
 #   arrange(country_iso3c, disease, taxa, report_year, report_semester)
 # map(augmented_data, ~any(is.na(.)))
 # write_rds(augmented_data, "inst/augmented_data.rds")
 
-augmented_data <- read_rds("inst/augmented_data.rds")[1:50000,]
+augmented_data <- read_rds(here::here("inst/augmented_data.rds"))
 
 tic("fit boost models")
 repel_fit(model_object = model_object,

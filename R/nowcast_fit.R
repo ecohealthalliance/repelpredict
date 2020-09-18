@@ -96,18 +96,44 @@ repel_fit.nowcast_boost <- function(model_object,
                                     output_directory,
                                     verbose = interactive()) {
 
+  # disease lookup (move to augment)
+  disease_lookup <- augmented_data %>%
+    distinct(disease) %>%
+    mutate(disease_clean = janitor::make_clean_names(disease))
+
   # modify data prior to running
   modified_disease_status_data <- augmented_data %>%
     drop_na(disease_status) %>%
+    mutate(report_semester_1 = as.numeric(report_semester == 1)) %>%
+    select(-cases, -report_year, -report_semester) %>%
+    mutate_if(is.integer, as.double) %>%
     mutate(disease_status = factor(disease_status)) %>%
-    select(-cases, -report_year)
+    filter(country_iso3c %in% c("USA", "ESP", "CHN", "AUS", "BEL", "THA")) %>%
+    left_join(disease_lookup) %>%
+    select(-disease) %>%
+    rename(disease = disease_clean)
+
+  # last modification steps in recipe
+  modified_disease_status_recipe <- modified_disease_status_data %>%
+    recipe(disease_status ~ .) %>%
+    step_dummy(all_nominal(), -disease_status)
 
   # confirm no NAs or Inf
-  assertthat::assert_that(all(map_lgl(modified_disease_status_data, ~all(!is.na(.)))))
-  assertthat::assert_that(all(map_lgl(modified_disease_status_data, ~all(!is.infinite(.)))))
-  assertthat::assert_that(all(map_lgl(modified_disease_status_data, ~all(!is.nan(.)))))
-  assertthat::assert_that(all(map_lgl(modified_disease_status_data, ~all(!is.null(.)))))
+  test_modified_disease_status_rec <- juice(prep(modified_disease_status_recipe))
 
+  assertthat::assert_that(all(map_lgl(test_modified_disease_status_rec, ~all(!is.na(.)))))
+  assertthat::assert_that(all(map_lgl(test_modified_disease_status_rec, ~all(!is.infinite(.)))))
+  assertthat::assert_that(all(map_lgl(test_modified_disease_status_rec, ~all(!is.nan(.)))))
+  assertthat::assert_that(all(map_lgl(test_modified_disease_status_rec, ~all(!is.null(.)))))
+
+  # prep the recipe
+  modified_disease_status_prep <- prep(modified_disease_status_recipe, training = modified_disease_status_data)
+  modified_disease_status_juice <- juice(modified_disease_status_prep)
+
+  # cv folds
+  folds <- vfold_cv(modified_disease_status_data, strata = disease_status)
+
+  # set up model specifications
   xgb_spec <-
     boost_tree(
       trees = 1000,
@@ -118,34 +144,43 @@ repel_fit.nowcast_boost <- function(model_object,
     set_engine("xgboost") %>%
     set_mode("classification")
 
-  xgb_grid <- grid_latin_hypercube(
-    tree_depth(),
-    min_n(),
-    loss_reduction(),
-    sample_size = sample_prop(),
-    finalize(mtry(), modified_disease_status_data),
-    learn_rate(),
-    size = 30 #TODO confirm size
-  )
-
+  # make a workflow that combines the recipe and model
   xgb_wf <- workflow() %>%
-    add_formula(disease_status ~ .) %>%
+    add_recipe(modified_disease_status_recipe) %>%
     add_model(xgb_spec)
 
-
-  vb_folds <- vfold_cv(modified_disease_status_data, strata = disease_status)
+  # update parameter set
+  xgb_set <- parameters(xgb_wf) %>%
+    update(mtry = finalize(mtry(), modified_disease_status_data))
 
   doParallel::registerDoParallel()
-
-  tic()
-  set.seed(234)
-  xgb_res <- tune_grid(
+  xgb_res <-  tune_bayes(
     xgb_wf,
-    resamples = vb_folds,
-    grid = xgb_grid,
-    control = control_grid(save_pred = TRUE, verbose = verbose)
+    resamples = folds,
+    param_info = xgb_set,
+    initial = 7,
+    # How to measure performance?
+    metrics = metric_set(roc_auc),
+    control = control_bayes(no_improve = 30, verbose = TRUE)
   )
-  toc()
+
+  # xgb_grid <- grid_latin_hypercube(
+  #   tree_depth(),
+  #   min_n(),
+  #   loss_reduction(),
+  #   sample_size = sample_prop(),
+  #   finalize(mtry(), modified_disease_status_data),
+  #   learn_rate(),
+  #   size = 30 #TODO confirm size
+  # )
+
+  # xgb_res <- tune_grid(
+  #   xgb_wf,
+  #   resamples = folds,
+  #   grid = xgb_grid,
+  #   control = control_grid(save_pred = TRUE, verbose = verbose)
+  # )
+
   #TODO check if xgbdump or xgbserialize is needed prior to saving (c object outside r memory)
   write_rds(xgb_res, here::here(paste0(output_directory, "/boost_mod_", "disease_status", ".rds")))
 
