@@ -86,7 +86,7 @@ repel_fit.nowcast_bart <- function(model_object,
 
 #' Fit nowcast Boost model object
 #' @return list containing predicted count and whether disease is expected or not (T/F)
-#' @import dplyr tidyr
+#' @import dplyr tidyr doParallel parallel tidymodels
 #' @importFrom readr write_rds
 #' @importFrom assertthat assert_that
 #' @importFrom here here
@@ -108,7 +108,8 @@ repel_fit.nowcast_boost <- function(model_object,
     select(-cases, -report_year, -report_semester) %>%
     mutate_if(is.integer, as.double) %>%
     mutate(disease_status = factor(disease_status)) %>%
-    filter(country_iso3c %in% c("USA", "ESP", "CHN", "AUS", "BEL", "THA")) %>%
+    slice(sample(373145, 10000, replace = FALSE)) %>%
+    #filter(country_iso3c %in% c("USA", "ESP", "CHN", "AUS", "BEL", "THA")) %>%
     left_join(disease_lookup) %>%
     select(-disease) %>%
     rename(disease = disease_clean)
@@ -116,7 +117,8 @@ repel_fit.nowcast_boost <- function(model_object,
   # last modification steps in recipe
   modified_disease_status_recipe <- modified_disease_status_data %>%
     recipe(disease_status ~ .) %>%
-    step_dummy(all_nominal(), -disease_status)
+    step_dummy(all_nominal(), -disease_status) %>%
+    step_zv(all_predictors())
 
   # confirm no NAs or Inf
   test_modified_disease_status_rec <- juice(prep(modified_disease_status_recipe))
@@ -153,7 +155,9 @@ repel_fit.nowcast_boost <- function(model_object,
   xgb_set <- parameters(xgb_wf) %>%
     update(mtry = finalize(mtry(), modified_disease_status_data))
 
-  doParallel::registerDoParallel()
+  all_cores <- parallel::detectCores(logical = FALSE)
+  cl <- makePSOCKcluster(all_cores)
+  registerDoParallel(cl)
   xgb_res <-  tune_bayes(
     xgb_wf,
     resamples = folds,
@@ -161,7 +165,7 @@ repel_fit.nowcast_boost <- function(model_object,
     initial = 7,
     # How to measure performance?
     metrics = metric_set(roc_auc),
-    control = control_bayes(no_improve = 30, verbose = TRUE)
+    control = control_bayes(verbose = TRUE)
   )
 
   # xgb_grid <- grid_latin_hypercube(
