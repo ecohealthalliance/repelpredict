@@ -10,8 +10,8 @@ repel_predict <- function(x, ...){
 #' @export
 #'
 repel_predict.nowcast_baseline <- function(model_object, newdata) {
-    predicted_cases <- newdata$cases_lag1 # assumes 0 for NA lag
-    return(predicted_cases)
+  predicted_cases <- newdata$cases_lag1 # assumes 0 for NA lag
+  return(predicted_cases)
 }
 
 #' Predict from nowcast BART model object
@@ -52,20 +52,20 @@ repel_predict.nowcast_bart <- function(model_object, newdata) {
 
   # Predict case count
   if(length(which_predicted_status_positive)){
-  cases_pred <- dbarts:::predict.bart(object = mod_cases_obj,
-                                      newdata = newdata[which_predicted_status_positive,], # only predict on positive outcomes
-                                      type = c("bart"), #The quantity to be returned by generic functions. Options are "ev" - samples from the posterior of the individual level expected value, "bart" - the sum of trees component; same as "ev" for linear models but on the probit scale for binary ones, and "ppd" - samples from the posterior predictive distribution. To synergize with predict.glm, "response" can be used as a synonym for "value" and "link" can be used as a synonym for "bart".
-                                      combineChains = T)
+    cases_pred <- dbarts:::predict.bart(object = mod_cases_obj,
+                                        newdata = newdata[which_predicted_status_positive,], # only predict on positive outcomes
+                                        type = c("bart"), #The quantity to be returned by generic functions. Options are "ev" - samples from the posterior of the individual level expected value, "bart" - the sum of trees component; same as "ev" for linear models but on the probit scale for binary ones, and "ppd" - samples from the posterior predictive distribution. To synergize with predict.glm, "response" can be used as a synonym for "value" and "link" can be used as a synonym for "bart".
+                                        combineChains = T)
 
-  predicted_cases <- round(apply(cases_pred, 2, mean))
-  predicted_cases <- ifelse(predicted_cases < 0, 0, predicted_cases)
+    predicted_cases <- round(apply(cases_pred, 2, mean))
+    predicted_cases <- ifelse(predicted_cases < 0, 0, predicted_cases)
 
-  # Return a tibble
-  predicted_cases <- tibble(id = 1:nrow(newdata)) %>%
-    left_join(tibble(id = which_predicted_status_positive, predicted_cases = predicted_cases),
-              by = "id") %>%
-    mutate(predicted_cases = replace_na(predicted_cases, 0)) %>%
-    pull(predicted_cases)
+    # Return a tibble
+    predicted_cases <- tibble(id = 1:nrow(newdata)) %>%
+      left_join(tibble(id = which_predicted_status_positive, predicted_cases = predicted_cases),
+                by = "id") %>%
+      mutate(predicted_cases = replace_na(predicted_cases, 0)) %>%
+      pull(predicted_cases)
   }else{
     predicted_cases <- predicted_disease_status
   }
@@ -75,5 +75,51 @@ repel_predict.nowcast_bart <- function(model_object, newdata) {
   #          predicted_disease_status_probability = predicted_disease_status_probability) %>%
   #   bind_cols(out_cases)
 
+  return(predicted_cases)
+}
+
+
+#' Predict from nowcast xgboost model object
+#' @return list containing predicted count and whether disease is expected or not (T/F)
+#' @importFrom here here
+#' @importFrom xgboost xgb.load
+#' @importFrom readr read_rds
+#' @importFrom assertthat assert_that
+#' @export
+#'
+repel_predict.nowcast_boost <- function(model_object, newdata) {
+
+  # Load models
+  boost_mod_disease_status <- xgb.load(here::here("models/boost_mod_disease_status.model"))
+  boost_mod_cases <- xgb.load(here::here("models/boost_mod_cases.model"))
+
+  # Load recipe
+  disease_status_recipe <- read_rds(here::here("models/boost_recipe_disease_status.rds"))
+
+  # Pre-process newdata for status model
+  newdata_prepped <- bake(object = prep(disease_status_recipe), new_data = newdata) %>%
+    select(-one_of("disease_status")) %>%
+    as.matrix()
+
+  # Predict disease status
+  predicted_disease_status_probability <- predict(boost_mod_disease_status, newdata = newdata_prepped)
+  predicted_disease_status <- round(predicted_disease_status_probability)
+  which_predicted_status_positive <- which(predicted_disease_status == 1)
+
+  # Predict case count
+  if(length(which_predicted_status_positive)){
+    predicted_cases <- predict(object = boost_mod_cases,
+                               newdata = newdata_prepped[which_predicted_status_positive,]) # only predict on positive outcomes
+    predicted_cases <- round(predicted_cases)
+
+    # Return a tibble
+    predicted_cases <- tibble(id = 1:nrow(newdata)) %>%
+      left_join(tibble(id = which_predicted_status_positive, predicted_cases = predicted_cases),
+                by = "id") %>%
+      mutate(predicted_cases = replace_na(predicted_cases, 0)) %>%
+      pull(predicted_cases)
+  }else{
+    predicted_cases <- predicted_disease_status
+  }
   return(predicted_cases)
 }

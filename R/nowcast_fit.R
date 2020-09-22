@@ -97,20 +97,19 @@ repel_fit.nowcast_boost <- function(model_object,
                                     output_directory,
                                     verbose = interactive()) {
 
-  # modify data prior to running (using recipes for some convenience functions)
-  modified_augmented_data <- augmented_data %>%
+  # Status model ------------------------------------------------------------
+  # using recipes for some convenience functions and for "baking" new data later
+  disease_status_recipe <- augmented_data %>%
     recipe(disease_status ~ .) %>%
     step_mutate(report_semester_1 = as.numeric(report_semester == 1)) %>%
-    step_rm(report_year, report_semester) %>%
+    step_rm(report_year, report_semester, cases) %>%
     step_dummy(all_nominal(), -disease_status) %>%
-    step_zv(all_predictors()) %>%
-    prep() %>%
-    juice()
+    step_zv(all_predictors())
 
-  # Status model ------------------------------------------------------------
-  # tabuler disease status data
-  modified_disease_status_data <- modified_augmented_data %>%
-    select(-cases) %>%
+  # get tabular data
+  modified_disease_status_data <- disease_status_recipe %>%
+    prep() %>%
+    juice() %>%
     drop_na(disease_status)
 
   # confirm no NAs etc
@@ -132,12 +131,22 @@ repel_fit.nowcast_boost <- function(model_object,
                                       booster="gbtree",
                                       objective = "binary:logistic")
 
-  xgb.save(boost_mod_disease_status, here::here(paste0(output_directory, "/boost_mod_", "disease_status", ".model")))
+  xgb.save(boost_mod_disease_status, here::here(paste0(output_directory, "/boost_mod_disease_status.model")))
+  write_rds(disease_status_recipe, here::here(paste0(output_directory, "/boost_recipe_disease_status.rds")))
 
   # Case model ------------------------------------------------------------
-  # tabuler cases data
-  modified_cases_data <- modified_augmented_data %>%
-    select(-disease_status) %>%
+  # using recipes for some convenience functions and for "baking" new data later
+  cases_recipe <- augmented_data %>%
+    recipe(cases ~ .) %>%
+    step_mutate(report_semester_1 = as.numeric(report_semester == 1)) %>%
+    step_rm(report_year, report_semester, disease_status) %>%
+    step_dummy(all_nominal()) %>%
+    step_zv(all_predictors())
+
+  # get tabular data
+  modified_cases_data <- cases_recipe %>%
+    prep() %>%
+    juice() %>%
     drop_na(cases) %>%
     filter(cases > 0)
 
@@ -162,6 +171,7 @@ repel_fit.nowcast_boost <- function(model_object,
 
   # importance <- xgb.importance(feature_names = colnames(train_cases$data), model = boost_mod_cases)
   # head(importance, n = 10)
-  xgb.save(boost_mod_cases, here::here(paste0(output_directory, "/boost_mod_", "cases", ".model")))
+  xgb.save(boost_mod_cases, here::here(paste0(output_directory, "/boost_mod_cases.model")))
+  # write_rds(cases_recipe, here::here(paste0(output_directory, "/boost_recipe_cases.rds")))
 
 }
