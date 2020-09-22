@@ -13,10 +13,10 @@ traindat <- repel_cases_train(conn) %>%
   select(all_of(grouping_vars)) %>%
   distinct()
 
-# augmented_data <- repel_augment(model_object = model_object, conn = conn, newdata = traindat) %>%
-#   arrange(country_iso3c, disease, taxa, report_year, report_semester)
-# write_rds(augmented_data, "inst/augmented_data.rds")
-augmented_data <- read_rds(here::here("inst/augmented_data.rds"))
+augmented_data <- repel_augment(model_object = model_object, conn = conn, newdata = traindat) %>%
+  arrange(country_iso3c, disease, taxa, report_year, report_semester)
+write_rds(augmented_data, "tmp/augmented_data.rds")
+augmented_data <- read_rds(here::here("tmp/augmented_data.rds"))
 
 tic("fit boost models")
 repel_fit(model_object = model_object,
