@@ -86,106 +86,82 @@ repel_fit.nowcast_bart <- function(model_object,
 
 #' Fit nowcast Boost model object
 #' @return list containing predicted count and whether disease is expected or not (T/F)
-#' @import dplyr tidyr doParallel parallel tidymodels
+#' @import dplyr tidyr recipes
 #' @importFrom readr write_rds
 #' @importFrom assertthat assert_that
 #' @importFrom here here
+#' @importFrom xgboost xgboost xgb.save
 #' @export
 repel_fit.nowcast_boost <- function(model_object,
                                     augmented_data,
                                     output_directory,
                                     verbose = interactive()) {
 
-  # disease lookup (move to augment)
-  disease_lookup <- augmented_data %>%
-    distinct(disease) %>%
-    mutate(disease_clean = janitor::make_clean_names(disease))
-
-  # modify data prior to running
-  modified_disease_status_data <- augmented_data %>%
-    drop_na(disease_status) %>%
-    mutate(report_semester_1 = as.numeric(report_semester == 1)) %>%
-    select(-cases, -report_year, -report_semester) %>%
-    mutate_if(is.integer, as.double) %>%
-    mutate(disease_status = factor(disease_status)) %>%
-    slice(sample(373145, 10000, replace = FALSE)) %>%
-    #filter(country_iso3c %in% c("USA", "ESP", "CHN", "AUS", "BEL", "THA")) %>%
-    left_join(disease_lookup) %>%
-    select(-disease) %>%
-    rename(disease = disease_clean)
-
-  # last modification steps in recipe
-  modified_disease_status_recipe <- modified_disease_status_data %>%
+  # modify data prior to running (using recipes for some convenience functions)
+  modified_augmented_data <- augmented_data %>%
     recipe(disease_status ~ .) %>%
+    step_mutate(report_semester_1 = as.numeric(report_semester == 1)) %>%
+    step_rm(report_year, report_semester) %>%
     step_dummy(all_nominal(), -disease_status) %>%
-    step_zv(all_predictors())
+    step_zv(all_predictors()) %>%
+    prep() %>%
+    juice()
 
-  # confirm no NAs or Inf
-  test_modified_disease_status_rec <- juice(prep(modified_disease_status_recipe))
+  # Status model ------------------------------------------------------------
+  # tabuler disease status data
+  modified_disease_status_data <- modified_augmented_data %>%
+    select(-cases) %>%
+    drop_na(disease_status)
 
-  assertthat::assert_that(all(map_lgl(test_modified_disease_status_rec, ~all(!is.na(.)))))
-  assertthat::assert_that(all(map_lgl(test_modified_disease_status_rec, ~all(!is.infinite(.)))))
-  assertthat::assert_that(all(map_lgl(test_modified_disease_status_rec, ~all(!is.nan(.)))))
-  assertthat::assert_that(all(map_lgl(test_modified_disease_status_rec, ~all(!is.null(.)))))
+  # confirm no NAs etc
+  assertthat::assert_that(all(map_lgl(modified_disease_status_data, ~all(!is.na(.)))))
+  assertthat::assert_that(all(map_lgl(modified_disease_status_data, ~all(!is.infinite(.)))))
+  assertthat::assert_that(all(map_lgl(modified_disease_status_data, ~all(!is.nan(.)))))
+  assertthat::assert_that(all(map_lgl(modified_disease_status_data, ~all(!is.null(.)))))
 
-  # prep the recipe
-  modified_disease_status_prep <- prep(modified_disease_status_recipe, training = modified_disease_status_data)
-  modified_disease_status_juice <- juice(modified_disease_status_prep)
-
-  # cv folds
-  folds <- vfold_cv(modified_disease_status_data, strata = disease_status)
-
-  # set up model specifications
-  xgb_spec <-
-    boost_tree(
-      trees = 1000,
-      tree_depth = tune(), min_n = tune(), loss_reduction = tune(),   ## first three: model complexity
-      sample_size = tune(), mtry = tune(),         ## randomness
-      learn_rate = tune(),                         ## step size
-    ) %>%
-    set_engine("xgboost") %>%
-    set_mode("classification")
-
-  # make a workflow that combines the recipe and model
-  xgb_wf <- workflow() %>%
-    add_recipe(modified_disease_status_recipe) %>%
-    add_model(xgb_spec)
-
-  # update parameter set
-  xgb_set <- parameters(xgb_wf) %>%
-    update(mtry = finalize(mtry(), modified_disease_status_data))
-
-  all_cores <- parallel::detectCores(logical = FALSE)
-  cl <- makePSOCKcluster(all_cores)
-  registerDoParallel(cl)
-  xgb_res <-  tune_bayes(
-    xgb_wf,
-    resamples = folds,
-    param_info = xgb_set,
-    initial = 7,
-    # How to measure performance?
-    metrics = metric_set(roc_auc),
-    control = control_bayes(verbose = TRUE)
+  train_disease_status <- list(
+    data = modified_disease_status_data %>%
+      select(-disease_status) %>%
+      as.matrix(),
+    label = modified_disease_status_data$disease_status
   )
 
-  # xgb_grid <- grid_latin_hypercube(
-  #   tree_depth(),
-  #   min_n(),
-  #   loss_reduction(),
-  #   sample_size = sample_prop(),
-  #   finalize(mtry(), modified_disease_status_data),
-  #   learn_rate(),
-  #   size = 30 #TODO confirm size
-  # )
+  boost_mod_disease_status <- xgboost(data = train_disease_status$data,
+                                      label = train_disease_status$label,  verbose = 2,
+                                      max.depth = 6, eta = 1, nthread = 2, nrounds = 30,
+                                      booster="gbtree",
+                                      objective = "binary:logistic")
 
-  # xgb_res <- tune_grid(
-  #   xgb_wf,
-  #   resamples = folds,
-  #   grid = xgb_grid,
-  #   control = control_grid(save_pred = TRUE, verbose = verbose)
-  # )
+  xgb.save(boost_mod_disease_status, here::here(paste0(output_directory, "/boost_mod_", "disease_status", ".model")))
 
-  #TODO check if xgbdump or xgbserialize is needed prior to saving (c object outside r memory)
-  write_rds(xgb_res, here::here(paste0(output_directory, "/boost_mod_", "disease_status", ".rds")))
+  # Case model ------------------------------------------------------------
+  # tabuler cases data
+  modified_cases_data <- modified_augmented_data %>%
+    select(-disease_status) %>%
+    drop_na(cases) %>%
+    filter(cases > 0)
+
+  # confirm no NAs or Inf
+  assertthat::assert_that(all(map_lgl(modified_cases_data, ~all(!is.na(.)))))
+  assertthat::assert_that(all(map_lgl(modified_cases_data, ~all(!is.infinite(.)))))
+  assertthat::assert_that(all(map_lgl(modified_cases_data, ~all(!is.nan(.)))))
+  assertthat::assert_that(all(map_lgl(modified_cases_data, ~all(!is.null(.)))))
+
+  train_cases <- list(
+    data = modified_cases_data %>%
+      select(-cases) %>%
+      as.matrix(),
+    label = modified_cases_data$cases
+  )
+
+  boost_mod_cases <- xgboost(data = train_cases$data,
+                             label = train_cases$label,  verbose = 2,
+                             max.depth = 6, eta = 1, nthread = 2, nrounds = 20,
+                             booster="gbtree",
+                             objective="count:poisson")
+
+  # importance <- xgb.importance(feature_names = colnames(train_cases$data), model = boost_mod_cases)
+  # head(importance, n = 10)
+  xgb.save(boost_mod_cases, here::here(paste0(output_directory, "/boost_mod_", "cases", ".model")))
 
 }

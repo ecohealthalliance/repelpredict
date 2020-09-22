@@ -8,6 +8,7 @@ repel_augment <- function(x, ...){
 #' Augment nowcast baseline model object
 #' @import repeldata dplyr tidyr
 #' @importFrom assertthat has_name assert_that
+#' @importFrom janitor make_clean_names
 #' @export
 repel_augment.nowcast_baseline <- function(model_object, conn, newdata) {
 
@@ -32,7 +33,7 @@ repel_augment.nowcast_baseline <- function(model_object, conn, newdata) {
 #' @importFrom purrr map map_lgl
 #' @importFrom stringr str_starts str_ends
 #' @export
-repel_augment.nowcast_bart <- function(model_object, conn, newdata) {
+repel_augment.nowcast_tree <- function(model_object, conn, newdata) {
 
   # get lag cases
   lagged_newdata <- get_nowcast_lag(conn, newdata, lags = 1:3)
@@ -227,6 +228,16 @@ repel_augment.nowcast_bart <- function(model_object, conn, newdata) {
     select(-disease) %>%
     rename(disease = disease_recode)
 
+  # disease name lookup/clean
+  disease_lookup <- lagged_newdata %>%
+    distinct(disease) %>%
+    mutate(disease_clean = janitor::make_clean_names(disease))
+
+  lagged_newdata <- lagged_newdata %>%
+    left_join(disease_lookup, by = "disease") %>%
+    select(-disease) %>%
+    rename(disease = disease_clean)
+
   # final feature engineering - transformations etc
   lagged_newdata <- lagged_newdata %>%
     mutate(log_gdp_per_capita = prepvar(gdp_dollars/human_population, trans_fn = log10)) %>%
@@ -239,7 +250,7 @@ repel_augment.nowcast_bart <- function(model_object, conn, newdata) {
     select(-human_population) %>%
     # handling data types
     mutate_if(is.character, as.factor) %>%
-    mutate_if(is.logical, as.integer) %>%
+    mutate_if(is.logical, as.double) %>%
     #reorder
     select(report_year, report_semester, disease, taxa, country_iso3c, disease_population,
            starts_with("cases"), starts_with("disease_status"),
@@ -276,13 +287,6 @@ repel_augment.nowcast_gam <- function(model_object, conn, newdata, rare = 1000) 
   dat$lags <- matrix(seq_len(ncol(dat$cases_lagged)), ncol = ncol(dat$cases_lagged), nrow = nrow(dat), byrow = TRUE)
   dat$condition_lagged <- matrix(rep(as.integer(dat$condition), ncol(dat$cases_lagged)), nrow = nrow(dat), ncol = ncol(dat$cases_lagged), byrow = FALSE)
   return(dat)
-}
-
-#' @import repeldata dplyr tidyr
-#' @export
-#'
-repel_augment.nowcast_boost <- function(model_object, conn, newdata) {
-  repel_augment.nowcast_bart(model_object, conn, newdata)
 }
 
 #' Adds more NA handling functionality to imputeTS::na_interpolation

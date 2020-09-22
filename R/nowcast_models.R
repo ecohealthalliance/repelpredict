@@ -14,7 +14,7 @@ nowcast_baseline_model <- function(){
 #' @export
 nowcast_bart_model <- function(){
   structure(list(description = "Nowcast bart model"),
-            class = c("nowcast_bart", "nowcast_model"))
+            class = c("nowcast_bart", "nowcast_tree", "nowcast_model"))
 }
 
 
@@ -33,6 +33,6 @@ nowcast_gam_model <- function(){
 #' @export
 nowcast_boost_model <- function(){
     structure(list(description = "Nowcast XGBoost model"),
-            class = c("nowcast_boost", "nowcast_model"))
+            class = c("nowcast_boost", "nowcast_tree", "nowcast_model"))
 }
 
