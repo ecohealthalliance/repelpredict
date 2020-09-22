@@ -7,34 +7,121 @@ output: html_document
 knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
 library(tidyverse)
 library(readr)
-library(tidymodels)
 library(repelpredict)
-library(qs)
+library(cowplot)
+library(yardstick)
+library(countrycode)
+
+devtools::load_all()
 
 conn <- repeldata::repel_local_conn()
 grouping_vars <- c("country_iso3c", "report_year", "report_semester", "disease", "disease_population", "taxa")
 
+traindat <- repel_cases_train(conn) %>%
+  select(all_of(grouping_vars)) %>%
+  distinct()
 ```
 
 ## Baseline
 This model predicts the last available semester case count (integer) or disease status (binary) for a given country + disease + taxa. `NA` values are imputed as `0`. 
 
 ```{r baseline}
-traindat <- repel_cases_train(conn) %>%
-  select(all_of(grouping_vars)) %>%
-  distinct()
-
-augmented_data <- repel_augment(model_object = nowcast_baseline_model(), conn = conn, newdata = traindat)
-predicted_cases <- repel_predict(model_object = nowcast_baseline_model(), newdata = augmented_data)
-scored_data <- repel_score(model_object = nowcast_baseline_model(), augmented_data = augmented_data, predicted_cases = predicted_cases)
-scored_data
+augmented_data_baseline <- repel_augment(model_object = nowcast_baseline_model(), conn = conn, newdata = traindat)
+predicted_cases_baseline <- repel_predict(model_object = nowcast_baseline_model(), newdata = augmented_data_baseline)
+scored_dat_baselinea <- repel_score(model_object = nowcast_baseline_model(), augmented_data = augmented_data_baseline, predicted_cases = predicted_cases_baseline)
+scored_data_baseline[-1]
 ```
+
+## XGBoost
+Model and scored results on full training set (using default tuning params)
+```{r xgb}
+augmented_data_boost <- repel_augment(model_object = nowcast_boost_model(), conn = conn, newdata = traindat)
+predicted_cases_boost <- repel_predict(model_object = nowcast_boost_model(), newdata = augmented_data_boost)
+scored_data_boost <- repel_score(model_object = nowcast_boost_model(), augmented_data = augmented_data_boost, predicted_cases = predicted_cases_boost)
+scored_data_boost[-1]
+```
+
+### XGBoost - disease status
+```{r xgb2}
+disease_status_comp <- augmented_data_boost %>%
+  select(all_of(grouping_vars), disease_status_actual = disease_status) %>%
+  mutate(disease_status_predicted = as.integer(predicted_cases_boost>0)) %>%
+  mutate(disease_status_match = disease_status_actual == disease_status_predicted) %>% 
+  mutate(continent = countrycode::countrycode(country_iso3c, origin = "iso3c", destination = "continent")) 
+
+# confusion matrix by taxa
+make_conf_mat <- function(grp_var){
+  grp_disease_status <- disease_status_comp %>%
+    select(all_of(grp_var), disease_status_actual, disease_status_predicted) %>%
+    mutate(disease_status_actual = factor(disease_status_actual)) %>%
+    mutate(disease_status_predicted = factor(disease_status_predicted))
+  
+  cm_grp <- grp_disease_status %>%
+    group_by_at(grp_var) %>%
+    conf_mat(truth = disease_status_actual, estimate = disease_status_predicted)
+  
+  cm_rates <- cm_grp %>%
+    mutate(tidied = map(conf_mat, tidy)) %>%
+    unnest(tidied) %>% 
+    mutate(true_status = recode(name, "cell_1_1" = "neg", "cell_2_1" = "neg", "cell_1_2" = "pos", "cell_2_2" = "pos")) %>% 
+    mutate(classification = recode(name, "cell_1_1" = "correct", "cell_2_1" = "incorrect", "cell_1_2" = "incorrect", "cell_2_2" = "correct")) %>% 
+    mutate(x = recode(name, "cell_1_1" = "0", "cell_2_1" = "0", "cell_1_2" = "1", "cell_2_2" = "1")) %>% 
+    mutate(y = recode(name,  "cell_1_1" = "0", "cell_2_1" = "1", "cell_1_2" = "0", "cell_2_2" = "1")) %>% 
+    group_by_at(c(grp_var, "true_status")) %>%
+    mutate(total = sum(value)) %>% 
+    ungroup() %>% 
+    mutate(rate = value/total) %>% 
+    select(all_of(grp_var), true_status, classification, rate, value, x, y)
+  
+  accur <- cm_rates %>% 
+    filter(classification == "correct") %>% 
+    mutate(x_lab = paste0(x, "\n(", signif(100*rate, 3), "% accuracy)")) %>% 
+    select(all_of(grp_var), x, x_lab)
+  
+  cm_rates <- left_join(cm_rates, accur)
+  
+  vars <- cm_rates %>% 
+    pull(grp_var) %>% 
+    unique()
+  
+  cm_plots <- map(vars, function(tx){
+    
+    dat <- cm_rates %>% 
+      filter_at(grp_var, ~.x == tx)
+    
+    ggplot(dat, aes(x_lab, y, label = value)) +
+      geom_tile(aes(fill = value), show.legend = FALSE, alpha = 0.5) +
+      geom_label(alpha = 0)+
+      scale_fill_viridis_c() +
+      labs(x = "truth", y = "predicted", title = tx) +
+      theme_bw()
+  })
+  
+  plot_grid(plotlist = cm_plots)
+}
+
+make_conf_mat("taxa")
+make_conf_mat("continent")
+
+```
+
+### XGBoost - cases
+```{r xgb3}
+
+```
+
+### XGBoost - partial effects
+```{r xgb3}
+
+```
+
+
 
 ## BART
 Model and scored results on full training set
 ```{r bart}
 
-augmented_data <- read_rds(here::here("inst/augmented_data.rds"))
+augmented_data <- read_rds(here::here("tmp/augmented_data.rds"))
 
 #assertthat::are_equal(nrow(traindat), nrow(augmented_data))
 
