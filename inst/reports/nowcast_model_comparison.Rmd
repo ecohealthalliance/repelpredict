@@ -6,11 +6,14 @@ output: html_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
 library(tidyverse)
+library(xgboost)
 library(readr)
 library(repelpredict)
 library(cowplot)
 library(yardstick)
 library(countrycode)
+library(recipes)
+library(DALEX)
 
 devtools::load_all()
 
@@ -28,7 +31,7 @@ This model predicts the last available semester case count (integer) or disease 
 ```{r baseline}
 augmented_data_baseline <- repel_augment(model_object = nowcast_baseline_model(), conn = conn, newdata = traindat)
 predicted_cases_baseline <- repel_predict(model_object = nowcast_baseline_model(), newdata = augmented_data_baseline)
-scored_dat_baselinea <- repel_score(model_object = nowcast_baseline_model(), augmented_data = augmented_data_baseline, predicted_cases = predicted_cases_baseline)
+scored_data_baseline <- repel_score(model_object = nowcast_baseline_model(), augmented_data = augmented_data_baseline, predicted_cases = predicted_cases_baseline)
 scored_data_baseline[-1]
 ```
 
@@ -42,7 +45,7 @@ scored_data_boost[-1]
 ```
 
 ### XGBoost - disease status
-```{r xgb2}
+```{r xgb_ds, fig.height=10, fig.width=10}
 disease_status_comp <- augmented_data_boost %>%
   select(all_of(grouping_vars), disease_status_actual = disease_status) %>%
   mutate(disease_status_predicted = as.integer(predicted_cases_boost>0)) %>%
@@ -101,53 +104,54 @@ make_conf_mat <- function(grp_var){
 }
 
 make_conf_mat("taxa")
+```
+
+```{r xgb_ds2}
 make_conf_mat("continent")
+```
+
+### XGBoost - diseae status - variable importance
+```{r xgb_ds_vi}
+# Load model
+boost_mod_disease_status <- xgb.load(here::here("models/boost_mod_disease_status.model"))
+# Load data
+boost_train_disease_status <- read_rds(here::here("models/boost_train_disease_status.rds"))
+
+explainer_disease_status <- DALEX::explain(
+  model = boost_mod_disease_status,
+  data = boost_train_disease_status$data,
+  y = boost_train_disease_status$label,
+  predict_function = predict,
+  label = "cases"
+)
+
+importance_disease_status <- xgb.importance(feature_names = colnames(boost_train_disease_status$data), model = boost_mod_disease_status)
+head(importance_disease_status, n = 10)
+```
+
+#### XGBoost - disease status - variable importance
+```{r xgb_ds_pd, fig.height=10, fig.width=10}
+
+vars_disease_status <- c("disease_status_lag1", "disease_status_lag2", "disease_status_lag3", "log_human_population", "log_taxa_population", "log_veterinarians_per_taxa", "log_gdp_per_capita")
+
+pd_plots_cases <- purrr::map(vars_disease_status, function(var){
+  var_resp <- variable_effect(explainer_disease_status, variable =  var , type = "partial_dependency")
+  plot(var_resp)
+})
+
+  plot_grid(plotlist = pd_plots_cases)
 
 ```
 
 ### XGBoost - cases
-```{r xgb3}
-
-```
-
-### XGBoost - partial effects
-```{r xgb3}
-
-```
-
-
-
-## BART
-Model and scored results on full training set
-```{r bart}
-
-augmented_data <- read_rds(here::here("tmp/augmented_data.rds"))
-
-#assertthat::are_equal(nrow(traindat), nrow(augmented_data))
-
-bart_mod_cases <- read_rds(here::here("models/bart_mod_cases.rds"))
-mod_cases_obj <- bart_mod_cases[[1]]
-mod_cases_dat <- bart_mod_cases[[2]]
-
-predicted_disease_status_probability <- read_rds(here::here("models/predicted_disease_status_probability.rds"))
-predicted_disease_status <- round(predicted_disease_status_probability)
-
-predicted_cases <- round(apply(mod_cases_obj$yhat.test, 2, mean))
-predicted_cases <- ifelse(predicted_cases < 0, 0, predicted_cases)
-
-predicted_disease_status_eval <- augmented_data %>%
-  mutate(predicted_disease_status = predicted_disease_status)
-
-predicted_cases_eval <- augmented_data %>%
-  drop_na(cases) %>%
-  filter(cases > 0) %>%
-  mutate(predicted_cases = predicted_cases)
-
-cases_comp <- augmented_data %>%
-  drop_na(cases) %>%
-  filter(cases > 0) %>%
+```{r xgb_ca}
+# cases actual versus residual- only for predicted cases
+cases_comp <- augmented_data_boost %>%
   select(all_of(grouping_vars), cases_actual = cases, cases_lag1) %>%
-  mutate(cases_predicted = predicted_cases) %>%
+  mutate(cases_predicted = predicted_cases_boost) %>%
+  drop_na(cases_actual) %>% 
+  filter(cases_actual > 0) %>%
+  filter(cases_predicted > 0) %>%
   mutate(cases_error = abs(cases_actual - cases_predicted)) %>%
   mutate(cases_dirchange_actual = cases_actual - cases_lag1) %>%
   mutate(cases_dirchange_predicted = cases_predicted - cases_lag1) %>%
@@ -158,91 +162,45 @@ cases_comp <- augmented_data %>%
                        is.na(.) ~ NA_character_)) %>%
   mutate(cases_dirchange_match = cases_dirchange_actual == cases_dirchange_predicted)
 
-disease_status_comp <- augmented_data %>%
-  select(all_of(grouping_vars), disease_status_actual = disease_status) %>%
-  mutate(disease_status_predicted = predicted_disease_status) %>%
-  mutate(disease_status_predicted_probability = predicted_disease_status_probability) %>%
-  mutate(disease_status_match = disease_status_actual == disease_status_predicted)
-
-disease_status_confusion_matrix = table(disease_status_comp %>% select(disease_status_actual, disease_status_predicted))
-disease_status_prediction_accuracy = sum(disease_status_comp$disease_status_match, na.rm = TRUE)/nrow(disease_status_comp %>% drop_na(disease_status_match))
-cases_direction_confusion_matrix = table(cases_comp %>% select(cases_dirchange_actual, cases_dirchange_predicted)) #this automatically removes NA
-cases_direction_prediction_accuracy = sum(cases_comp$cases_dirchange_match, na.rm = TRUE)/nrow(cases_comp %>% drop_na(cases_dirchange_match))
-mean_abs_error = mean(cases_comp$cases_error, na.rm = TRUE)
-p95_abs_error = quantile(cases_comp$cases_error, 0.95, na.rm = TRUE)
-
-print("disease_status_confusion_matrix")
-disease_status_confusion_matrix
-print("disease_status_prediction_accuracy")
-disease_status_prediction_accuracy
-print("cases_direction_confusion_matrix")
-cases_direction_confusion_matrix
-print("cases_direction_prediction_accuracy")
-cases_direction_prediction_accuracy
-print("mean_abs_error")
-mean_abs_error
-print("p95_abs_error")
-p95_abs_error
-
-# confusion matrix by taxa
-taxa_disease_status <- disease_status_comp %>%
-  select(taxa, disease_status_actual, disease_status_predicted) %>%
-  mutate(disease_status_actual = factor(disease_status_actual)) %>%
-  mutate(disease_status_predicted = factor(disease_status_predicted))
-
-cm_taxa <- taxa_disease_status %>%
-  group_by(taxa) %>%
-  conf_mat(disease_status_actual, disease_status_predicted)
-
-cells_per_taxa <- cm_taxa %>%
-  mutate(tidied = map(conf_mat, tidy)) %>%
-  unnest(tidied)
-
-counts_per_taxa <- taxa_disease_status %>%
-  group_by(taxa) %>%
-  summarize(total = n()) %>%
-  left_join(cells_per_taxa, by = "taxa") %>%
-  # Compute the proportions
-  mutate(prop = value/total)
-
-cm_plots <- map(cm_taxa$conf_mat, autoplot, type = "heatmap")
-library(cowplot)
-plot_grid(plotlist = cm_plots, labels = cm_taxa$taxa)
-
-# confusion matrix by continent
-cont_disease_status <- disease_status_comp %>%
-  select(country_iso3c, disease_status_actual, disease_status_predicted) %>%
-  mutate(continent = countrycode::countrycode(country_iso3c, origin = "iso3c", destination = "continent")) %>%
-  mutate(disease_status_actual = factor(disease_status_actual)) %>%
-  mutate(disease_status_predicted = factor(disease_status_predicted))
-
-cm_cont <- cont_disease_status %>%
-  group_by(continent) %>%
-  conf_mat(disease_status_actual, disease_status_predicted)
-
-cells_per_cont <- cm_cont %>%
-  mutate(tidied = map(conf_mat, tidy)) %>%
-  unnest(tidied)
-
-counts_per_cont <- cont_disease_status %>%
-  group_by(continent) %>%
-  summarize(total = n()) %>%
-  left_join(cells_per_cont, by = "continent") %>%
-  # Compute the proportions
-  mutate(prop = value/total)
-
-cm_plots <- map(cm_cont$conf_mat, autoplot, type = "heatmap")
-library(cowplot)
-plot_grid(plotlist = cm_plots, labels = cm_cont$continent)
-
-# cases actual versus residual
 cases_comp %>%
   ggplot(., aes(x = cases_actual, y = cases_predicted, color = log10(cases_error))) +
   geom_point(alpha = 0.5) +
-  scale_y_log10() +
-  scale_x_log10() +
+  scale_y_log10(limits = c(1, max(c(cases_comp$cases_actual, cases_comp$cases_predicted)))) +
+  scale_x_log10(limits = c(1, max(c(cases_comp$cases_actual, cases_comp$cases_predicted)))) +
+  scale_color_viridis_c() +
   theme_bw()
+```
 
+### XGBoost - cases - variable importance
+```{r xgb_ca_vi}
+# Load model
+boost_mod_cases <- xgb.load(here::here("models/boost_mod_cases.model"))
+# Load data
+boost_train_cases <- read_rds(here::here("models/boost_train_cases.rds"))
+
+explainer_cases <- DALEX::explain(
+  model = boost_mod_cases,
+  data = boost_train_cases$data,
+  y =boost_train_cases$label,
+  predict_function = predict,
+  label = "cases"
+)
+
+importance_cases <- xgb.importance(feature_names = colnames(boost_train_cases$data), model = boost_mod_cases)
+head(importance_cases, n = 10)
 ```
 
 
+#### XGBoost - cases - partial dependency
+```{r xgb_ca_pd, fig.height=10, fig.width=10}
+
+vars_cases <- c("cases_lag1", "cases_lag2", "cases_lag3", "log_human_population", "log_taxa_population", "log_veterinarians_per_taxa", "log_gdp_per_capita")
+
+pd_plots_cases <- purrr::map(vars_cases, function(var){
+  var_resp <- variable_effect(explainer_cases, variable =  var , type = "partial_dependency")
+  plot(var_resp)
+})
+
+  plot_grid(plotlist = pd_plots_cases)
+
+```

@@ -133,6 +133,7 @@ repel_fit.nowcast_boost <- function(model_object,
 
   xgb.save(boost_mod_disease_status, here::here(paste0(output_directory, "/boost_mod_disease_status.model")))
   write_rds(disease_status_recipe, here::here(paste0(output_directory, "/boost_recipe_disease_status.rds")))
+  write_rds(train_disease_status, here::here(paste0(output_directory, "/boost_train_disease_status.rds")))
 
   # Case model ------------------------------------------------------------
   # using recipes for some convenience functions and for "baking" new data later
@@ -173,5 +174,6 @@ repel_fit.nowcast_boost <- function(model_object,
   # head(importance, n = 10)
   xgb.save(boost_mod_cases, here::here(paste0(output_directory, "/boost_mod_cases.model")))
   # write_rds(cases_recipe, here::here(paste0(output_directory, "/boost_recipe_cases.rds")))
+  write_rds(train_cases, here::here(paste0(output_directory, "/boost_train_cases.rds")))
 
 }
