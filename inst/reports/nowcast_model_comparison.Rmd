@@ -122,7 +122,7 @@ explainer_disease_status <- DALEX::explain(
   data = boost_train_disease_status$data,
   y = boost_train_disease_status$label,
   predict_function = predict,
-  label = "cases"
+  label = "disease status"
 )
 
 importance_disease_status <- xgb.importance(feature_names = colnames(boost_train_disease_status$data), model = boost_mod_disease_status)
