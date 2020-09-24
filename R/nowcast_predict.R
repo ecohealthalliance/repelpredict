@@ -10,7 +10,23 @@ repel_predict <- function(x, ...){
 #' @export
 #'
 repel_predict.nowcast_baseline <- function(model_object, newdata) {
-  predicted_cases <- newdata$cases_lag1 # assumes 0 for NA lag
+
+  predicted_disease_status <- newdata$disease_status_lag1
+  which_predicted_status_positive <- which(predicted_disease_status == 1)
+
+  # Predict case count
+  if(length(which_predicted_status_positive)){
+    predicted_cases <- newdata$cases[which_predicted_status_positive]
+
+    # Return a tibble
+    predicted_cases <- tibble(id = 1:nrow(newdata)) %>%
+      left_join(tibble(id = which_predicted_status_positive, predicted_cases = predicted_cases),
+                by = "id") %>%
+      mutate(predicted_cases = replace_na(predicted_cases, 0)) %>%
+      pull(predicted_cases)
+  }else{
+    predicted_cases <- predicted_disease_status
+  }
   return(predicted_cases)
 }
 
@@ -81,10 +97,12 @@ repel_predict.nowcast_bart <- function(model_object, newdata) {
 
 #' Predict from nowcast xgboost model object
 #' @return list containing predicted count and whether disease is expected or not (T/F)
+#' @import tidyr dplyr
 #' @importFrom here here
 #' @importFrom xgboost xgb.load
 #' @importFrom readr read_rds
 #' @importFrom assertthat assert_that
+#' @importFrom recipes bake
 #' @export
 #'
 repel_predict.nowcast_boost <- function(model_object, newdata) {

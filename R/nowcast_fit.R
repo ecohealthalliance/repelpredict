@@ -11,6 +11,7 @@ repel_fit <- function(x, ...){
 #' @importFrom readr write_rds
 #' @importFrom assertthat assert_that
 #' @importFrom here here
+#' @importFrom recipes recipe prep juice
 #' @export
 repel_fit.nowcast_bart <- function(model_object,
                                    augmented_data,
@@ -86,11 +87,12 @@ repel_fit.nowcast_bart <- function(model_object,
 
 #' Fit nowcast Boost model object
 #' @return list containing predicted count and whether disease is expected or not (T/F)
-#' @import dplyr tidyr recipes
+#' @import dplyr tidyr
 #' @importFrom readr write_rds
 #' @importFrom assertthat assert_that
 #' @importFrom here here
 #' @importFrom xgboost xgboost xgb.save
+#' @importFrom recipes recipe step_mutate step_rm step_dummy step_zv prep juice all_nominal all_predictors
 #' @export
 repel_fit.nowcast_boost <- function(model_object,
                                     augmented_data,

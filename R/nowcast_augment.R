@@ -9,6 +9,7 @@ repel_augment <- function(x, ...){
 #' @import repeldata dplyr tidyr
 #' @importFrom assertthat has_name assert_that
 #' @importFrom janitor make_clean_names
+#' @importFrom purrr map_dfr
 #' @export
 repel_augment.nowcast_baseline <- function(model_object, conn, newdata) {
 

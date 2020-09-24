@@ -4,10 +4,10 @@ taxa_list <- c( "sheep/goats",
 
 grouping_vars <- c("country_iso3c", "report_year", "report_semester", "disease", "disease_population", "taxa")
 
-#' @import repeldata dplyr tidyr
+#' @import repeldata dplyr tidyr readr
 #' @importFrom DBI dbDisconnect
 #' @importFrom digest digest2int
-#' @importFrom readr read_csv
+#' @importFrom here here
 #' @noRd
 repel_cases <- function(conn){
 
