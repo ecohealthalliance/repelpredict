@@ -12,7 +12,6 @@ library(kableExtra)
 library(cowplot)
 library(DALEX)
 
-
 conn <- repeldata::repel_local_conn()
 grouping_vars <- c("country_iso3c", "report_year", "report_semester", "disease", "disease_population", "taxa")
 
@@ -21,10 +20,7 @@ traindat <- repel_cases_train(conn) %>%
   distinct()
 ```
 
-We are using a two-component hurdle model: first, the model predicts whether a disease will be present (binary), and if present, it predicts the case count (integer). Here we compare the results of a boosted tree model to our baseline model.
-
-### Disease Status
-```{r ds-load-data}
+```{r load-data}
 augmented_data_baseline <- repel_augment(model_object = nowcast_baseline_model(), conn = conn, newdata = traindat)
 predicted_cases_baseline <- repel_predict(model_object = nowcast_baseline_model(), newdata = augmented_data_baseline)
 scored_data_baseline <- repel_score(model_object = nowcast_baseline_model(), augmented_data = augmented_data_baseline, predicted_cases = predicted_cases_baseline)
@@ -35,15 +31,18 @@ predicted_cases_boost <- repel_predict(model_object = nowcast_boost_model(), new
 scored_data_boost <- repel_score(model_object = nowcast_boost_model(), augmented_data = augmented_data_boost, predicted_cases = predicted_cases_boost)
 ```
 
+We are using a two-component hurdle model: first, the model predicts whether a disease will be present (binary), and if present, it predicts the case count (integer). Here we compare the results of a boosted tree model to our baseline model.
+
+### Disease Status
 ```{r ds-cm}
-scored_data_baseline_tib <- scored_data_baseline$scored_tibble %>% 
+scored_data_ds_baseline <- scored_data_baseline$scored_tibble %>% 
   select(taxa, country_iso3c, disease_status_actual, disease_status_predicted, disease_status_dirchange_actual, disease_status_dirchange_predicted) %>% 
   mutate(model = "baseline")
-scored_data_boost_tib <- scored_data_boost$scored_tibble%>% 
+scored_data_ds_boost <- scored_data_boost$scored_tibble %>% 
   select(taxa, country_iso3c, disease_status_actual, disease_status_predicted, disease_status_dirchange_actual, disease_status_dirchange_predicted) %>% 
   mutate(model = "xgboost")
 
-scored_data <- bind_rows(scored_data_baseline_tib, scored_data_boost_tib) %>% 
+scored_data_ds <- bind_rows(scored_data_ds_baseline, scored_data_ds_boost) %>% 
   mutate_at(.vars = c("disease_status_actual", "disease_status_predicted", "disease_status_dirchange_actual", "disease_status_dirchange_predicted"), as.factor) %>% 
   mutate(continent = countrycode::countrycode(country_iso3c, origin = "iso3c", destination = "continent")) %>% 
   mutate(full_model = "full_model") # dummy var
@@ -56,7 +55,7 @@ metrics <- tribble(~".metric", ~"desc",
 
 ds_summary <- function(grp_var, truth, estimate){
   
-  cm_scored_mat <- scored_data %>% 
+  cm_scored_mat <- scored_data_ds %>% 
     mutate(lab = paste(model, get(grp_var), sep = " - ")) %>% 
     group_by_at(c("model", "lab", grp_var)) %>% 
     conf_mat(truth = truth, estimate = estimate) %>% 
@@ -159,7 +158,7 @@ out_continent_dc[[2]]
 </details>
 
 <details>
-<summary>disease status variable importance (xgboost only) </summary>
+<summary>disease status variable importance and partial dependency (xgboost only) </summary>
 ```{r ds-var_import, fig.width = 15, fig.height = 10}
 # Load model
 boost_mod_disease_status <- xgb.load(here::here("models/boost_mod_disease_status.model"))
@@ -185,6 +184,127 @@ plot(var_resp, geom = "profiles") +
   labs(title = "", subtitle = "")
 })
 plot_grid(plotlist = pd_disease_status)
+
+```
+</details>
+
+### Cases
+Here we evaluate the subset of the training data with positive case counts
+
+<details>
+<summary>cases model stats</summary>
+```{r cs-stats}
+scored_data_cs_baseline <- scored_data_baseline$scored_tibble %>% 
+  select(disease, taxa, country_iso3c, cases_actual, cases_predicted, cases_dirchange_actual, cases_dirchange_predicted, cases_error) %>% 
+  mutate(model = "baseline") %>% 
+  drop_na(cases_actual) 
+scored_data_cs_boost <- scored_data_boost$scored_tibble%>% 
+  select(disease, taxa, country_iso3c, cases_actual, cases_predicted, cases_dirchange_actual, cases_dirchange_predicted, cases_error) %>% 
+  mutate(model = "xgboost") %>% 
+   drop_na(cases_actual) 
+
+scored_data_cs <- bind_rows(scored_data_cs_baseline, scored_data_cs_boost) %>% 
+  mutate(continent = countrycode::countrycode(country_iso3c, origin = "iso3c", destination = "continent")) %>% 
+  mutate(full_model = "full_model") # dummy var
+
+scored_data_cs %>% 
+  group_by(model) %>% 
+  yardstick::metrics(, truth = cases_actual, estimate = cases_predicted)
+```
+</details>
+
+<details>
+<summary>cases residuals</summary>
+```{r cd-resid, fig.height=5}
+scored_data_cs %>%
+  ggplot(., aes(x = cases_actual, y = cases_predicted, color = log10(cases_error))) +
+  geom_point(alpha = 0.5) +
+  facet_wrap(model ~ .) +
+  scale_y_log10(limits = c(1, max(c(scored_data_cs$cases_actual, scored_data_cs$cases_predicted)))) +
+  scale_x_log10(limits = c(1, max(c(scored_data_cs$cases_actual, scored_data_cs$cases_predicted)))) +
+  scale_color_viridis_c() +
+  theme_bw()
+```
+</details>
+
+<details>
+<summary>cases residuals by taxa</summary>
+```{r cd-resid-taxa, fig.height=10, fig.width=15}
+scored_data_cs %>%
+  ggplot(., aes(x = cases_actual, y = cases_predicted, color = log10(cases_error))) +
+  geom_point(alpha = 0.5) +
+  facet_grid(model ~ taxa) +
+  scale_y_log10(limits = c(1, max(c(scored_data_cs$cases_actual, scored_data_cs$cases_predicted)))) +
+  scale_x_log10(limits = c(1, max(c(scored_data_cs$cases_actual, scored_data_cs$cases_predicted)))) +
+  scale_color_viridis_c() +
+  theme_bw()
+```
+</details>
+
+<details>
+<summary>cases residuals by continent</summary>
+```{r cd-resid-continent, fig.height=10, fig.width=15}
+scored_data_cs %>%
+  ggplot(., aes(x = cases_actual, y = cases_predicted, color = log10(cases_error))) +
+  geom_point(alpha = 0.5) +
+  facet_grid(model ~ continent) +
+  scale_y_log10(limits = c(1, max(c(scored_data_cs$cases_actual, scored_data_cs$cases_predicted)))) +
+  scale_x_log10(limits = c(1, max(c(scored_data_cs$cases_actual, scored_data_cs$cases_predicted)))) +
+  scale_color_viridis_c() +
+  theme_bw()
+```
+</details>
+
+
+<details>
+<summary>cases variable importance and partial dependency (xgboost only) </summary>
+```{r cs-var-import, fig.width = 15, fig.height = 10}
+# Load model
+boost_mod_cases <- xgb.load(here::here("models/boost_mod_cases.model"))
+# Load data
+boost_train_cases <- read_rds(here::here("models/boost_train_cases.rds"))
+
+importance_cases <- xgboost::xgb.importance(feature_names = colnames(boost_train_cases$data), model = boost_mod_cases)
+head(importance_cases, n = 12)
+
+top_vars <- importance_cases$Feature[1:12]
+
+explainer_cases <- DALEX::explain(
+  model = boost_mod_cases,
+  data = boost_train_cases$data,
+  y = boost_train_cases$label,
+  predict_function = predict,
+  label = "disease status"
+)
+
+pd_cases <- map(top_vars, function(var){
+  var_resp <- model_profile(explainer_cases, variable =  var , type = "partial")
+plot(var_resp, geom = "profiles") +
+  labs(title = "", subtitle = "")
+})
+plot_grid(plotlist = pd_cases)
+```
+</details>
+
+<details>
+<summary>cases residuals by select disease</summary>
+```{r cs-var-pd-by-disease, fig.height=10, fig.width=15}
+importance_cases_disease <- importance_cases %>% 
+  filter(str_starts(Feature, "disease_")) %>% 
+  slice(1:5) %>% 
+  mutate(disease = str_remove(Feature, "disease_")) %>% 
+  pull(disease)
+
+scored_data_cs %>% 
+  filter(disease %in% importance_cases_disease) %>% 
+    ggplot(., aes(x = cases_actual, y = cases_predicted, color = log10(cases_error))) +
+  geom_point(alpha = 0.5) +
+  facet_grid(model ~ disease) +
+  scale_y_log10(limits = c(1, max(c(scored_data_cs$cases_actual, scored_data_cs$cases_predicted)))) +
+  scale_x_log10(limits = c(1, max(c(scored_data_cs$cases_actual, scored_data_cs$cases_predicted)))) +
+  scale_color_viridis_c() +
+  theme_bw()
+
 
 ```
 </details>

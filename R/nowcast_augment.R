@@ -22,6 +22,17 @@ repel_augment.nowcast_baseline <- function(model_object, conn, newdata) {
       mutate(!!paste0(var, "_missing") := is.na(get(var))) %>%
       mutate_at(var, ~replace_na(., 0))
   }
+
+  # disease name lookup/clean
+  disease_lookup <- lagged_newdata %>%
+    distinct(disease) %>%
+    mutate(disease_clean = janitor::make_clean_names(disease))
+
+  lagged_newdata <- lagged_newdata %>%
+    left_join(disease_lookup, by = "disease") %>%
+    select(-disease) %>%
+    rename(disease = disease_clean)
+
   return(lagged_newdata)
 }
 

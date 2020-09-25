@@ -16,7 +16,7 @@ repel_predict.nowcast_baseline <- function(model_object, newdata) {
 
   # Predict case count
   if(length(which_predicted_status_positive)){
-    predicted_cases <- newdata$cases[which_predicted_status_positive]
+    predicted_cases <- newdata$cases_lag1[which_predicted_status_positive]
 
     # Return a tibble
     predicted_cases <- tibble(id = 1:nrow(newdata)) %>%
