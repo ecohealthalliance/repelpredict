@@ -151,7 +151,7 @@ repel_fit.nowcast_boost <- function(model_object,
     prep() %>%
     juice() %>%
     drop_na(cases) %>%
-    filter(cases > 0)
+    filter(cases > 0 | cases_lag1 > 0)
 
   # confirm no NAs or Inf
   assertthat::assert_that(all(map_lgl(modified_cases_data, ~all(!is.na(.)))))

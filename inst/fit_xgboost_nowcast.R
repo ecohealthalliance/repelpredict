@@ -26,7 +26,6 @@ toc()
 
 predicted_cases <- repel_predict(model_object = model_object, newdata = augmented_data)
 
-
 scored_data <- repel_score(model_object = model_object,
                            augmented_data = augmented_data,
                            predicted_cases = predicted_cases)
