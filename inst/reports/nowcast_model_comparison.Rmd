@@ -85,9 +85,9 @@ ds_summary <- function(grp_var, truth, estimate){
 ```{r ds-cm-full-model, fig.width = 10, fig.height = 5}
 out_full_model <- ds_summary("full_model", truth = "disease_status_actual", estimate = "disease_status_predicted")
 out_full_model[[1]]  %>% 
-    kbl() %>% 
-    collapse_rows(columns = 1:2, valign = "middle") %>% 
-    kable_styling() 
+  kbl() %>% 
+  collapse_rows(columns = 1:2, valign = "middle") %>% 
+  kable_styling() 
 out_full_model[[2]]
 ```
 </details>
@@ -98,9 +98,9 @@ out_full_model[[2]]
 out_full_model_taxa <- ds_summary("taxa",  truth = "disease_status_actual", estimate = "disease_status_predicted")
 out_full_model_taxa[[1]] %>% 
   select(-desc) %>% 
-    kbl() %>% 
-    collapse_rows(columns = 1, valign = "middle") %>% 
-    kable_styling() 
+  kbl() %>% 
+  collapse_rows(columns = 1, valign = "middle") %>% 
+  kable_styling() 
 out_full_model_taxa[[2]]
 ```
 </details>
@@ -110,10 +110,10 @@ out_full_model_taxa[[2]]
 ```{r ds-cm-status-continent, fig.width = 10, fig.height = 8}
 out_full_model_continent <- ds_summary("continent",  truth = "disease_status_actual", estimate = "disease_status_predicted")
 out_full_model_continent[[1]]  %>% 
-    select(-desc) %>% 
-    kbl() %>% 
-    collapse_rows(columns = 1, valign = "middle") %>% 
-    kable_styling() 
+  select(-desc) %>% 
+  kbl() %>% 
+  collapse_rows(columns = 1, valign = "middle") %>% 
+  kable_styling() 
 out_full_model_continent[[2]]
 ```
 </details>
@@ -123,9 +123,9 @@ out_full_model_continent[[2]]
 ```{r ds-cm-full-model-dc, fig.width = 10, fig.height = 5}
 out_full_model_dc <- ds_summary("full_model", truth = "disease_status_dirchange_actual", estimate = "disease_status_dirchange_predicted")
 out_full_model_dc[[1]]  %>% 
-    kbl() %>% 
-    collapse_rows(columns = 1:2, valign = "middle") %>% 
-    kable_styling() 
+  kbl() %>% 
+  collapse_rows(columns = 1:2, valign = "middle") %>% 
+  kable_styling() 
 out_full_model_dc[[2]]
 ```
 Note there are baseline cases where disease status is positive but cases are NA, which are imputed in the model as 0. 
@@ -136,10 +136,10 @@ Note there are baseline cases where disease status is positive but cases are NA,
 ```{r ds-cm-taxa-dc, fig.width = 15, fig.height = 10}
 out_taxa_dc <- ds_summary("taxa", truth = "disease_status_dirchange_actual", estimate = "disease_status_dirchange_predicted")
 out_taxa_dc[[1]]  %>% 
-    select(-desc) %>% 
-    kbl() %>% 
-    collapse_rows(columns = 1, valign = "middle") %>% 
-    kable_styling() 
+  select(-desc) %>% 
+  kbl() %>% 
+  collapse_rows(columns = 1, valign = "middle") %>% 
+  kable_styling() 
 out_taxa_dc[[2]]
 ```
 </details>
@@ -149,10 +149,10 @@ out_taxa_dc[[2]]
 ```{r ds-cm-continent-dc, fig.width = 15, fig.height = 8}
 out_continent_dc <- ds_summary("continent", truth = "disease_status_dirchange_actual", estimate = "disease_status_dirchange_predicted")
 out_continent_dc[[1]]  %>% 
-    select(-desc) %>% 
-    kbl() %>% 
-    collapse_rows(columns = 1, valign = "middle") %>% 
-    kable_styling() 
+  select(-desc) %>% 
+  kbl() %>% 
+  collapse_rows(columns = 1, valign = "middle") %>% 
+  kable_styling() 
 out_continent_dc[[2]]
 ```
 </details>
@@ -175,13 +175,14 @@ explainer_disease_status <- DALEX::explain(
   data = boost_train_disease_status$data,
   y = boost_train_disease_status$label,
   predict_function = predict,
-  label = "disease status"
+  label = "disease status",
+  verbose = FALSE
 )
 
 pd_disease_status <- map(top_vars, function(var){
   var_resp <- model_profile(explainer_disease_status, variable =  var , type = "partial")
-plot(var_resp, geom = "profiles") +
-  labs(title = "", subtitle = "")
+  plot(var_resp, geom = "profiles") +
+    labs(title = "", subtitle = "")
 })
 plot_grid(plotlist = pd_disease_status)
 
@@ -201,7 +202,7 @@ scored_data_cs_baseline <- scored_data_baseline$scored_tibble %>%
 scored_data_cs_boost <- scored_data_boost$scored_tibble%>% 
   select(disease, taxa, country_iso3c, cases_actual, cases_predicted, cases_dirchange_actual, cases_dirchange_predicted, cases_error) %>% 
   mutate(model = "xgboost") %>% 
-   drop_na(cases_actual) 
+  drop_na(cases_actual) 
 
 scored_data_cs <- bind_rows(scored_data_cs_baseline, scored_data_cs_boost) %>% 
   mutate(continent = countrycode::countrycode(country_iso3c, origin = "iso3c", destination = "continent")) %>% 
@@ -274,37 +275,56 @@ explainer_cases <- DALEX::explain(
   data = boost_train_cases$data,
   y = boost_train_cases$label,
   predict_function = predict,
-  label = "disease status"
+  label = "cases",
+  verbose = FALSE
 )
-
+# how does the expected value of model prediction behave as a function of a selected explanatory variable?
+# a CP profile shows the dependence of an instance-level prediction on an explanatory variable. A PD profile is estimated by the mean of the CP profiles for all instances (observations) from a dataset.
+# these are aggregated profiles. By default 100.
 pd_cases <- map(top_vars, function(var){
   var_resp <- model_profile(explainer_cases, variable =  var , type = "partial")
-plot(var_resp, geom = "profiles") +
-  labs(title = "", subtitle = "")
+  plot(var_resp, geom = "profiles") + # ceteris-paribus (CP) profiles 
+    labs(title = "", subtitle = "")
 })
 plot_grid(plotlist = pd_cases)
 ```
+
 </details>
 
 <details>
-<summary>cases residuals by select disease</summary>
+<summary>cases partial dependency by select disease (xgboost only) </summary>
 ```{r cs-var-pd-by-disease, fig.height=10, fig.width=15}
-importance_cases_disease <- importance_cases %>% 
-  filter(str_starts(Feature, "disease_")) %>% 
-  slice(1:5) %>% 
-  mutate(disease = str_remove(Feature, "disease_")) %>% 
-  pull(disease)
 
-scored_data_cs %>% 
-  filter(disease %in% importance_cases_disease) %>% 
-    ggplot(., aes(x = cases_actual, y = cases_predicted, color = log10(cases_error))) +
-  geom_point(alpha = 0.5) +
-  facet_grid(model ~ disease) +
-  scale_y_log10(limits = c(1, max(c(scored_data_cs$cases_actual, scored_data_cs$cases_predicted)))) +
-  scale_x_log10(limits = c(1, max(c(scored_data_cs$cases_actual, scored_data_cs$cases_predicted)))) +
-  scale_color_viridis_c() +
-  theme_bw()
+#TODO: follow up on these Contagious bovine pleuropneumonia, bluetongue, Sheep pox and goat pox, 
+oie_high_importance_diseases <- c("foot_and_mouth_disease", "vesicular_stomatitis",
+                                  "swine_vesicular_disease", "rinderpest",
+                                  "peste_des_petits_ruminants", "ovine_bluetongue_disease",
+                                  "lumpy_skin_disease", "rift_valley_fever",
+                                  "african_horse_sickness", "african_swine_fever",
+                                  "classical_swine_fever", "highly_pathogenic_avian_influenza",
+                                  "newcastle_disease", "pleuropneumonia", "ovine_pox_disease")
 
+cases_lag_pd_by_disease <- map(oie_high_importance_diseases, function(disease){
+  
+  col <- paste("disease", disease, sep = "_")
+  which_disease <- which(boost_train_cases$data[,col] == 1)
+  
+  if(length(which_disease)){
+    explainer_cases <- DALEX::explain(
+      model = boost_mod_cases,
+      data = boost_train_cases$data[which_disease,],
+      y = boost_train_cases$label[which_disease],
+      predict_function = predict,
+      label = disease,
+      verbose = FALSE
+    )
+    var_resp <- model_profile(explainer_cases, variable =  "cases_lag1" , type = "partial")
+    plot(var_resp, geom = "profiles") + # ceteris-paribus (CP) profiles 
+      labs(title = disease, subtitle = "")
+  }
+})
+
+plot_grid(plotlist = cases_lag_pd_by_disease)
 
 ```
 </details>
