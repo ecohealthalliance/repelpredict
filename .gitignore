@@ -5,6 +5,9 @@
 .DS_store
 
 inst/*.rds
+tmp/*.rds
+model/*.rds
+model/*.model
 
 # Created by https://www.gitignore.io/api/r
 # Edit at https://www.gitignore.io/?templates=r

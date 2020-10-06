@@ -8,7 +8,6 @@ set.seed(2873)
 augmented_data <- read_rds(here::here("tmp/augmented_data.rds"))
 #use_xgboost(disease_status ~ ., data = augmented_data)
 
-
 # model recipe ------------------------------------------------------------
 xgboost_recipe <-
   recipe(formula = disease_status ~ ., data = augmented_data) %>%
@@ -17,7 +16,6 @@ xgboost_recipe <-
   step_novel(all_nominal(), -all_outcomes()) %>%
   step_dummy(all_nominal(), -all_outcomes(), one_hot = TRUE) %>%
   step_zv(all_predictors())
-
 
 # first run default model and compare to xgboost alone (default params) --------------------
 ### xgboost
@@ -68,7 +66,7 @@ xgboost_workflow <-
 tic()
 boost_mod_disease_status_tidy <- parsnip::fit(object = xgboost_workflow, data = augmented_data)
 toc()
-95.148 sec elapsed (not parallel)
+# 95.148 sec elapsed (not parallel)
 
 # test out parallel
 # all_cores <- parallel::detectCores(logical = FALSE)
@@ -124,7 +122,7 @@ for(i in 1:nrow(grid_out)){
 
 # so, try tuning and fixing eta, min_child_weight, and subsample
 
-# tuning with tidymod ----------------------------------------
+# tuning with tidymod (grid) ----------------------------------------
 
 # semituned specs
 xgboost_spec_semi_tuned <-
@@ -156,5 +154,80 @@ xgboost_tune <-
 toc()
 
 parallel::stopCluster(cl = cl)
-
 write_rds(xgboost_tune, here::here("tmp/xgboost_tune.rds"))
+# ^  ~17 hrs to tune
+
+# Check out grid tuning results ------------------------------------------------
+
+# these were the settings:
+# trees = tune(), min_n = 1, tree_depth = tune(), learn_rate = 0.3,
+# loss_reduction = tune(), sample_size = 1
+xgboost_tune <- read_rds(here::here("tmp/xgboost_tune.rds"))
+
+# ROC stands for Receiver Operating Curve and It’s a plot between FPR i.e False Positive Rate or 1-specificity on x-axis and TPR on True Positive Rate on the y-axis.
+autoplot(xgboost_tune, metric = "roc_auc")
+
+show_best(xgboost_tune, "roc_auc")
+xgboost_tuned_param <- select_by_one_std_err(xgboost_tune, trees, tree_depth, loss_reduction)
+
+xgboost_workflow_tuned <- finalize_workflow(xgboost_workflow_semi_tuned, xgboost_tuned_param)
+
+# tic()
+# xgboost_fit_tuned <-  parsnip::fit(object = xgboost_workflow_tuned,
+#                                    data = augmented_data)
+# toc()
+tic()
+boost_mod_disease_status_tuned <- xgboost(data = train_disease_status$data,
+                                    label = train_disease_status$label,  verbose = 2,
+                                    nthread = 40,
+                                    booster="gbtree",
+                                    objective = "binary:logistic",
+                                    nrounds = xgboost_tuned_param$trees, # trees
+                                    max_depth = xgboost_tuned_param$tree_depth, # tree_depth
+                                    eta = 0.3, # learn_rate
+                                    min_child_weight = 1, # min_n
+                                    gamma = xgboost_tuned_param$loss_reduction, #loss_reduction
+                                    subsample = 1 #sample_size
+)
+toc()
+xgb.save(boost_mod_disease_status_tuned, here::here(paste0("models", "/boost_mod_cases_tuned.model")))
+
+
+# Now try tune_bayes ------------------------------------------------------
+# also let's just tune everything...
+xgboost_spec<-
+  boost_tree(trees = tune(), min_n = tune(), tree_depth = tune(), learn_rate = tune(),
+             loss_reduction = tune(), sample_size = tune(),
+              mtry = tune()) %>%
+  set_mode("classification" ) %>%
+  set_engine("xgboost")
+
+# cv folds
+folds <- vfold_cv(augmented_data, strata = disease_status)
+
+# semituned workflow
+xgboost_workflow <-
+  workflow() %>%
+  add_recipe(xgboost_recipe2) %>%
+  add_model(xgboost_spec)
+
+xgboost_param <-
+  xgboost_workflow %>%
+  parameters() %>%
+  update(mtry = finalize(mtry(), augmented_data))
+
+all_cores <- parallel::detectCores(logical = FALSE)
+print(all_cores)
+cl <- parallel::makePSOCKcluster(all_cores)
+doParallel::registerDoParallel(cl)
+
+tic()
+xgboost_tune_bayes <-
+  tune_bayes(xgboost_workflow,
+            resamples = folds,
+            param_info = xgboost_param,
+            control = control_bayes(verbose = TRUE, no_improve = 10, seed = 348),
+            initial =  8)
+toc()
+parallel::stopCluster(cl = cl)
+write_rds(xgboost_tune, here::here("tmp/xgboost_tune_bayes.rds"))
