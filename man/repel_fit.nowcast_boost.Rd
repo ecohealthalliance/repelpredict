@@ -6,6 +6,7 @@
 \usage{
 \method{repel_fit}{nowcast_boost}(
   model_object,
+  model = c("disease_status", "cases"),
   augmented_data,
   output_directory,
   verbose = interactive()

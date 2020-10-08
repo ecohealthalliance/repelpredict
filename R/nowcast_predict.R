@@ -97,9 +97,8 @@ repel_predict.nowcast_bart <- function(model_object, newdata) {
 
 #' Predict from nowcast xgboost model object
 #' @return list containing predicted count and whether disease is expected or not (T/F)
-#' @import tidyr dplyr
+#' @import tidyr dplyr workflows
 #' @importFrom here here
-#' @importFrom xgboost xgb.load
 #' @importFrom readr read_rds
 #' @importFrom assertthat assert_that
 #' @importFrom recipes bake
@@ -108,8 +107,11 @@ repel_predict.nowcast_bart <- function(model_object, newdata) {
 repel_predict.nowcast_boost <- function(model_object, newdata) {
 
   # Load models
-  boost_mod_disease_status <- xgb.load(here::here("models/boost_mod_disease_status.model"))
-  boost_mod_cases <- xgb.load(here::here("models/boost_mod_cases.model"))
+  boost_mod_disease_status <- read_rds(here::here("models/boost_mod_disease_status.rds"))
+  boost_mod_disease_status_xg <- pull_workflow_fit(boost_mod_disease_status)
+
+  boost_mod_cases <- read_rds(here::here("models/boost_mod_cases.rds"))
+  boost_mod_cases_xg <- pull_workflow_fit(boost_mod_cases)
 
   # Load recipe
   disease_status_recipe <- read_rds(here::here("models/boost_recipe_disease_status.rds"))
@@ -120,15 +122,22 @@ repel_predict.nowcast_boost <- function(model_object, newdata) {
     as.matrix()
 
   # Predict disease status
-  predicted_disease_status_probability <- predict(boost_mod_disease_status, newdata = newdata_prepped)
+  predicted_disease_status_probability <- predict_raw(boost_mod_disease_status_xg, new_data = newdata_prepped) # using raw instead of workflow because i missed the skip step in mutating disease_status
   predicted_disease_status <- round(predicted_disease_status_probability)
   which_predicted_status_positive <- which(predicted_disease_status == 1)
 
   # Predict case count
   if(length(which_predicted_status_positive)){
-    predicted_cases <- predict(object = boost_mod_cases,
-                               newdata = newdata_prepped[which_predicted_status_positive,]) # only predict on positive outcomes
+
+    # remove matrix columns that were not part of training (because all 0)
+    trained_fields <- boost_mod_cases_xg$fit$feature_names
+    new_fields <- colnames(newdata_prepped)
+    which_new_fields <- which(new_fields %in% trained_fields)
+
+    predicted_cases <- predict_raw(object = boost_mod_cases_xg,
+                               new_data = newdata_prepped[which_predicted_status_positive, which_new_fields]) # only predict on positive outcomes
     predicted_cases <- round(predicted_cases)
+    #predicted_cases <- ifelse(predicted_cases<0, 0, predicted_cases) # temp fix for not having the poisson model running
 
     # Return a tibble
     predicted_cases <- tibble(id = 1:nrow(newdata)) %>%
