@@ -161,25 +161,34 @@ out_continent_dc[[2]]
 <summary>disease status variable importance and partial dependency (xgboost only) </summary>
 ```{r ds-var_import, fig.width = 15, fig.height = 10}
 # Load model
-boost_mod_disease_status <- xgb.load(here::here("models/boost_mod_disease_status.model"))
-# Load data
-boost_train_disease_status <- read_rds(here::here("models/boost_train_disease_status.rds"))
+boost_mod_disease_status <- read_rds(here::here("models/boost_mod_disease_status.rds"))
+boost_mod_disease_status_xg <- pull_workflow_fit(boost_mod_disease_status)
 
-importance_disease_status <- xgboost::xgb.importance(feature_names = colnames(boost_train_disease_status$data), model = boost_mod_disease_status)
-head(importance_disease_status, n = 12)
+# Variable importance
+importance_disease_status <- vip::vip(boost_mod_disease_status_xg, num_features = 12)
+importance_disease_status + 
+  theme(axis.text = element_text(size = 14))
 
-top_vars <- importance_disease_status$Feature[1:12]
+top_vars <- importance_disease_status$data$Variable
+
+# Get training data
+boost_dat_disease_status <- pull_workflow_mold(boost_mod_disease_status)$predictors %>% 
+  as.matrix()
+boost_dat_out_disease_status <- pull_workflow_mold(boost_mod_disease_status)$outcomes %>% 
+  mutate(disease_status = as.integer(disease_status == 1)) %>% 
+  pull(disease_status)
 
 explainer_disease_status <- DALEX::explain(
-  model = boost_mod_disease_status,
-  data = boost_train_disease_status$data,
-  y = boost_train_disease_status$label,
-  predict_function = predict,
+  model = boost_mod_disease_status_xg,
+  data = boost_dat_disease_status,
+  y = boost_dat_out_disease_status,
+  predict_function = predict_raw,
   label = "disease status",
   verbose = FALSE
 )
 
 pd_disease_status <- map(top_vars, function(var){
+  
   var_resp <- model_profile(explainer_disease_status, variable =  var , type = "partial")
   plot(var_resp, geom = "profiles") +
     labs(title = "", subtitle = "")
@@ -195,22 +204,22 @@ Here we evaluate the subset of the training data with positive case counts
 <details>
 <summary>cases model stats</summary>
 ```{r cs-stats}
-scored_data_cs_baseline <- scored_data_baseline$scored_tibble %>% 
-  select(disease, taxa, country_iso3c, cases_actual, cases_predicted, cases_dirchange_actual, cases_dirchange_predicted, cases_error) %>% 
-  mutate(model = "baseline") %>% 
-  drop_na(cases_actual) 
-scored_data_cs_boost <- scored_data_boost$scored_tibble%>% 
-  select(disease, taxa, country_iso3c, cases_actual, cases_predicted, cases_dirchange_actual, cases_dirchange_predicted, cases_error) %>% 
-  mutate(model = "xgboost") %>% 
-  drop_na(cases_actual) 
+scored_data_cs_baseline <- scored_data_baseline$scored_tibble %>%
+  select(disease, taxa, country_iso3c, cases_actual, cases_predicted, cases_dirchange_actual, cases_dirchange_predicted, cases_error) %>%
+  mutate(model = "baseline") %>%
+  drop_na(cases_actual)
+scored_data_cs_boost <- scored_data_boost$scored_tibble%>%
+  select(disease, taxa, country_iso3c, cases_actual, cases_predicted, cases_dirchange_actual, cases_dirchange_predicted, cases_error) %>%
+  mutate(model = "xgboost") %>%
+  drop_na(cases_actual)
 
-scored_data_cs <- bind_rows(scored_data_cs_baseline, scored_data_cs_boost) %>% 
-  mutate(continent = countrycode::countrycode(country_iso3c, origin = "iso3c", destination = "continent")) %>% 
+scored_data_cs <- bind_rows(scored_data_cs_baseline, scored_data_cs_boost) %>%
+  mutate(continent = countrycode::countrycode(country_iso3c, origin = "iso3c", destination = "continent")) %>%
   mutate(full_model = "full_model") # dummy var
 
-scored_data_cs %>% 
-  group_by(model) %>% 
-  yardstick::metrics(, truth = cases_actual, estimate = cases_predicted)
+scored_data_cs %>%
+  group_by(model) %>%
+  yardstick::metrics(truth = cases_actual, estimate = cases_predicted)
 ```
 </details>
 
@@ -261,29 +270,37 @@ scored_data_cs %>%
 <summary>cases variable importance and partial dependency (xgboost only) </summary>
 ```{r cs-var-import, fig.width = 15, fig.height = 10}
 # Load model
-boost_mod_cases <- xgb.load(here::here("models/boost_mod_cases.model"))
-# Load data
-boost_train_cases <- read_rds(here::here("models/boost_train_cases.rds"))
+boost_mod_cases <- read_rds(here::here("models/boost_mod_cases.rds"))
+boost_mod_cases_xg <- pull_workflow_fit(boost_mod_cases)
 
-importance_cases <- xgboost::xgb.importance(feature_names = colnames(boost_train_cases$data), model = boost_mod_cases)
-head(importance_cases, n = 12)
+# Variable importance
+importance_cases <- vip::vip(boost_mod_cases_xg, num_features = 12)
+importance_cases + 
+  theme(axis.text = element_text(size = 14))
 
-top_vars <- importance_cases$Feature[1:12]
+top_vars <- importance_cases$data$Variable
+
+# Get training data
+boost_dat_cases <- pull_workflow_mold(boost_mod_cases)$predictors %>% 
+  as.matrix()
+boost_dat_out_cases <- pull_workflow_mold(boost_mod_cases)$outcomes %>% 
+  pull(cases)
 
 explainer_cases <- DALEX::explain(
-  model = boost_mod_cases,
-  data = boost_train_cases$data,
-  y = boost_train_cases$label,
-  predict_function = predict,
+  model = boost_mod_cases_xg,
+  data = boost_dat_cases,
+  y = boost_dat_out_cases,
+  predict_function = predict_raw,
   label = "cases",
   verbose = FALSE
 )
+
 # how does the expected value of model prediction behave as a function of a selected explanatory variable?
 # a CP profile shows the dependence of an instance-level prediction on an explanatory variable. A PD profile is estimated by the mean of the CP profiles for all instances (observations) from a dataset.
 # these are aggregated profiles. By default 100.
 pd_cases <- map(top_vars, function(var){
   var_resp <- model_profile(explainer_cases, variable =  var , type = "partial")
-  plot(var_resp, geom = "profiles") + # ceteris-paribus (CP) profiles 
+  plot(var_resp, geom = "profiles") + # ceteris-paribus (CP) profiles
     labs(title = "", subtitle = "")
 })
 plot_grid(plotlist = pd_cases)
@@ -295,7 +312,7 @@ plot_grid(plotlist = pd_cases)
 <summary>cases partial dependency by select disease (xgboost only) </summary>
 ```{r cs-var-pd-by-disease, fig.height=10, fig.width=15}
 
-#TODO: follow up on these Contagious bovine pleuropneumonia, bluetongue, Sheep pox and goat pox, 
+#TODO: follow up on these Contagious bovine pleuropneumonia, bluetongue, Sheep pox and goat pox,
 oie_high_importance_diseases <- c("foot_and_mouth_disease", "vesicular_stomatitis",
                                   "swine_vesicular_disease", "rinderpest",
                                   "peste_des_petits_ruminants", "ovine_bluetongue_disease",
@@ -307,20 +324,23 @@ oie_high_importance_diseases <- c("foot_and_mouth_disease", "vesicular_stomatiti
 cases_lag_pd_by_disease <- map(oie_high_importance_diseases, function(disease){
   
   col <- paste("disease", disease, sep = "_")
-  which_disease <- which(boost_train_cases$data[,col] == 1)
-  
-  if(length(which_disease)){
-    explainer_cases <- DALEX::explain(
-      model = boost_mod_cases,
-      data = boost_train_cases$data[which_disease,],
-      y = boost_train_cases$label[which_disease],
-      predict_function = predict,
-      label = disease,
-      verbose = FALSE
-    )
-    var_resp <- model_profile(explainer_cases, variable =  "cases_lag1" , type = "partial")
-    plot(var_resp, geom = "profiles") + # ceteris-paribus (CP) profiles 
-      labs(title = disease, subtitle = "")
+  if(col %in% colnames(boost_dat_cases)){
+    which_disease <- which(boost_dat_cases[,col] == 1)
+    
+    if(length(which_disease)){
+      
+      explainer_cases <- DALEX::explain(
+        model = boost_mod_cases_xg,
+        data = boost_dat_cases[which_disease,],
+        y = boost_dat_out_cases[which_disease],
+        predict_function = predict_raw,
+        label = "cases",
+        verbose = FALSE
+      )
+      var_resp <- model_profile(explainer_cases, variable =  "cases_lag1" , type = "partial")
+      plot(var_resp, geom = "profiles") + # ceteris-paribus (CP) profiles
+        labs(title = disease, subtitle = "")
+    }
   }
 })
 
@@ -328,3 +348,8 @@ plot_grid(plotlist = cases_lag_pd_by_disease)
 
 ```
 </details>
+
+```{r disconnect}
+repel_local_disconnect()
+```
+
