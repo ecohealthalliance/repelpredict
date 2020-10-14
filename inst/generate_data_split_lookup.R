@@ -10,28 +10,10 @@ all_dat <- init_annual_reports_animal_hosts(conn) %>%
   arrange() %>%
   distinct()
 
-# adding 2020 onward
-last_sem <- all_dat %>%
-  arrange(report_year, report_semester) %>%
-  distinct(report_year, report_semester) %>%
-  tail(1)
-
-if(last_sem$report_semester == 2){
-  future_decade <- tibble(report_year = rep(seq(max(last_sem$report_year) + 1, max(last_sem$report_year) + 10), each = 2),
-                          report_semester = rep(1:2, 10))
-}else{
-  future_decade <- tibble(report_year = c(max(last_sem$report_year) + 1,
-                                          rep(seq(max(last_sem$report_year) + 2, max(last_sem$report_year) + 10), each = 2),
-                                          max(last_sem$report_year) + 11),
-                          report_semester = rep(2:1, 10))
-}
-
-future_reports <- all_dat %>%
-  distinct(country_iso3c, disease, disease_population, taxa) %>%
-  expand_grid(future_decade)
-
+# expand grid out to 2030
 all_dat <- all_dat %>%
-  bind_rows(future_reports) %>%
+  distinct(country_iso3c, disease, disease_population, taxa) %>%
+  expand_grid(report_year = min(all_dat$report_year):2030, report_semester = 1:2) %>%
   arrange(country_iso3c, taxa, disease, disease_population, report_year, report_semester) %>%
   group_by(country_iso3c, taxa, disease, disease_population) %>%
   mutate(validation_set = row_number() %in% sample(n(), ceiling(0.2*n()), replace = FALSE)) %>%
