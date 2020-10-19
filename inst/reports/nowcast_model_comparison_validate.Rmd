@@ -11,17 +11,18 @@ library(ggplot2)
 library(kableExtra)
 library(cowplot)
 library(DALEX)
+library(rsample)
 
 conn <- repeldata::repel_local_conn()
 grouping_vars <- c("country_iso3c", "report_year", "report_semester", "disease", "disease_population", "taxa")
 
-traindat <- repel_cases_train(conn) %>%
-  select(all_of(grouping_vars)) %>%
-  distinct()
-
 valdat <- repel_cases_validate(conn) %>%
   select(all_of(grouping_vars)) %>%
-  distinct()
+  distinct() %>% 
+  bootstraps(times = 1) %>% 
+  pull(splits) %>% 
+  magrittr::extract2(1) %>% 
+  as_tibble()
 ```
 
 ```{r load-data}
