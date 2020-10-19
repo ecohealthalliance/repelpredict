@@ -114,6 +114,8 @@ repel_fit.nowcast_boost <- function(model_object,
       step_zv(all_predictors()) %>%
       step_mutate(disease_status = factor(disease_status), skip = TRUE)
 
+    write_rds(disease_status_recipe, here::here(paste0(output_directory, "/boost_recipe_disease_status.rds")))
+
     # Set up model to tune all parameters
     disease_status_spec <-
       boost_tree(trees = tune(), min_n = tune(), tree_depth = tune(), learn_rate = tune(),
@@ -142,43 +144,56 @@ repel_fit.nowcast_boost <- function(model_object,
     cl <- parallel::makePSOCKcluster(all_cores)
     doParallel::registerDoParallel(cl)
 
-    # Tune disease status model
-    tic("tuning disease status model")
+    # Tune disease status model - first using a grid
+    # tic("pre-tuning disease status model (grid)")
+    # disease_status_tune_grid <- tune_grid(disease_status_workflow,
+    #           resamples = disease_status_folds,
+    #           control = control_grid(verbose = TRUE))
+    # toc()
+    # ^ this takes about 15 hrs on prospero
+    # write_rds(disease_status_tune_grid, here::here(paste0(output_directory, "/boost_tune_disease_status_grid.rds")))
+
+
+    # Tune disease status model - now with bayes, using tune grid as prior
+    disease_status_tune_grid <- read_rds(here::here(paste0(output_directory, "/boost_tune_disease_status_grid.rds")))
+
+    tic("Tuning disease status model (bayes)")
     disease_status_tune_bayes <-
       tune_bayes(disease_status_workflow,
                  resamples = disease_status_folds,
                  param_info = disease_status_param,
-                 control = control_bayes(verbose = TRUE, no_improve = 10, seed = 348),
-                 initial =  8)
+                 iter = 10,
+                 control = control_bayes(verbose = TRUE, no_improve = 10, seed = 400),
+                 initial =  disease_status_tune_grid)
+    # ^ this takes about 14-15 hrs
     toc()
-    #^ this takes about 14-15 hrs
+    write_rds(disease_status_tune_bayes, here::here(paste0(output_directory, "/boost_tune_disease_status_bayes.rds")))
+
     parallel::stopCluster(cl = cl)
-    write_rds(disease_status_tune_bayes, here::here(paste0(output_directory, "/boost_tune_disease_status.rds")))
-    write_rds(disease_status_recipe, here::here(paste0(output_directory, "/boost_recipe_disease_status.rds")))
 
-    # Read in tuned results and select best parameters
-    disease_status_tune_bayes <- read_rds(here::here(paste0(output_directory, "/boost_tune_disease_status.rds")))
-    disease_status_tuned_param <- select_by_one_std_err(disease_status_tune_bayes, mtry, trees, min_n, tree_depth, learn_rate, loss_reduction, sample_size)
+    #  # Read in tuned results and select best parameters
+    #  disease_status_tune_bayes <- read_rds(here::here(paste0(output_directory, "/boost_tune_disease_status.rds")))
+    #  disease_status_tuned_param <- select_by_one_std_err(disease_status_tune_bayes, mtry, trees, min_n, tree_depth, learn_rate, loss_reduction, sample_size)
+    #
+    #  # Update workflow with selected parameters
+    #  disease_status_workflow_tuned <- finalize_workflow(disease_status_workflow, disease_status_tuned_param)
+    #
+    #  # Set up parallel again
+    #  all_cores <- parallel::detectCores(logical = FALSE)
+    #  cl <- parallel::makePSOCKcluster(all_cores)
+    #  doParallel::registerDoParallel(cl)
+    #
+    #  # Fit model with tuned parameters
+    #  tic("Fit final disease status model")
+    #  disease_status_fit <-  parsnip::fit(object = disease_status_workflow_tuned,
+    #                                      data = augmented_data)
+    #  toc()
+    #  # ^ about 1 hr
+    #
+    # write_rds(disease_status_fit, here::here(paste0(output_directory, "/boost_mod_disease_status.rds")))
+    # parallel::stopCluster(cl = cl)
 
-    # Update workflow with selected parameters
-    disease_status_workflow_tuned <- finalize_workflow(disease_status_workflow, disease_status_tuned_param)
-
-    # Set up parallel again
-    all_cores <- parallel::detectCores(logical = FALSE)
-    cl <- parallel::makePSOCKcluster(all_cores)
-    doParallel::registerDoParallel(cl)
-
-    # Fit model with tuned parameters
-    tic("Fit final disease status model")
-    disease_status_fit <-  parsnip::fit(object = disease_status_workflow_tuned,
-                                        data = augmented_data)
-    toc()
-    # ^ about 1 hr
-
-   write_rds(disease_status_fit, here::here(paste0(output_directory, "/boost_mod_disease_status.rds")))
-   parallel::stopCluster(cl = cl)
-
-   }
+  }
 
   # Case model ------------------------------------------------------------
   if(model == "cases"){
@@ -254,7 +269,7 @@ repel_fit.nowcast_boost <- function(model_object,
     # Fit model with tuned parameters
     tic("Fit final cases model")
     cases_fit <-  parsnip::fit(object = cases_workflow_tuned,
-                                        data = augmented_data_cases)
+                               data = augmented_data_cases)
     toc()
     # ^ about 5 min
     write_rds(cases_fit, here::here(paste0(output_directory, "/boost_mod_cases.rds")))
