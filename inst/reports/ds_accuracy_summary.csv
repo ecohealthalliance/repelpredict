@@ -1,0 +1,14 @@
+Disease,Baseline Accuracy,REPEL (Overall/New Outbreaks)
+foot and mouth disease,77%,93% / 49%
+vesicular stomatitis,92%,98% / 48%
+peste des petits ruminants,92%,97% / 39%
+lumpy skin disease,93%,95% / 34%
+newcastle disease,83%,92% / 33%
+ovine bluetongue disease,80%,92% / 28%
+rift valley fever,97%,98% / 23%
+ovine pox disease,93%,96% / 22%
+pleuropneumonia,95%,98% / 16%
+african horse sickness,98%,98% / 12%
+african swine fever,92%,96% / 12%
+highly pathogenic avian influenza,93%,94% / 12%
+classical swine fever,95%,97% / 8%
