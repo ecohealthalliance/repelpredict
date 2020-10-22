@@ -1,5 +1,5 @@
 devtools::load_all()
-#repeldata::repel_local_download()
+# repeldata::repel_local_download()
 # conn <- repeldata::repel_local_conn()
 
 model_object <- nowcast_boost_model()
@@ -77,5 +77,5 @@ repel_fit(model_object = model_object,
 #                                augmented_data = forecasted_data$augmented_data,
 #                                predicted_cases = forecasted_data$predicted_cases)
 #
- repel_local_disconnect()
-
+ # repel_local_disconnect()
+#

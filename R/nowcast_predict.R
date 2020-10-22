@@ -49,10 +49,10 @@ repel_predict.nowcast_boost <- function(model_object, newdata) {
   boost_mod_cases_xg <- pull_workflow_fit(boost_mod_cases)
 
   # Load recipe
-  disease_status_recipe <- read_rds(here::here("models/boost_recipe_disease_status.rds"))
+  disease_status_recipe <-  pull_workflow_prepped_recipe(boost_mod_disease_status)
 
   # Pre-process newdata for status model
-  newdata_prepped <- bake(object = prep(disease_status_recipe), new_data = newdata) %>%
+  newdata_prepped <- bake(object = disease_status_recipe, new_data = newdata) %>%
     select(-one_of("disease_status")) %>%
     as.matrix()
 
@@ -70,9 +70,10 @@ repel_predict.nowcast_boost <- function(model_object, newdata) {
     which_new_fields <- which(new_fields %in% trained_fields)
 
     predicted_cases <- predict_raw(object = boost_mod_cases_xg,
-                               new_data = newdata_prepped[which_predicted_status_positive, which_new_fields]) # only predict on positive outcomes
+                                   new_data = newdata_prepped[which_predicted_status_positive, which_new_fields]) # only predict on positive outcomes
+    predicted_cases <- 10^predicted_cases
     predicted_cases <- round(predicted_cases)
-    #predicted_cases <- ifelse(predicted_cases<0, 0, predicted_cases) # temp fix for not having the poisson model running
+    assertthat::assert_that(min(predicted_cases) >= 0)
 
     # Return a tibble
     predicted_cases <- tibble(id = 1:nrow(newdata)) %>%
