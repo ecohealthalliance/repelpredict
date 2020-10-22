@@ -219,40 +219,40 @@ plot_grid(plotlist = pd_disease_status)
 </details>
 
 ```{r ds-var-pd-by-disease, fig.height=10, fig.width=15}
-# ds_lag_pd_by_disease <-  map(oie_high_importance_diseases, function(disease){
-# 
-#   col <- paste("disease", disease, sep = "_")
-#   if(col %in% colnames(boost_dat_disease_status)){
-#     which_disease <- which(boost_dat_disease_status[,col] == 1)
-# 
-#     if(length(which_disease)){
-#       explainer_disease_status_sub <- DALEX::explain(
-#         model = boost_mod_disease_status_xg,
-#         data = boost_dat_disease_status[which_disease,],
-#         y = boost_dat_out_disease_status[which_disease],
-#         predict_function = predict_raw,
-#         label = "disease status",
-#         verbose = FALSE
-#       )
-# 
-#       map(top_vars, function(var){
-# 
-#         if(n_distinct(boost_dat_disease_status[,var]) == 2){
-#           variable_type <- "categorical"
-#           geom <- "aggregates" # bar plots
-#         } else {
-#           variable_type <- "numerical"
-#           geom <- "profiles"  # ceteris-paribus (CP) profiles
-#         }
-# 
-#         var_resp <- model_profile(explainer_disease_status_sub, variable =  var , type = "partial", variable_type = variable_type)
-#         plot(var_resp, geom = geom) +
-#           labs(title = disease, subtitle = "")
-#       })
-#     }
-#   }
-# })
-# write_rds(ds_lag_pd_by_disease, here::here("tmp/ds_lag_pd_by_disease.rds"))
+ds_lag_pd_by_disease <-  map(oie_high_importance_diseases, function(disease){
+
+  col <- paste("disease", disease, sep = "_")
+  if(col %in% colnames(boost_dat_disease_status)){
+    which_disease <- which(boost_dat_disease_status[,col] == 1)
+
+    if(length(which_disease)){
+      explainer_disease_status_sub <- DALEX::explain(
+        model = boost_mod_disease_status_xg,
+        data = boost_dat_disease_status[which_disease,],
+        y = boost_dat_out_disease_status[which_disease],
+        predict_function = predict_raw,
+        label = "disease status",
+        verbose = FALSE
+      )
+
+      map(top_vars, function(var){
+
+        if(n_distinct(boost_dat_disease_status[,var]) == 2){
+          variable_type <- "categorical"
+          geom <- "aggregates" # bar plots
+        } else {
+          variable_type <- "numerical"
+          geom <- "profiles"  # ceteris-paribus (CP) profiles
+        }
+
+        var_resp <- model_profile(explainer_disease_status_sub, variable =  var , type = "partial", variable_type = variable_type)
+        plot(var_resp, geom = geom) +
+          labs(title = disease, subtitle = "")
+      })
+    }
+  }
+})
+write_rds(ds_lag_pd_by_disease, here::here("tmp/ds_lag_pd_by_disease.rds"))
 ds_lag_pd_by_disease <- read_rds(here::here("tmp/ds_lag_pd_by_disease.rds"))
 ds_lag_pd_by_disease <- purrr::transpose(ds_lag_pd_by_disease)
 names(ds_lag_pd_by_disease) <- top_vars
@@ -272,45 +272,45 @@ src <- purrr::map_chr(seq_along(ds_lag_pd_by_disease), ~ {
 `r knit_child(text = src)`
 
 ```{r ds-var-pd-by-dirchage, fig.height=10, fig.width=15}
-# 
-# boost_dat_disease_status_dirchange <- pull_workflow_mold(boost_mod_disease_status)$predictors  %>%
-#   select(disease_status_lag1) %>%
-#   mutate(disease_status_actual = boost_dat_out_disease_status) %>%
-#   mutate(disease_status_dirchange_actual = disease_status_actual - disease_status_lag1) %>%
-#   mutate(disease_status_dirchange_actual = case_when(disease_status_dirchange_actual == 0 ~ "no change",
-#                                                      disease_status_dirchange_actual > 0 ~ "outbreak starts",
-#                                                      disease_status_dirchange_actual < 0 ~ "outbreak ends")) %>%
-#   pull(disease_status_dirchange_actual)
-# 
-# ds_lag_pd_by_dirchange <-  map(unique(boost_dat_disease_status_dirchange), function(chng){
-# 
-#   which_chng <-  which(boost_dat_disease_status_dirchange == chng)
-#   explainer_disease_status_sub2 <- DALEX::explain(
-#     model = boost_mod_disease_status_xg,
-#     data = boost_dat_disease_status[which_chng,],
-#     y = boost_dat_out_disease_status[which_chng],
-#     predict_function = predict_raw,
-#     label = "disease status",
-#     verbose = FALSE
-#   )
-# 
-#   map(top_vars, function(var){
-# 
-#     if(n_distinct(boost_dat_disease_status[,var]) == 2){
-#       variable_type <- "categorical"
-#       geom <- "aggregates" # bar plots
-#     } else {
-#       variable_type <- "numerical"
-#       geom <- "profiles"  # ceteris-paribus (CP) profiles
-#     }
-# 
-#     var_resp <- model_profile(explainer_disease_status_sub2, variable =  var , type = "partial", variable_type = variable_type)
-#     plot(var_resp, geom = geom) +
-#       labs(title = chng, subtitle = "")
-#   })
-# })
-# write_rds(ds_lag_pd_by_dirchange, here::here("tmp/ds_lag_pd_by_dirchange"))
-ds_lag_pd_by_dirchange <- read_rds(here::here("tmp/ds_lag_pd_by_dirchange"))
+
+boost_dat_disease_status_dirchange <- pull_workflow_mold(boost_mod_disease_status)$predictors  %>%
+  select(disease_status_lag1) %>%
+  mutate(disease_status_actual = boost_dat_out_disease_status) %>%
+  mutate(disease_status_dirchange_actual = disease_status_actual - disease_status_lag1) %>%
+  mutate(disease_status_dirchange_actual = case_when(disease_status_dirchange_actual == 0 ~ "no change",
+                                                     disease_status_dirchange_actual > 0 ~ "outbreak starts",
+                                                     disease_status_dirchange_actual < 0 ~ "outbreak ends")) %>%
+  pull(disease_status_dirchange_actual)
+
+ds_lag_pd_by_dirchange <-  map(unique(boost_dat_disease_status_dirchange), function(chng){
+
+  which_chng <-  which(boost_dat_disease_status_dirchange == chng)
+  explainer_disease_status_sub2 <- DALEX::explain(
+    model = boost_mod_disease_status_xg,
+    data = boost_dat_disease_status[which_chng,],
+    y = boost_dat_out_disease_status[which_chng],
+    predict_function = predict_raw,
+    label = "disease status",
+    verbose = FALSE
+  )
+
+  map(top_vars, function(var){
+
+    if(n_distinct(boost_dat_disease_status[,var]) == 2){
+      variable_type <- "categorical"
+      geom <- "aggregates" # bar plots
+    } else {
+      variable_type <- "numerical"
+      geom <- "profiles"  # ceteris-paribus (CP) profiles
+    }
+
+    var_resp <- model_profile(explainer_disease_status_sub2, variable =  var , type = "partial", variable_type = variable_type)
+    plot(var_resp, geom = geom) +
+      labs(title = chng, subtitle = "")
+  })
+})
+write_rds(ds_lag_pd_by_dirchange, here::here("tmp/ds_lag_pd_by_dirchange.rds"))
+ds_lag_pd_by_dirchange <- read_rds(here::here("tmp/ds_lag_pd_by_dirchange.rds"))
 ds_lag_pd_by_dirchange <- purrr::transpose(ds_lag_pd_by_dirchange)
 names(ds_lag_pd_by_dirchange) <- top_vars
 
@@ -448,40 +448,40 @@ plot_grid(plotlist = pd_cases)
 
 
 ```{r cs-var-pd-by-disease, fig.height=10, fig.width=15}
-# cs_lag_pd_by_disease <-  map(oie_high_importance_diseases, function(disease){
-# 
-#   col <- paste("disease", disease, sep = "_")
-#   if(col %in% colnames(boost_dat_cases)){
-#     which_disease <- which(boost_dat_cases[,col] == 1)
-# 
-#     if(length(which_disease)){
-#       explainer_cases_sub <- DALEX::explain(
-#         model = boost_mod_cases_xg,
-#         data = boost_dat_cases[which_disease,],
-#         y = boost_dat_out_cases[which_disease],
-#         predict_function = predict_raw,
-#         label = "cases",
-#         verbose = FALSE
-#       )
-# 
-#       map(top_vars, function(var){
-# 
-#         if(n_distinct(boost_dat_cases[,var]) == 2){
-#           variable_type <- "categorical"
-#           geom <- "aggregates" # bar plots
-#         } else {
-#           variable_type <- "numerical"
-#           geom <- "profiles"  # ceteris-paribus (CP) profiles
-#         }
-# 
-#         var_resp <- model_profile(explainer_cases_sub, variable =  var , type = "partial", variable_type = variable_type)
-#         plot(var_resp, geom = geom) +
-#           labs(title = disease, subtitle = "")
-#       })
-#     }
-#   }
-# })
-# write_rds(cs_lag_pd_by_disease, here::here("tmp/cs_lag_pd_by_disease.rds"))
+cs_lag_pd_by_disease <-  map(oie_high_importance_diseases, function(disease){
+
+  col <- paste("disease", disease, sep = "_")
+  if(col %in% colnames(boost_dat_cases)){
+    which_disease <- which(boost_dat_cases[,col] == 1)
+
+    if(length(which_disease)){
+      explainer_cases_sub <- DALEX::explain(
+        model = boost_mod_cases_xg,
+        data = boost_dat_cases[which_disease,],
+        y = boost_dat_out_cases[which_disease],
+        predict_function = predict_raw,
+        label = "cases",
+        verbose = FALSE
+      )
+
+      map(top_vars, function(var){
+
+        if(n_distinct(boost_dat_cases[,var]) == 2){
+          variable_type <- "categorical"
+          geom <- "aggregates" # bar plots
+        } else {
+          variable_type <- "numerical"
+          geom <- "profiles"  # ceteris-paribus (CP) profiles
+        }
+
+        var_resp <- model_profile(explainer_cases_sub, variable =  var , type = "partial", variable_type = variable_type)
+        plot(var_resp, geom = geom) +
+          labs(title = disease, subtitle = "")
+      })
+    }
+  }
+})
+write_rds(cs_lag_pd_by_disease, here::here("tmp/cs_lag_pd_by_disease.rds"))
 cs_lag_pd_by_disease <- read_rds(here::here("tmp/cs_lag_pd_by_disease.rds"))
 cs_lag_pd_by_disease <- purrr::compact(cs_lag_pd_by_disease)
 cs_lag_pd_by_disease <- purrr::transpose(cs_lag_pd_by_disease)
