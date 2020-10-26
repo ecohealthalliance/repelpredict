@@ -61,8 +61,8 @@ scored_data_ds <- bind_rows(scored_data_ds_baseline, scored_data_ds_boost) %>%
 metrics <- tribble(~".metric", ~"desc",
                    "accuracy", "proportion of the data that are predicted correctly",
                    "kap", "similar measure to accuracy(), but is normalized by the accuracy that would be expected by chance alone and is very useful when one or more classes have large frequency distributions.",
-                   "sens", "the proportion of positive results out of the number of samples which were actually positive.",
-                   "spec", "the proportion of negative results out of the number of samples which were actually negative")
+                   "sens", "the proportion of disease absent predictions out of the number of events which were actually absent",
+                   "spec", "the proportion of disease present predictions out of the number of events which were actually present")
 
 ds_summary <- function(grp_var, truth, estimate){
   
@@ -134,6 +134,7 @@ out_full_model_continent[[2]]
 ```{r ds-cm-full-model-dc, fig.width = 10, fig.height = 5}
 out_full_model_dc <- ds_summary("full_model", truth = "disease_status_dirchange_actual", estimate = "disease_status_dirchange_predicted")
 out_full_model_dc[[1]]  %>% 
+  filter(! .metric %in% c("sens", "spec")) %>% 
   kbl() %>% 
   collapse_rows(columns = 1:2, valign = "middle") %>% 
   kable_styling() 
@@ -147,6 +148,7 @@ Note there are baseline cases where disease status is positive but cases are NA,
 ```{r ds-cm-taxa-dc, fig.width = 15, fig.height = 10}
 out_taxa_dc <- ds_summary("taxa", truth = "disease_status_dirchange_actual", estimate = "disease_status_dirchange_predicted")
 out_taxa_dc[[1]]  %>% 
+  filter(! .metric %in% c("sens", "spec")) %>% 
   select(-desc) %>% 
   kbl() %>% 
   collapse_rows(columns = 1, valign = "middle") %>% 
@@ -160,6 +162,7 @@ out_taxa_dc[[2]]
 ```{r ds-cm-continent-dc, fig.width = 15, fig.height = 8}
 out_continent_dc <- ds_summary("continent", truth = "disease_status_dirchange_actual", estimate = "disease_status_dirchange_predicted")
 out_continent_dc[[1]]  %>% 
+  filter(! .metric %in% c("sens", "spec")) %>% 
   select(-desc) %>% 
   kbl() %>% 
   collapse_rows(columns = 1, valign = "middle") %>% 

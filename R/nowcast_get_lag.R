@@ -2,7 +2,7 @@
 #' @import repeldata dplyr tidyr
 #' @importFrom assertthat has_name assert_that
 #' @export
-get_nowcast_lag <- function(conn, newdata, lags = 1:3){
+get_nowcast_lag <- function(conn, newdata, lags = 1:3, control_measures = FALSE){
 
   # check newdata has correct input vars
   assertthat::has_name(newdata, grouping_vars)
@@ -13,7 +13,7 @@ get_nowcast_lag <- function(conn, newdata, lags = 1:3){
   # start lookup table for augmenting
   repel_cases <- repel_cases(conn)
 
-  # add 2 semesters into future
+  # add 2 semesters into future (to be able to pull lag from reports two years into future)
   last_two <- repel_cases %>%
     arrange(report_year, report_semester) %>%
     distinct(report_year, report_semester) %>%
@@ -41,16 +41,26 @@ get_nowcast_lag <- function(conn, newdata, lags = 1:3){
       mutate(!!paste0("disease_status_lag", i) := lag(disease_status, order_by = report_period, n = i, default = NA))
   }
 
+  if(control_measures){
+    for(i in lags){
+      model_lookup <- model_lookup %>%
+        mutate(!!paste0("control_measures_lag", i) := lag(control_measures, order_by = report_period, n = i, default = NA))
+    }
+  }
+
   model_lookup <- model_lookup %>%
     ungroup() %>%
-    select(country_iso3c, disease, disease_population, taxa, report_period, disease_status, starts_with("cases"), starts_with("disease_status"))
+    select(country_iso3c, disease, disease_population, taxa, report_period, disease_status,
+           starts_with("cases"), starts_with("disease_status"),
+           all_of(starts_with("control_measures"))
+           )
 
   # get cases and last three semesters
   lagged_newdata <- newdata %>%
-    select(-suppressWarnings(one_of("cases")), -suppressWarnings(one_of("disease_status"))) %>%
+    select(-suppressWarnings(one_of("cases")), -suppressWarnings(one_of("disease_status")), -suppressWarnings(one_of("control_measures"))) %>%
     mutate(report_period = as.integer(paste0(report_year, report_semester))) %>%
     left_join(model_lookup, by = c("country_iso3c", "disease", "disease_population", "taxa", "report_period")) %>%
-    select(-report_period)
+    select(-report_period, -control_measures)
 
   return(lagged_newdata)
 }

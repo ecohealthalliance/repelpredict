@@ -20,14 +20,8 @@ traindat <- repel_cases_train(conn) %>%
   select(all_of(grouping_vars)) %>%
   distinct()
 
-#TODO: follow up on these Contagious bovine pleuropneumonia, bluetongue, Sheep pox and goat pox,
-oie_high_importance_diseases <- c("foot_and_mouth_disease", "vesicular_stomatitis",
-                                  "swine_vesicular_disease", "rinderpest",
-                                  "peste_des_petits_ruminants", "ovine_bluetongue_disease",
-                                  "lumpy_skin_disease", "rift_valley_fever",
-                                  "african_horse_sickness", "african_swine_fever",
-                                  "classical_swine_fever", "highly_pathogenic_avian_influenza",
-                                  "newcastle_disease", "pleuropneumonia", "ovine_pox_disease")
+oie_high_importance_diseases <- get_oie_high_importance_diseases()
+
 ```
 
 ```{r load-data}
@@ -60,8 +54,8 @@ scored_data_ds <- bind_rows(scored_data_ds_baseline, scored_data_ds_boost) %>%
 metrics <- tribble(~".metric", ~"desc",
                    "accuracy", "proportion of the data that are predicted correctly",
                    "kap", "similar measure to accuracy(), but is normalized by the accuracy that would be expected by chance alone and is very useful when one or more classes have large frequency distributions.",
-                   "sens", "the proportion of positive results out of the number of samples which were actually positive.",
-                   "spec", "the proportion of negative results out of the number of samples which were actually negative")
+                   "sens", "the proportion of disease absent predictions out of the number of events which were actually absent",
+                   "spec", "the proportion of disease present predictions out of the number of events which were actually present")
 
 ds_summary <- function(grp_var, truth, estimate){
   
@@ -133,6 +127,7 @@ out_full_model_continent[[2]]
 ```{r ds-cm-full-model-dc, fig.width = 10, fig.height = 5}
 out_full_model_dc <- ds_summary("full_model", truth = "disease_status_dirchange_actual", estimate = "disease_status_dirchange_predicted")
 out_full_model_dc[[1]]  %>% 
+  filter(! .metric %in% c("sens", "spec")) %>% 
   kbl() %>% 
   collapse_rows(columns = 1:2, valign = "middle") %>% 
   kable_styling() 
@@ -148,6 +143,7 @@ Note there are some baseline "outbreak ends" predictions. This occurs in cases w
 out_taxa_dc <- ds_summary("taxa", truth = "disease_status_dirchange_actual", estimate = "disease_status_dirchange_predicted")
 out_taxa_dc[[1]]  %>% 
   select(-desc) %>% 
+  filter(! .metric %in% c("sens", "spec")) %>% 
   kbl() %>% 
   collapse_rows(columns = 1, valign = "middle") %>% 
   kable_styling() 
@@ -161,6 +157,7 @@ out_taxa_dc[[2]]
 out_continent_dc <- ds_summary("continent", truth = "disease_status_dirchange_actual", estimate = "disease_status_dirchange_predicted")
 out_continent_dc[[1]]  %>% 
   select(-desc) %>% 
+  filter(! .metric %in% c("sens", "spec")) %>% 
   kbl() %>% 
   collapse_rows(columns = 1, valign = "middle") %>% 
   kable_styling() 
@@ -220,11 +217,11 @@ plot_grid(plotlist = pd_disease_status)
 
 ```{r ds-var-pd-by-disease, fig.height=10, fig.width=15}
 ds_lag_pd_by_disease <-  map(oie_high_importance_diseases, function(disease){
-
+  
   col <- paste("disease", disease, sep = "_")
   if(col %in% colnames(boost_dat_disease_status)){
     which_disease <- which(boost_dat_disease_status[,col] == 1)
-
+    
     if(length(which_disease)){
       explainer_disease_status_sub <- DALEX::explain(
         model = boost_mod_disease_status_xg,
@@ -234,9 +231,9 @@ ds_lag_pd_by_disease <-  map(oie_high_importance_diseases, function(disease){
         label = "disease status",
         verbose = FALSE
       )
-
+      
       map(top_vars, function(var){
-
+        
         if(n_distinct(boost_dat_disease_status[,var]) == 2){
           variable_type <- "categorical"
           geom <- "aggregates" # bar plots
@@ -244,7 +241,7 @@ ds_lag_pd_by_disease <-  map(oie_high_importance_diseases, function(disease){
           variable_type <- "numerical"
           geom <- "profiles"  # ceteris-paribus (CP) profiles
         }
-
+        
         var_resp <- model_profile(explainer_disease_status_sub, variable =  var , type = "partial", variable_type = variable_type)
         plot(var_resp, geom = geom) +
           labs(title = disease, subtitle = "")
@@ -283,7 +280,7 @@ boost_dat_disease_status_dirchange <- pull_workflow_mold(boost_mod_disease_statu
   pull(disease_status_dirchange_actual)
 
 ds_lag_pd_by_dirchange <-  map(unique(boost_dat_disease_status_dirchange), function(chng){
-
+  
   which_chng <-  which(boost_dat_disease_status_dirchange == chng)
   explainer_disease_status_sub2 <- DALEX::explain(
     model = boost_mod_disease_status_xg,
@@ -293,9 +290,9 @@ ds_lag_pd_by_dirchange <-  map(unique(boost_dat_disease_status_dirchange), funct
     label = "disease status",
     verbose = FALSE
   )
-
+  
   map(top_vars, function(var){
-
+    
     if(n_distinct(boost_dat_disease_status[,var]) == 2){
       variable_type <- "categorical"
       geom <- "aggregates" # bar plots
@@ -303,7 +300,7 @@ ds_lag_pd_by_dirchange <-  map(unique(boost_dat_disease_status_dirchange), funct
       variable_type <- "numerical"
       geom <- "profiles"  # ceteris-paribus (CP) profiles
     }
-
+    
     var_resp <- model_profile(explainer_disease_status_sub2, variable =  var , type = "partial", variable_type = variable_type)
     plot(var_resp, geom = geom) +
       labs(title = chng, subtitle = "")
@@ -449,11 +446,11 @@ plot_grid(plotlist = pd_cases)
 
 ```{r cs-var-pd-by-disease, fig.height=10, fig.width=15}
 cs_lag_pd_by_disease <-  map(oie_high_importance_diseases, function(disease){
-
+  
   col <- paste("disease", disease, sep = "_")
   if(col %in% colnames(boost_dat_cases)){
     which_disease <- which(boost_dat_cases[,col] == 1)
-
+    
     if(length(which_disease)){
       explainer_cases_sub <- DALEX::explain(
         model = boost_mod_cases_xg,
@@ -463,9 +460,9 @@ cs_lag_pd_by_disease <-  map(oie_high_importance_diseases, function(disease){
         label = "cases",
         verbose = FALSE
       )
-
+      
       map(top_vars, function(var){
-
+        
         if(n_distinct(boost_dat_cases[,var]) == 2){
           variable_type <- "categorical"
           geom <- "aggregates" # bar plots
@@ -473,7 +470,7 @@ cs_lag_pd_by_disease <-  map(oie_high_importance_diseases, function(disease){
           variable_type <- "numerical"
           geom <- "profiles"  # ceteris-paribus (CP) profiles
         }
-
+        
         var_resp <- model_profile(explainer_cases_sub, variable =  var , type = "partial", variable_type = variable_type)
         plot(var_resp, geom = geom) +
           labs(title = disease, subtitle = "")

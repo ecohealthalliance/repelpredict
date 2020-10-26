@@ -4,7 +4,7 @@
 \alias{get_nowcast_lag}
 \title{Get case and status lags}
 \usage{
-get_nowcast_lag(conn, newdata, lags = 1:3)
+get_nowcast_lag(conn, newdata, lags = 1:3, control_measures = FALSE)
 }
 \description{
 Get case and status lags

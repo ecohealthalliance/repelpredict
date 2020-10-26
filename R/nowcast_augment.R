@@ -13,7 +13,7 @@ repel_augment <- function(x, ...){
 #' @export
 repel_augment.nowcast_baseline <- function(model_object, conn, newdata) {
 
-  lagged_newdata <- get_nowcast_lag(conn, newdata, lags = 1) %>%
+  lagged_newdata <- get_nowcast_lag(conn, newdata, lags = 1, control_measures = FALSE) %>%
     mutate_at(names(.)[str_detect(names(.), "disease_status")],  ~recode(., "present" = 1, "suspected" = 1, "absent" = 0))
 
   lag_vars <- colnames(lagged_newdata)[str_detect(names(lagged_newdata), "disease_status_lag|cases_lag")]
@@ -48,7 +48,26 @@ repel_augment.nowcast_baseline <- function(model_object, conn, newdata) {
 repel_augment.nowcast_tree <- function(model_object, conn, newdata) {
 
   # get lag cases
-  lagged_newdata <- get_nowcast_lag(conn, newdata, lags = 1:3)
+  lagged_newdata <- get_nowcast_lag(conn, newdata, lags = 1:3, control_measures = TRUE)
+
+  # add continent
+  lagged_newdata <- lagged_newdata %>%
+    mutate(continent = countrycode::countrycode(country_iso3c, origin = "iso3c", destination = "continent"))
+
+  # combine lagged 3 yrs control measures
+  lagged_newdata <- lagged_newdata %>%
+    mutate(control_measures_lag = paste(control_measures_lag1, control_measures_lag2, control_measures_lag3, sep = "; "))
+
+  control_list <- unique(unlist(str_split(lagged_newdata$control_measures_lag, "; ")))
+  control_list <- control_list[!control_list %in% c("NA", "none")]
+
+  for(control in control_list){
+    lagged_newdata <- lagged_newdata %>%
+      mutate(!!paste0("control_", make_clean_names(control)) := as.integer(str_detect(control_measures_lag, control)))
+  }
+
+  lagged_newdata <- lagged_newdata %>%
+    select(-starts_with("control_measures_lag"))
 
   # get summed lag values of adjacent countries
   borders <- tbl(conn, "connect_static_vars") %>%
@@ -62,7 +81,7 @@ repel_augment.nowcast_tree <- function(model_object, conn, newdata) {
     rename(country_origin = country_iso3c) %>%
     left_join(borders,  by = "country_origin") %>%
     rename(country_iso3c = country_destination) %>%
-    get_nowcast_lag(conn, newdata = ., lags = 1:3)
+    get_nowcast_lag(conn, newdata = ., lags = 1:3, control_measures = FALSE)
 
   lagged_borders_sum <- lagged_borders %>%
     select(-cases) %>%
@@ -264,7 +283,7 @@ repel_augment.nowcast_tree <- function(model_object, conn, newdata) {
     mutate_if(is.character, as.factor) %>%
     mutate_if(is.logical, as.double) %>%
     #reorder
-    select(report_year, report_semester, disease, taxa, country_iso3c, disease_population,
+    select(report_year, report_semester, disease, taxa, country_iso3c, continent, disease_population,
            starts_with("cases"), starts_with("disease_status"),
            starts_with("ever_in"),
            log_human_population, human_population_missing,
@@ -272,6 +291,7 @@ repel_augment.nowcast_tree <- function(model_object, conn, newdata) {
            log_veterinarians_per_taxa, veterinarian_count_missing,
            log_gdp_per_capita, gdp_dollars_missing,
            first_reporting_semester,
+           starts_with("control"),
            everything()) # make sure we don't accidentally drop any columns
 
   assertthat::assert_that(!any(map_lgl(lagged_newdata, ~any(is.infinite(.)))))
@@ -317,31 +337,3 @@ na_interp <- function(df, var){
   }
   return(out)
 }
-
-#' @noRd
-modify_augmented_data <- function(augmented_data, outcome_var){
-
-  stopifnot(outcome_var %in% c("disease_status", "cases"))
-
-  if(outcome_var == "disease_status"){
-    modified_data <- augmented_data %>%
-      select(-cases) %>%
-      drop_na(disease_status) %>%
-      mutate_at(.vars = c("cases_lag1",  "cases_lag2",  "cases_lag3"), ~log10(. + 1)) %>%
-      mutate(disease_status = as.integer(disease_status))
-  }
-  if(outcome_var == "cases"){
-
-    modified_data <- augmented_data %>%
-      select(-disease_status) %>%
-      drop_na(cases) %>%
-      mutate_at(.vars = c("cases", "cases_lag1",  "cases_lag2",  "cases_lag3"), ~log10(. + 1))
-    # message("Filtering for positive case count")
-    message("Log10 transforming cases")
-  }
-  return(modified_data)
-}
-
-
-
-
