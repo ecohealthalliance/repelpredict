@@ -4,7 +4,7 @@
 \alias{nowcast_boost_model}
 \title{Produces nowcast xgboost model object}
 \usage{
-nowcast_boost_model()
+nowcast_boost_model(disease_status_model = NULL, cases_model = NULL)
 }
 \value{
 a list with description and classes

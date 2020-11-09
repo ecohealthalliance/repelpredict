@@ -20,8 +20,11 @@ nowcast_gam_model <- function(){
 #' @import repeldata dplyr tidyr
 #' @return a list with description and classes
 #' @export
-nowcast_boost_model <- function(){
-    structure(list(description = "Nowcast XGBoost model"),
+nowcast_boost_model <- function(disease_status_model = NULL,
+                                cases_model = NULL){
+    structure(list(description = "Nowcast XGBoost model",
+                   disease_status_model = disease_status_model,
+                   cases_model = cases_model),
             class = c("nowcast_boost", "nowcast_tree", "nowcast_model"))
 }
 

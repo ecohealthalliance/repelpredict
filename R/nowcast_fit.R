@@ -13,6 +13,7 @@ repel_fit <- function(x, ...){
 #' @importFrom readr write_rds
 #' @importFrom assertthat assert_that
 #' @importFrom here here
+#' @importFrom aws.s3 s3saveRDS
 #' @importFrom recipes recipe step_mutate step_rm step_novel step_dummy step_zv prep juice all_nominal all_predictors all_outcomes step_mutate_at step_log
 #' @export
 repel_fit.nowcast_boost <- function(model_object,
@@ -113,6 +114,7 @@ repel_fit.nowcast_boost <- function(model_object,
      # ^ about 1 hr
 
     write_rds(disease_status_fit, here::here(paste0(output_directory, "/boost_mod_disease_status.rds")))
+    aws.s3::s3saveRDS(disease_status_fit, bucket = "repeldb/models", object = "boost_mod_disease_status.rds")
     parallel::stopCluster(cl = cl)
   }
 
@@ -208,6 +210,7 @@ repel_fit.nowcast_boost <- function(model_object,
     toc()
     # ^ about 5 min
     write_rds(cases_fit, here::here(paste0(output_directory, "/boost_mod_cases.rds")))
+    aws.s3::s3saveRDS(cases_fit, bucket = "repeldb/models", object = "boost_mod_cases.rds")
     parallel::stopCluster(cl = cl)
   }
 }

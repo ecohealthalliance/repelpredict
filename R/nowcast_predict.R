@@ -42,10 +42,10 @@ repel_predict.nowcast_baseline <- function(model_object, newdata) {
 repel_predict.nowcast_boost <- function(model_object, newdata) {
 
   # Load models
-  boost_mod_disease_status <- read_rds(here::here("models/boost_mod_disease_status.rds"))
+  boost_mod_disease_status <- model_object$disease_status_model
   boost_mod_disease_status_xg <- pull_workflow_fit(boost_mod_disease_status)
 
-  boost_mod_cases <- read_rds(here::here("models/boost_mod_cases.rds"))
+  boost_mod_cases <- model_object$cases_model
   boost_mod_cases_xg <- pull_workflow_fit(boost_mod_cases)
 
   # Load recipe
