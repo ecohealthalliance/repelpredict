@@ -249,7 +249,7 @@ repel_augment.nowcast_tree <- function(model_object, conn, newdata) {
     select(-report_period)
 
   # recode diseases as rare
-  traindat_diseases_recode <- readr::read_csv(here::here("inst", "lookup", "traindat_diseases_recode.csv"), col_types = cols(
+  traindat_diseases_recode <- read_csv(system.file("lookup", "traindat_diseases_recode.csv",  package = "repelpredict"), col_types = cols(
     disease = col_character(),
     disease_recode = col_character()
   ))

@@ -12,14 +12,14 @@ grouping_vars <- c("country_iso3c", "report_year", "report_semester", "disease",
 repel_cases <- function(conn){
 
   # read in static file from inst/generate_data_split_lookup.R
-  validation_split <- read_csv(here::here("inst", "lookup", "validation_split_lookup.csv"),
+  validation_split <- read_csv(system.file("lookup", "validation_split_lookup.csv", package = "repelpredict"),
                                col_types = cols(
                                  country_iso3c = col_character(),
-                                 report_year = col_integer(),
-                                 report_semester = col_integer(),
                                  taxa = col_character(),
                                  disease = col_character(),
                                  disease_population = col_character(),
+                                 report_year = col_integer(),
+                                 report_semester = col_integer(),
                                  validation_set = col_logical()
                                ))
 
