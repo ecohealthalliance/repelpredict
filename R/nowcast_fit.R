@@ -133,8 +133,8 @@ repel_fit.nowcast_boost <- function(model_object,
       step_novel(all_nominal(), -all_outcomes()) %>%
       step_dummy(all_nominal(), -all_outcomes(), one_hot = TRUE) %>%
       step_zv(all_predictors()) %>%
-      step_mutate_at(all_outcomes(), starts_with("cases_lag"), fn = ~ifelse(. == 0, 0.1, .)) %>%
-      step_log(all_outcomes(), starts_with("cases_lag"), base = 10)
+      step_mutate_at(all_outcomes(), starts_with("cases_lag"), fn = ~ifelse(. == 0, 0.1, .), skip = TRUE) %>%
+      step_log(all_outcomes(), starts_with("cases_lag"), base = 10, skip = TRUE)
 
     write_rds(cases_recipe, here::here(paste0(output_directory, "/boost_recipe_cases.rds")))
 

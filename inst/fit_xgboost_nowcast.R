@@ -36,6 +36,10 @@ scored_data <- repel_score(model_object =  nowcast_boost_model(disease_status_mo
                            augmented_data = augmented_data,
                            predicted_cases = predicted_cases)
 
+model_object =  nowcast_boost_model(
+  disease_status_model = aws.s3::s3readRDS(bucket = "repeldb/models", object = "boost_mod_disease_status.rds"),
+  cases_model = aws.s3::s3readRDS(bucket = "repeldb/models", object = "boost_mod_cases.rds"))
+
 # # example 1
 newdata <- tibble(country_iso3c = "AFG",
                   report_year = rep(2016:2020, each = 2),
@@ -44,11 +48,10 @@ newdata <- tibble(country_iso3c = "AFG",
                   disease_population = "domestic",
                   taxa = "cattle")
 
-forecasted_data <- repel_forecast(model_object =  nowcast_boost_model(
-  disease_status_model = aws.s3::s3readRDS(bucket = "repeldb/models", object = "boost_mod_disease_status.rds"),
-  cases_model = aws.s3::s3readRDS(bucket = "repeldb/models", object = "boost_mod_cases.rds")),
-                                 conn = conn,
-                                 newdata = newdata)
+
+forecasted_data <- repel_forecast(model_object = model_object,
+                                  conn = conn,
+                                  newdata = newdata)
 
 scored_new_data <- repel_score(model_object = model_object,
                                augmented_data = forecasted_data$augmented_data,
@@ -56,15 +59,15 @@ scored_new_data <- repel_score(model_object = model_object,
 
 # example 2
 newdata <- tibble(country_iso3c = "AFG",
-                 report_year = rep(2016:2020, each = 2),
-                 report_semester = rep(1:2, 5),
-                 disease = "african horse sickness",
-                 disease_population = "domestic",
-                 taxa = "equidae")
+                  report_year = rep(2016:2020, each = 2),
+                  report_semester = rep(1:2, 5),
+                  disease = "african horse sickness",
+                  disease_population = "domestic",
+                  taxa = "equidae")
 
 forecasted_data <- repel_forecast(model_object = model_object,
-                                 conn = conn,
-                                 newdata = newdata)
+                                  conn = conn,
+                                  newdata = newdata)
 
 scored_new_data <- repel_score(model_object = model_object,
                                augmented_data = forecasted_data$augmented_data,

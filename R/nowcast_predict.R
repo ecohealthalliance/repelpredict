@@ -43,34 +43,18 @@ repel_predict.nowcast_boost <- function(model_object, newdata) {
 
   # Load models
   boost_mod_disease_status <- model_object$disease_status_model
-  boost_mod_disease_status_xg <- pull_workflow_fit(boost_mod_disease_status)
+  # boost_mod_disease_status_xg <- pull_workflow_fit(boost_mod_disease_status)
 
   boost_mod_cases <- model_object$cases_model
-  boost_mod_cases_xg <- pull_workflow_fit(boost_mod_cases)
-
-  # Load recipe
-  disease_status_recipe <-  pull_workflow_prepped_recipe(boost_mod_disease_status)
-
-  # Pre-process newdata for status model
-  newdata_prepped <- bake(object = disease_status_recipe, new_data = newdata) %>%
-    select(-one_of("disease_status")) %>%
-    as.matrix()
+  # boost_mod_cases_xg <- pull_workflow_fit(boost_mod_cases)
 
   # Predict disease status
-  predicted_disease_status_probability <- predict_raw(boost_mod_disease_status_xg, new_data = newdata_prepped) # using raw instead of workflow because i missed the skip step in mutating disease_status
-  predicted_disease_status <- round(predicted_disease_status_probability)
-  which_predicted_status_positive <- which(predicted_disease_status == 1)
+  predicted_disease_status <- predict(boost_mod_disease_status,  new_data = newdata)
+  which_predicted_status_positive <- which(predicted_disease_status$.pred_class == 1)
 
   # Predict case count
   if(length(which_predicted_status_positive)){
-
-    # remove matrix columns that were not part of training (because all 0)
-    trained_fields <- boost_mod_cases_xg$fit$feature_names
-    new_fields <- colnames(newdata_prepped)
-    which_new_fields <- which(new_fields %in% trained_fields)
-
-    predicted_cases <- predict_raw(object = boost_mod_cases_xg,
-                                   new_data = newdata_prepped[which_predicted_status_positive, which_new_fields]) # only predict on positive outcomes
+    predicted_cases <- predict(boost_mod_cases,  new_data = newdata[which_predicted_status_positive,]) %>% pull(.pred)
     predicted_cases <- 10^predicted_cases
     predicted_cases <- round(predicted_cases)
     assertthat::assert_that(min(predicted_cases) >= 0)
@@ -82,7 +66,7 @@ repel_predict.nowcast_boost <- function(model_object, newdata) {
       mutate(predicted_cases = replace_na(predicted_cases, 0)) %>%
       pull(predicted_cases)
   }else{
-    predicted_cases <- predicted_disease_status
+    predicted_cases <- rep(0, nrow(newdata))
   }
   return(predicted_cases)
 }
