@@ -58,8 +58,7 @@ repel_augment.nowcast_tree <- function(model_object, conn, newdata) {
   lagged_newdata <- lagged_newdata %>%
     mutate(control_measures_lag = paste(control_measures_lag1, control_measures_lag2, control_measures_lag3, sep = "; "))
 
-  control_list <- unique(unlist(str_split(lagged_newdata$control_measures_lag, "; ")))
-  control_list <- control_list[!control_list %in% c("NA", "none")]
+  control_list <- get_disease_controls()
 
   for(control in control_list){
     lagged_newdata <- lagged_newdata %>%
