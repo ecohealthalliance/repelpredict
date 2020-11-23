@@ -63,10 +63,10 @@ repel_predict.nowcast_boost <- function(model_object, newdata) {
     predicted_cases <- tibble(id = 1:nrow(newdata)) %>%
       left_join(tibble(id = which_predicted_status_positive, predicted_cases = predicted_cases),
                 by = "id") %>%
-      mutate(predicted_cases = replace_na(predicted_cases, 0)) %>%
+      mutate(predicted_cases = as.numeric(replace_na(predicted_cases, 0))) %>%
       pull(predicted_cases)
   }else{
-    predicted_cases <- rep(0, nrow(newdata))
+    predicted_cases <- as.numeric(rep(0, nrow(newdata)))
   }
   return(predicted_cases)
 }
