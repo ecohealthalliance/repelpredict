@@ -95,7 +95,7 @@ repel_fit.nowcast_boost <- function(model_object,
     parallel::stopCluster(cl = cl)
 
      # Read in tuned results and select best parameters
-     disease_status_tune_bayes <- read_rds(here::here(paste0(output_directory, "/boost_tune_disease_status.rds")))
+     disease_status_tune_bayes <- read_rds(here::here(paste0(output_directory, "/boost_tune_disease_status_bayes.rds")))
      disease_status_tuned_param <- select_by_one_std_err(disease_status_tune_bayes, mtry, trees, min_n, tree_depth, learn_rate, loss_reduction, sample_size)
 
      # Update workflow with selected parameters
