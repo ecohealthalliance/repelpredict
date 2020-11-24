@@ -45,7 +45,15 @@ repel_augment.nowcast_baseline <- function(model_object, conn, newdata) {
 #' @importFrom purrr map map_lgl
 #' @importFrom stringr str_starts str_ends
 #' @export
-repel_augment.nowcast_tree <- function(model_object, conn, newdata) {
+repel_augment.nowcast_tree <- function(model_object, conn, newdata, use_cache = FALSE) {
+
+  if(use_cache){
+    # # get cache
+    # cached_augmented_data <- DBI::dbReadTable(conn, "nowcast_boost_augment_predict") %>%
+    #   # select(-db_disease_status_etag, -db_cases_etag, -predicted_cases, -validation_set) %>%
+    #   mutate(cases = as.numeric(cases))  # temp fix
+    # lagged_newdata <- left_join(newdata, cached_augmented_data)
+  }
 
   # get lag cases
   lagged_newdata <- get_nowcast_lag(conn, newdata, lags = 1:3, control_measures = TRUE)
@@ -248,25 +256,6 @@ repel_augment.nowcast_tree <- function(model_object, conn, newdata) {
     ungroup() %>%
     select(-report_period)
 
-  # recode diseases as rare
-  traindat_diseases_recode <- read_csv(system.file("lookup", "traindat_diseases_recode.csv",  package = "repelpredict"), col_types = cols(
-    disease = col_character(),
-    disease_recode = col_character()
-  ))
-  lagged_newdata <- lagged_newdata %>%
-    left_join(traindat_diseases_recode, by = "disease") %>%
-    select(-disease) %>%
-    rename(disease = disease_recode)
-
-  # disease name lookup/clean
-  disease_lookup <- lagged_newdata %>%
-    distinct(disease) %>%
-    mutate(disease_clean = janitor::make_clean_names(disease))
-
-  lagged_newdata <- lagged_newdata %>%
-    left_join(disease_lookup, by = "disease") %>%
-    select(-disease) %>%
-    rename(disease = disease_clean)
 
   # final feature engineering - transformations etc
   lagged_newdata <- lagged_newdata %>%

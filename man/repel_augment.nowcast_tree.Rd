@@ -4,7 +4,7 @@
 \alias{repel_augment.nowcast_tree}
 \title{Augment nowcast bart model object}
 \usage{
-\method{repel_augment}{nowcast_tree}(model_object, conn, newdata)
+\method{repel_augment}{nowcast_tree}(model_object, conn, newdata, use_cache = FALSE)
 }
 \description{
 Augment nowcast bart model object

@@ -3,11 +3,10 @@
 #'@noRd
 init_annual_reports_animal_hosts <- function(conn){
 
-  tbl(conn, "annual_reports_animal_hosts") %>%
+  annual_reports_animal_hosts <- tbl(conn, "annual_reports_animal_hosts") %>%
     mutate(taxa = ifelse(taxa %in% c("goats", "sheep"), "sheep/goats", taxa)) %>%
     filter(taxa %in% taxa_list) %>%
     filter(report_semester != "0") %>%
-    filter(report_year == 2011) %>%
     select(all_of(grouping_vars), control_measures, disease_status, cases) %>%
     collect() %>%
     group_by_at(grouping_vars) %>%
@@ -23,6 +22,8 @@ init_annual_reports_animal_hosts <- function(conn){
                                    "absent,present"  = "present",
                                    "absent,suspected" = "suspected",
                                    "present,suspected" = "present"
-    ))
 
+
+    ))
+  return(annual_reports_animal_hosts)
 }
