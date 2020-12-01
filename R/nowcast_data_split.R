@@ -6,6 +6,7 @@ grouping_vars <- c("country_iso3c", "report_year", "report_semester", "disease",
 
 #' @import repeldata dplyr tidyr readr
 #' @importFrom DBI dbDisconnect
+#' @importFrom readr read_csv
 #' @importFrom here here
 #' @noRd
 split_annual_reports_animal_hosts <- function(conn, clean_disease_names = TRUE){

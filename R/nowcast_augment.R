@@ -40,7 +40,6 @@ repel_augment.nowcast_baseline <- function(model_object, conn, newdata) {
 #'
 #' @import repeldata dplyr tidyr
 #' @importFrom assertthat has_name assert_that
-#' @importFrom readr read_csv
 #' @importFrom here here
 #' @importFrom purrr map map_lgl
 #' @importFrom stringr str_starts str_ends

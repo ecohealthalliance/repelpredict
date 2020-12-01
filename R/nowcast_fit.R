@@ -22,6 +22,8 @@ repel_fit.nowcast_boost <- function(model_object,
                                     output_directory,
                                     verbose = interactive()) {
 
+  augmented_data <- recode_disease_rare(augmented_data) # does not fit into recipe step (needed in predict too)
+
   # Status model ------------------------------------------------------------
   if(model == "disease_status"){
     # Model recipe
@@ -71,8 +73,8 @@ repel_fit.nowcast_boost <- function(model_object,
     # Tune disease status model - first using a grid
     tic("pre-tuning disease status model (grid)")
     disease_status_tune_grid <- tune_grid(disease_status_workflow,
-              resamples = disease_status_folds,
-              control = control_grid(verbose = TRUE))
+                                          resamples = disease_status_folds,
+                                          control = control_grid(verbose = TRUE))
     toc()
     # ^ this takes about 15 hrs on prospero
     write_rds(disease_status_tune_grid, here::here(paste0(output_directory, "/boost_tune_disease_status_grid.rds")))
@@ -94,24 +96,24 @@ repel_fit.nowcast_boost <- function(model_object,
 
     parallel::stopCluster(cl = cl)
 
-     # Read in tuned results and select best parameters
-     disease_status_tune_bayes <- read_rds(here::here(paste0(output_directory, "/boost_tune_disease_status_bayes.rds")))
-     disease_status_tuned_param <- select_by_one_std_err(disease_status_tune_bayes, mtry, trees, min_n, tree_depth, learn_rate, loss_reduction, sample_size)
+    # Read in tuned results and select best parameters
+    disease_status_tune_bayes <- read_rds(here::here(paste0(output_directory, "/boost_tune_disease_status_bayes.rds")))
+    disease_status_tuned_param <- select_by_one_std_err(disease_status_tune_bayes, mtry, trees, min_n, tree_depth, learn_rate, loss_reduction, sample_size)
 
-     # Update workflow with selected parameters
-     disease_status_workflow_tuned <- finalize_workflow(disease_status_workflow, disease_status_tuned_param)
+    # Update workflow with selected parameters
+    disease_status_workflow_tuned <- finalize_workflow(disease_status_workflow, disease_status_tuned_param)
 
-     # Set up parallel again
-     all_cores <- parallel::detectCores(logical = FALSE)
-     cl <- parallel::makePSOCKcluster(all_cores)
-     doParallel::registerDoParallel(cl)
+    # Set up parallel again
+    all_cores <- parallel::detectCores(logical = FALSE)
+    cl <- parallel::makePSOCKcluster(all_cores)
+    doParallel::registerDoParallel(cl)
 
-     # Fit model with tuned parameters
-     tic("Fit final disease status model")
-     disease_status_fit <-  parsnip::fit(object = disease_status_workflow_tuned,
-                                         data = augmented_data)
-     toc()
-     # ^ about 1 hr
+    # Fit model with tuned parameters
+    tic("Fit final disease status model")
+    disease_status_fit <-  parsnip::fit(object = disease_status_workflow_tuned,
+                                        data = augmented_data)
+    toc()
+    # ^ about 1 hr
 
     write_rds(disease_status_fit, here::here(paste0(output_directory, "/boost_mod_disease_status.rds")))
     aws.s3::s3saveRDS(disease_status_fit, bucket = "repeldb/models", object = "boost_mod_disease_status.rds")
@@ -169,8 +171,8 @@ repel_fit.nowcast_boost <- function(model_object,
     # Tune cases model - first using a grid
     tic("pre-tuning cases model (grid)")
     cases_tune_grid <- tune_grid(cases_workflow,
-                                          resamples = cases_folds,
-                                          control = control_grid(verbose = TRUE))
+                                 resamples = cases_folds,
+                                 control = control_grid(verbose = TRUE))
     toc()
     # ^ this takes about 1.5 hrs on aegypti
     write_rds(cases_tune_grid, here::here(paste0(output_directory, "/boost_tune_cases_grid.rds")))
