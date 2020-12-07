@@ -22,7 +22,7 @@ repel_fit.nowcast_boost <- function(model_object,
                                     output_directory,
                                     verbose = interactive()) {
 
-  augmented_data <- recode_disease_rare(augmented_data) # does not fit into recipe step (needed in predict too)
+  augmented_data <- recode_disease_rare(augmented_data) # does not fit into recipe step
 
   # Status model ------------------------------------------------------------
   if(model == "disease_status"){
@@ -76,29 +76,33 @@ repel_fit.nowcast_boost <- function(model_object,
                                           resamples = disease_status_folds,
                                           control = control_grid(verbose = TRUE))
     toc()
-    # ^ this takes about 15 hrs on prospero
+    # ^ this takes about 24 hrs on aegypti
     write_rds(disease_status_tune_grid, here::here(paste0(output_directory, "/boost_tune_disease_status_grid.rds")))
-
-    # Tune disease status model - now with bayes, using tune grid as prior
-    disease_status_tune_grid <- read_rds(here::here(paste0(output_directory, "/boost_tune_disease_status_grid.rds")))
-
-    tic("Tuning disease status model (bayes)")
-    disease_status_tune_bayes <-
-      tune_bayes(disease_status_workflow,
-                 resamples = disease_status_folds,
-                 param_info = disease_status_param,
-                 iter = 14,
-                 control = control_bayes(verbose = TRUE, no_improve = 10, seed = 400),
-                 initial =  disease_status_tune_grid)
-    # ^ this takes about 6 hrs
-    toc()
-    write_rds(disease_status_tune_bayes, here::here(paste0(output_directory, "/boost_tune_disease_status_bayes.rds")))
 
     parallel::stopCluster(cl = cl)
 
-    # Read in tuned results and select best parameters
-    disease_status_tune_bayes <- read_rds(here::here(paste0(output_directory, "/boost_tune_disease_status_bayes.rds")))
-    disease_status_tuned_param <- select_by_one_std_err(disease_status_tune_bayes, mtry, trees, min_n, tree_depth, learn_rate, loss_reduction, sample_size)
+    ### Not running bayes tune
+    # Tune disease status model - now with bayes, using tune grid as prior
+    # disease_status_tune_grid <- read_rds(here::here(paste0(output_directory, "/boost_tune_disease_status_grid.rds")))
+    # tic("Tuning disease status model (bayes)")
+    # disease_status_tune_bayes <-
+    #   tune_bayes(disease_status_workflow,
+    #              resamples = disease_status_folds,
+    #              param_info = disease_status_param,
+    #              iter = 14,
+    #              control = control_bayes(verbose = TRUE, no_improve = 10, seed = 400),
+    #              initial =  disease_status_tune_grid)
+    # # ^ this takes about 6 hrs
+    # toc()
+    # write_rds(disease_status_tune_bayes, here::here(paste0(output_directory, "/boost_tune_disease_status_bayes.rds")))
+    #
+    # # Read in tuned results and select best parameters
+    # disease_status_tune_bayes <- read_rds(here::here(paste0(output_directory, "/boost_tune_disease_status_bayes.rds")))
+    # disease_status_tuned_param <- select_by_one_std_err(disease_status_tune_bayes, mtry, trees, min_n, tree_depth, learn_rate, loss_reduction, sample_size)
+
+    # # Read in tuned results and select best parameters
+    disease_status_tune_grid <- read_rds(here::here(paste0(output_directory, "/boost_tune_disease_status_grid.rds")))
+    disease_status_tuned_param <- select_by_one_std_err(disease_status_tune_grid, mtry, trees, min_n, tree_depth, learn_rate, loss_reduction, sample_size)
 
     # Update workflow with selected parameters
     disease_status_workflow_tuned <- finalize_workflow(disease_status_workflow, disease_status_tuned_param)
