@@ -41,6 +41,8 @@ repel_predict.nowcast_baseline <- function(model_object, newdata) {
 #'
 repel_predict.nowcast_boost <- function(model_object, newdata) {
 
+  newdata <- recode_disease_rare(newdata) # does not fit into recipe step (needed in predict too)
+
   # Load models
   boost_mod_disease_status <- model_object$disease_status_model
   # boost_mod_disease_status_xg <- pull_workflow_fit(boost_mod_disease_status)
