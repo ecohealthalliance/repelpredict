@@ -34,7 +34,7 @@ repel_fit.nowcast_boost <- function(model_object,
       step_novel(all_nominal(), -all_outcomes()) %>%
       step_dummy(all_nominal(), -all_outcomes(), one_hot = TRUE) %>%
       step_zv(all_predictors()) %>%
-      step_mutate(disease_status = factor(disease_status), skip = TRUE)
+      step_mutate(disease_status = factor(disease_status), skip = TRUE) # skip because this is the outcome, not required in the newdata for prediction
 
     write_rds(disease_status_recipe, here::here(paste0(output_directory, "/boost_recipe_disease_status.rds")))
 
@@ -139,8 +139,10 @@ repel_fit.nowcast_boost <- function(model_object,
       step_novel(all_nominal(), -all_outcomes()) %>%
       step_dummy(all_nominal(), -all_outcomes(), one_hot = TRUE) %>%
       step_zv(all_predictors()) %>%
-      step_mutate_at(all_outcomes(), starts_with("cases_lag"), fn = ~ifelse(. == 0, 0.1, .), skip = TRUE) %>%
-      step_log(all_outcomes(), starts_with("cases_lag"), base = 10, skip = TRUE)
+      step_mutate_at(starts_with("cases_lag"), fn = ~ifelse(. == 0, 0.1, .)) %>%
+      step_log(starts_with("cases_lag"), base = 10) %>%
+      step_mutate_at("cases", fn = ~ifelse(. == 0, 0.1, .), skip = TRUE) %>%
+      step_log(cases, base = 10, skip = TRUE)
 
     write_rds(cases_recipe, here::here(paste0(output_directory, "/boost_recipe_cases.rds")))
 
@@ -190,7 +192,7 @@ repel_fit.nowcast_boost <- function(model_object,
                  resamples = cases_folds,
                  param_info = cases_param,
                  iter = 14,
-                 control = control_bayes(verbose = TRUE, no_improve = 10, seed = 988),
+                 control = control_bayes(verbose = TRUE, no_improve = 5, seed = 988),
                  initial =  cases_tune_grid)
     # ^ this takes about 1 hr
     toc()
