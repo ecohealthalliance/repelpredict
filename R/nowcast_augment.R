@@ -51,7 +51,7 @@ repel_augment.nowcast_boost <- function(model_object, conn, newdata) {
 
   # add continent
   lagged_newdata <- lagged_newdata %>%
-    mutate(continent = countrycode::countrycode(country_iso3c, origin = "iso3c", destination = "continent"))
+    mutate(continent = suppressWarnings(countrycode::countrycode(country_iso3c, origin = "iso3c", destination = "continent")))
 
   # combine lagged 3 yrs control measures
   lagged_newdata <- lagged_newdata %>%

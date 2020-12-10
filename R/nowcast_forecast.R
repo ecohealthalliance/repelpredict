@@ -19,12 +19,18 @@ repel_forecast.nowcast_baseline <- function(model_object, conn, newdata) {
 #' forecast nowcast boost model object
 #' @import repeldata dplyr tidyr
 #' @importFrom assertthat has_name assert_that
+#' @param model_object nowcast model object
+#' @param conn connection to repel db
+#' @param newdata - dataframe or tibble with fields: country_iso3c, report_year, report_semester, disease, disease_population, taxa
+#' @param use_cache whether to use cached prediced data (TRUE/FALSE)
 #' @export
 #'
 repel_forecast.nowcast_boost <- function(model_object, conn, newdata, use_cache = TRUE) {
 
-  # first check newdata is within prediction bounds
-  # check diseases (can be with or without spaces)
+  # check only inputting grouping vars
+  newdata <- select(newdata, all_of(grouping_vars))
+
+  # check diseases match training data (can be with or without spaces)
   diseases_recode <- read_csv(system.file("lookup", "diseases_recode.csv",  package = "repelpredict"), col_types = cols(
     disease = col_character(),
     disease_recode = col_character()
@@ -48,19 +54,23 @@ repel_forecast.nowcast_boost <- function(model_object, conn, newdata, use_cache 
 
   # use cache if available
   if(use_cache){
+
     cached_data <- DBI::dbReadTable(conn, "nowcast_boost_augment_predict")
 
     # check if any data is not covered in the cache, if it's all in cache, return cache, otherwise run predictions
     cache_check <- anti_join(newdata, cached_data,  by = c("report_year", "report_semester", "disease", "country_iso3c", "disease_population", "taxa"))
+
     if(nrow(cache_check)==0){
       augmented_data_all <- left_join(newdata, cached_data,  by = c("report_year", "report_semester", "disease", "country_iso3c", "disease_population", "taxa"))
       augmented_data <- augmented_data_all %>%
         select(-ends_with("etag"), -validation_set, -predicted_cases)
       predictions <- augmented_data_all$predicted_cases
       assertthat::assert_that(!any(is.na(predictions)))
-    }else{
-      augmented_data <- repel_augment(model_object, conn, newdata)
-      predictions <- repel_predict(model_object, newdata = augmented_data)
-    }}
+      return(list(augmented_data = augmented_data, predicted_cases = predictions))
+    }
+  }
+  augmented_data <- repel_augment(model_object, conn, newdata)
+  predictions <- repel_predict(model_object, newdata = augmented_data)
   return(list(augmented_data = augmented_data, predicted_cases = predictions))
+
 }
