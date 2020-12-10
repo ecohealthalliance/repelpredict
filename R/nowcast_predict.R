@@ -39,9 +39,7 @@ repel_predict.nowcast_baseline <- function(model_object, newdata) {
 #' @importFrom recipes bake
 #' @export
 #'
-repel_predict.nowcast_boost <- function(model_object, newdata) {
-
-  newdata <- recode_disease_rare(newdata) # does not fit into recipe step (needed in predict too)
+repel_predict.nowcast_boost <- function(model_object, newdata, use_cache = TRUE) {
 
   # Load models
   boost_mod_disease_status <- model_object$disease_status_model

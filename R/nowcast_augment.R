@@ -44,15 +44,7 @@ repel_augment.nowcast_baseline <- function(model_object, conn, newdata) {
 #' @importFrom purrr map map_lgl
 #' @importFrom stringr str_starts str_ends
 #' @export
-repel_augment.nowcast_tree <- function(model_object, conn, newdata, use_cache = FALSE) {
-
-  if(use_cache){
-    # # get cache
-    # cached_augmented_data <- DBI::dbReadTable(conn, "nowcast_boost_augment_predict") %>%
-    #   # select(-db_disease_status_etag, -db_cases_etag, -predicted_cases, -validation_set) %>%
-    #   mutate(cases = as.numeric(cases))  # temp fix
-    # lagged_newdata <- left_join(newdata, cached_augmented_data)
-  }
+repel_augment.nowcast_boost <- function(model_object, conn, newdata) {
 
   # get lag cases
   lagged_newdata <- get_nowcast_lag(conn, newdata, lags = 1:3, control_measures = TRUE)

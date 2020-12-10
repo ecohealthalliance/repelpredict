@@ -4,7 +4,7 @@
 \alias{repel_predict.nowcast_boost}
 \title{Predict from nowcast xgboost model object}
 \usage{
-\method{repel_predict}{nowcast_boost}(model_object, newdata)
+\method{repel_predict}{nowcast_boost}(model_object, newdata, use_cache = TRUE)
 }
 \value{
 list containing predicted count and whether disease is expected or not (T/F)
