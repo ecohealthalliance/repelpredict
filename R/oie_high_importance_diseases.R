@@ -7,6 +7,5 @@ get_oie_high_importance_diseases <- function(){
     "lumpy_skin_disease", "rift_valley_fever",
     "african_horse_sickness", "african_swine_fever",
     "classical_swine_fever", "highly_pathogenic_avian_influenza",
-    "newcastle_disease", "pleuropneumonia", "ovine_pox_disease",
-    "pleuropneumonia", "ovine_pox_disease")
+    "newcastle_disease", "pleuropneumonia", "ovine_pox_disease")
 }
