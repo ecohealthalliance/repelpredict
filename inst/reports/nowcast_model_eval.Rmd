@@ -1,0 +1,598 @@
+---
+title: "REPEL nowcast eval"
+output: 
+  html_document:
+    keep_md: TRUE
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE, fig.width = 13, fig.height = 10)
+devtools::load_all()
+library(ggplot2)
+library(kableExtra)
+library(DALEX)
+library(knitr)
+library(forcats)
+library(yardstick)
+library(cowplot)
+library(DALEX)
+library(rsample)
+
+oie_high_importance_diseases <- get_oie_high_importance_diseases()
+
+model_object <-  nowcast_boost_model(
+  disease_status_model = aws.s3::s3readRDS(bucket = "repeldb/models", object = "boost_mod_disease_status.rds"),
+  cases_model = aws.s3::s3readRDS(bucket = "repeldb/models", object = "boost_mod_cases.rds"))
+
+cbp1 <- c("#999999", "#E69F00", "#56B4E9", "#009E73",
+          "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
+
+# Load model
+boost_mod_disease_status <- model_object$disease_status_model
+boost_mod_disease_status_xg <- pull_workflow_fit(boost_mod_disease_status)
+
+# Get training data
+boost_dat_disease_status <- pull_workflow_mold(boost_mod_disease_status)$predictors %>% 
+  as.matrix()
+boost_dat_out_disease_status <- pull_workflow_mold(boost_mod_disease_status)$outcomes %>% 
+  mutate(disease_status = as.integer(disease_status == 1)) %>% 
+  pull(disease_status)
+
+# Load model
+boost_mod_cases <-  model_object$cases_model
+boost_mod_cases_xg <- pull_workflow_fit(boost_mod_cases)
+
+# Get training data
+boost_dat_cases <- pull_workflow_mold(boost_mod_cases)$predictors %>%
+  as.matrix()
+boost_dat_out_cases <- pull_workflow_mold(boost_mod_cases)$outcomes %>%
+  pull(cases)
+```
+
+## Variable importance
+<details>
+<summary>disease status overall variable importance</summary>
+```{r ds-var-importance}
+
+# Variable importance
+importance_disease_status <- vip::vip(boost_mod_disease_status_xg, num_features = 12)
+importance_disease_status$data <- 
+  importance_disease_status$data %>% 
+  mutate(Variable = str_replace(Variable, "lag1", "(6 months)")) %>% 
+  mutate(Variable = str_replace(Variable, "lag2", "(12 months)")) %>% 
+  mutate(Variable = str_replace(Variable, "lag3", "(18 months)")) %>% 
+  mutate(Variable = str_replace_all(Variable, "_", " ")) %>% 
+  mutate(Variable = recode(Variable, 
+                           "ever in country given taxa" = "disease ever in country (within given taxa)",
+                           "ever in country any taxa" = "disease ever in country (within any taxa)",
+                           "cases lag sum border countries" = "cases in border countries (prev. 18 months)",
+                           "cases (6 months) missing" = "missing value: cases (6 months)",
+                           "cases (18 months) missing" = "missing value: cases (18 months)",
+                           "log gdp per capita" = "GDP per capita"
+                           
+  ))
+
+importance_disease_status + 
+  ggthemes::theme_fivethirtyeight(base_size = 22) +
+  theme(axis.title = element_text(size = 14)) 
+
+```
+</details>
+
+
+<details>
+<summary>cases overall variable importance</summary>
+```{r cs-var-importance}
+
+# Variable importance
+importance_cases <- vip::vip(boost_mod_cases_xg, num_features = 12)
+importance_cases$data <- 
+  importance_cases$data %>% 
+  mutate(Variable = str_replace(Variable, "lag1", "(6 months)")) %>% 
+  mutate(Variable = str_replace(Variable, "lag2", "(12 months)")) %>% 
+  mutate(Variable = str_replace(Variable, "lag3", "(18 months)")) %>% 
+  mutate(Variable = str_replace(Variable, "log_", "")) %>% 
+  mutate(Variable = str_replace_all(Variable, "_", " ")) %>% 
+  mutate(Variable = recode(Variable, 
+                           "cases lag sum border countries" = "cases in border countries (prev. 18 months)",
+                           "gdp per capita" = "GDP per capita",
+                           "veterinarians per taxa" = "veterinarians per taxa",
+                           "taxa birds" = "taxa: birds",
+                           "disease mycoplasma infection" = "disease: mycoplasma infection",
+                           "country iso3c IRN" = "country: Iran"
+  ))
+
+importance_cases + 
+  ggthemes::theme_fivethirtyeight(base_size = 22) +
+  theme(axis.title = element_text(size = 14)) 
+
+```
+</details>
+
+<details>
+<summary>disease status partial dependency of lag vars by disease</summary>
+```{r ds-lag-pd-by-disease}
+
+lag_vars <- c("disease_status_lag1", "disease_status_lag2", "disease_status_lag3")
+
+ds_pd_by_disease <-  map_dfr(oie_high_importance_diseases, function(disease){
+  
+  col <- paste("disease", disease, sep = "_")
+  if(col %in% colnames(boost_dat_disease_status)){
+    which_disease <- which(boost_dat_disease_status[,col] == 1)
+    
+    if(length(which_disease)){
+      explainer_disease_status_sub <- DALEX::explain(
+        model = boost_mod_disease_status_xg,
+        data = boost_dat_disease_status[which_disease,],
+        y = boost_dat_out_disease_status[which_disease],
+        predict_function = predict_raw,
+        label = "disease status",
+        verbose = FALSE
+      )
+      
+      map_dfr(lag_vars, function(var){
+        var_resp <- model_profile(explainer_disease_status_sub, 
+                                  variable =  var , 
+                                  type = "partial", 
+                                  variable_type = "categorical")
+        var_resp$agr_profiles %>% as_tibble() %>% mutate(disease = disease)
+      })
+    }
+  }
+})
+
+ds_pd_by_disease_dat <- ds_pd_by_disease %>% 
+  janitor::clean_names() %>% 
+  select(-label, -ids) 
+
+# unique(ds_pd_by_disease_dat$x) # some cases were model_profile was averaged?
+
+ds_pd_by_disease_dat  <- ds_pd_by_disease_dat %>% 
+  mutate(x = round(as.numeric(as.character(x)))) %>% 
+  distinct()
+
+# nrow(ds_pd_by_disease_dat) == ds_pd_by_disease_dat %>% distinct(vname, x, disease) %>% nrow()
+
+ds_pd_by_disease_dat  <- ds_pd_by_disease_dat %>% 
+  mutate(x = recode(x, `1` = "disease_present", `0` = "disease_absent")) %>% 
+  pivot_wider(names_from = x, values_from = yhat) %>% 
+  drop_na() %>% 
+  mutate(diff = disease_present - disease_absent) %>% 
+  mutate(vname = recode(vname, "disease_status_lag1" = "6 months",
+                        "disease_status_lag2" = "12 months",
+                        "disease_status_lag3" = "18 months")) %>% 
+  mutate(vname = factor(vname, levels = c("18 months", "12 months", "6 months"))) %>% 
+  mutate(disease = str_replace_all(disease, "_", " ")) %>% 
+  group_by(disease) %>% 
+  mutate(diff_sum = sum(diff)) %>% 
+  ungroup() %>% 
+  mutate(disease = fct_reorder(disease, diff_sum))
+
+ggplot(ds_pd_by_disease_dat, aes(x = disease, y = diff, fill = vname)) +
+  geom_bar(stat = "identity") +
+  scale_y_continuous(expand=c(0,0)) +
+  scale_fill_manual(values = cbp1[1:3], guide = guide_legend(reverse = TRUE)) +
+  coord_flip() +
+  ggthemes::theme_fivethirtyeight(base_size = 22) +
+  theme(legend.position = "top", axis.title = element_text(size = 14)) +
+  labs(y = "Percent", x = "", fill = "") 
+
+```
+</details>
+
+<details>
+<summary>cases partial dependency of variables of interest by disease</summary>
+```{r cs-lag-pd-by-disease, fig.height=10}
+interesting_vars <- c("log_veterinarians_per_taxa", "log_gdp_per_capita", "cases_lag_sum_border_countries")
+
+cs_pd_by_disease <-  map_dfr(oie_high_importance_diseases, function(disease){
+  
+  col <- paste("disease", disease, sep = "_")
+  if(col %in% colnames(boost_dat_cases)){
+    which_disease <- which(boost_dat_cases[,col] == 1)
+    
+    if(length(which_disease)){
+      explainer_cases_sub <- DALEX::explain(
+        model = boost_mod_cases_xg,
+        data = boost_dat_cases[which_disease,],
+        y = boost_dat_out_cases[which_disease],
+        predict_function = predict_raw,
+        label = "cases",
+        verbose = FALSE
+      )
+      
+      map_dfr(interesting_vars, function(var){
+        var_resp <- model_profile(explainer_cases_sub, variable =  var , type = "partial", variable_type = "numerical")
+        var_resp$agr_profiles %>% as_tibble() %>% mutate(disease = disease)
+      })
+    }
+  }
+})
+
+cs_pd_by_disease_dat <- cs_pd_by_disease %>% 
+  janitor::clean_names() %>% 
+  select(-label, -ids, -x) %>% 
+  distinct() %>% 
+  group_by(vname, disease) %>% 
+  summarize(diff =  (max(yhat) - min(yhat)) / min(yhat)) %>% 
+  ungroup() %>% 
+  mutate(vname = recode(vname, "log_veterinarians_per_taxa" = "Veterinarians per taxa",
+                        "log_gdp_per_capita" = "GDP per capita",
+                        "cases_lag_sum_border_countries" = "Cases in border countries\n(prev. 18 months)"
+  )) %>% 
+  mutate(vname = factor(vname)) %>% 
+  mutate(disease = str_replace_all(disease, "_", " ")) %>% 
+  group_by(disease) %>% 
+  mutate(diff_sum = sum(diff)) %>% 
+  ungroup() %>% 
+  mutate(disease = fct_reorder(disease, diff_sum))
+
+ggplot(cs_pd_by_disease_dat, aes(x = disease, y = diff, fill = vname)) +
+  geom_bar(stat = "identity") +
+  scale_y_continuous(expand=c(0,0)) +
+  scale_fill_manual(values = cbp1[c(4, 6, 7)], guide = guide_legend(reverse = TRUE)) +
+  coord_flip() +
+  ggthemes::theme_fivethirtyeight(base_size = 22) +
+  theme(legend.position = "top", axis.title = element_text(size = 14)) +
+  labs(y = "Percent (relative)", x =  "", fill = "") 
+```
+</details>
+
+## Validation
+
+```{r validation}
+conn <- repeldata::repel_local_conn()
+grouping_vars <- c("country_iso3c", "report_year", "report_semester", "disease", "disease_population", "taxa")
+
+valdat <- annual_reports_animal_hosts_validation(conn) %>%
+  select(all_of(grouping_vars)) %>%
+  distinct() %>% 
+  bootstraps(times = 1) %>% 
+  pull(splits) %>% 
+  magrittr::extract2(1) %>% 
+  as_tibble()
+```
+
+```{r load-models}
+
+## baseline
+forecasted_baseline <- repel_forecast(model_object = nowcast_baseline_model(),
+                                      conn = conn,
+                                      newdata = valdat)
+write_rds(forecasted_baseline, here::here("tmp/forecasted_baseline.rds"))
+forecasted_baseline <- read_rds(here::here("tmp/forecasted_baseline.rds"))
+
+scored_baseline <- repel_score(model_object = nowcast_baseline_model(),
+                               augmented_data = forecasted_baseline$augmented_data,
+                               predicted_cases = forecasted_baseline$predicted_cases)
+
+
+## xgboost
+forecasted_boost <- repel_forecast(model_object = model_object,
+                                   conn = conn,
+                                   newdata = valdat, use_cache = TRUE)
+write_rds(forecasted_boost, here::here("tmp/forecasted_boost.rds"))
+forecasted_boost <- read_rds(here::here("tmp/forecasted_boost.rds"))
+
+scored_boost <- repel_score(model_object = model_object,
+                            augmented_data = forecasted_boost$augmented_data,
+                            predicted_cases = forecasted_boost$predicted_cases)
+
+```
+
+
+```{r prep}
+scored_data_ds_baseline <- scored_baseline$scored_tibble %>%
+  select(taxa, country_iso3c, disease, disease_status_actual, disease_status_predicted, disease_status_dirchange_actual, disease_status_dirchange_predicted) %>%
+  mutate(model = "baseline")
+scored_data_ds_boost <- scored_boost$scored_tibble %>%
+  select(taxa, country_iso3c,  disease, disease_status_actual, disease_status_predicted, disease_status_dirchange_actual, disease_status_dirchange_predicted) %>%
+  mutate(model = "xgboost")
+
+scored_data_ds <- bind_rows(scored_data_ds_baseline, scored_data_ds_boost) %>%
+  mutate_at(.vars = c("disease_status_actual", "disease_status_predicted", "disease_status_dirchange_actual", "disease_status_dirchange_predicted"), as.factor) %>%
+  mutate(continent = countrycode::countrycode(country_iso3c, origin = "iso3c", destination = "continent")) %>%
+  mutate(full_model = "full_model") # dummy var
+
+metrics <- tribble(~".metric", ~"desc",
+                   "accuracy", "proportion of the data that are predicted correctly",
+                   "kap", "similar measure to accuracy(), but is normalized by the accuracy that would be expected by chance alone and is very useful when one or more classes have large frequency distributions.",
+                   "sens", "the proportion of positive results out of the number of samples which were actually positive.",
+                   "spec", "the proportion of negative results out of the number of samples which were actually negative")
+
+ds_summary <- function(grp_var, filter_var = NULL, filter_values = NULL, truth, estimate){
+  
+  if(!is.null(filter_var)){
+    cm_scored_mat <- scored_data_ds %>%
+      filter(!!sym(filter_var) %in% filter_values)
+  }else{
+    cm_scored_mat <- scored_data_ds
+  }
+  
+  cm_scored_mat <- cm_scored_mat %>%
+    mutate(lab = paste(model, get(grp_var), sep = " - ")) %>%
+    group_by_at(c("model", "lab", grp_var)) %>%
+    conf_mat(truth = truth, estimate = estimate) %>%
+    ungroup()
+  
+  cm_scored_summ <- cm_scored_mat %>%
+    mutate(summary = map(conf_mat, summary)) %>%
+    unnest(summary) %>%
+    right_join(metrics)
+  
+  out_table <- cm_scored_summ %>%
+    select(one_of(grp_var), .metric, desc, model, .estimate) %>%
+    mutate(.estimate = signif(.estimate, 2)) %>%
+    pivot_wider(names_from = all_of(grp_var), values_from = .estimate) %>%
+    arrange(.metric)
+  
+  out_plots <- map(cm_scored_mat$conf_mat, autoplot, type = "heatmap")
+  out_plots <- plot_grid(plotlist = out_plots, labels = cm_scored_mat$lab, label_size = 8)
+  
+  return(list("summary_table" = out_table, "conf_matrix" = out_plots, "raw" = cm_scored_mat))
+}
+```
+
+<details>
+<summary>disease status confusion matrix</summary>
+```{r ds-cm-full-model, fig.width = 10, fig.height = 5}
+out_full_model <- ds_summary("full_model", truth = "disease_status_actual", estimate = "disease_status_predicted")
+out_full_model[[1]]  %>% 
+  filter(! .metric %in% c("sens", "spec")) %>% 
+  kbl() %>% 
+  collapse_rows(columns = 1:2, valign = "middle") %>% 
+  kable_styling() 
+```
+</details>
+
+<details>
+<summary>disease status direction change confusion matrix</summary>
+```{r ds-cm-full-model-dc, fig.width = 10, fig.height = 5}
+out_full_model_dc <- ds_summary("full_model", truth = "disease_status_dirchange_actual", estimate = "disease_status_dirchange_predicted")
+out_full_model_dc[[1]]  %>% 
+  filter(! .metric %in% c("sens", "spec")) %>% 
+  kbl() %>% 
+  collapse_rows(columns = 1:2, valign = "middle") %>% 
+  kable_styling() 
+```
+Note there are baseline cases where disease status is positive but cases are NA, which are imputed in the model as 0. 
+</details>
+
+
+<details>
+<summary>disease status direction change confusion matrix by select diseases</summary>
+```{r ds-cm-disease-dc, fig.width = 15, fig.height = 8}
+
+ds_summary_tbl <- map_dfr(oie_high_importance_diseases, function(disease){
+  
+  out_disease_dc <- ds_summary("full_model", filter_var = "disease", filter_values = disease,
+                               truth = "disease_status_dirchange_actual", estimate = "disease_status_dirchange_predicted")
+  
+  tab_ds <- out_disease_dc[[1]] %>%
+    filter(.metric == "accuracy") %>%
+    select(model, full_model) %>%
+    pivot_wider(names_from = model, values_from = full_model)
+  
+  new_ds <-  out_disease_dc[[3]] %>%
+    filter(model == "xgboost") %>%
+    select(-model, -lab) %>%
+    mutate(new_accuracy = map(conf_mat, function(cm){
+      tidy(cm) %>%
+        filter(name %in% c("cell_1_3", "cell_3_3")) %>%
+        pivot_wider(names_from = name) %>%
+        transmute(new_accuracy = cell_3_3 / (cell_3_3 + cell_1_3)) %>%
+        pull(new_accuracy)
+    })) %>%
+    unnest(new_accuracy) %>%
+    select(-conf_mat) %>%
+    pull(new_accuracy)
+  
+  tab_ds %>%
+    mutate(Disease = str_replace_all(disease,"_", " ")) %>%
+    mutate(new_accuracy = new_ds)
+})
+
+ds_summary_tbl %>%
+  filter(!is.nan(new_accuracy)) %>%
+  arrange(-new_accuracy) %>%
+  mutate_at(.vars = c("baseline", "xgboost", "new_accuracy"), .funs = ~paste0(round(100*.), "%")) %>%
+  mutate(`REPEL (Overall/New Outbreaks)` = paste(xgboost, new_accuracy, sep = " / ")) %>%
+  rename("Baseline Accuracy" = baseline) %>%
+  select(Disease, `Baseline Accuracy`, `REPEL (Overall/New Outbreaks)`) %>% 
+  kbl() %>% 
+  kable_styling() 
+
+## oie_high_importance_diseases lookup - start/end accuracy
+# disease <- "foot_and_mouth_disease"
+# accuracy_check <- ds_summary("full_model", filter_var = "disease", filter_values = disease,
+#                                truth = "disease_status_dirchange_actual", estimate = "disease_status_dirchange_predicted")
+# accuracy_check2 = accuracy_check[[3]] %>%
+#   filter(model == "xgboost") %>%
+#   mutate(conf_mat = map(conf_mat, tidy)) %>%
+#   unnest(conf_mat) %>%
+#   select(name, value) %>%
+#   pivot_wider(names_from = name, values_from = value)
+# 
+# # outbreak starts accuracy
+# accuracy_check2$cell_3_3 / (accuracy_check2$cell_1_3 + accuracy_check2$cell_2_3 + accuracy_check2$cell_3_3)
+# 
+# # outbreak ends accuracy
+# accuracy_check2$cell_2_2 / (accuracy_check2$cell_1_2 + accuracy_check2$cell_2_2 + accuracy_check2$cell_3_2)
+```
+</details>
+
+<details>
+<summary>disease status direction change confusion matrix by taxa</summary>
+```{r ds-cm-taxa-dc, fig.width = 15, fig.height = 8}
+
+ds_summary_tbl <- map_dfr(unique(valdat$taxa), function(taxa){
+  
+  out_disease_dc <- ds_summary("full_model", filter_var = "taxa", filter_values = taxa,
+                               truth = "disease_status_dirchange_actual", estimate = "disease_status_dirchange_predicted")
+  
+  tab_ds <- out_disease_dc[[1]] %>%
+    filter(.metric == "accuracy") %>%
+    select(model, full_model) %>%
+    pivot_wider(names_from = model, values_from = full_model)
+  
+  new_ds <-  out_disease_dc[[3]] %>%
+    filter(model == "xgboost") %>%
+    select(-model, -lab) %>%
+    mutate(new_accuracy = map(conf_mat, function(cm){
+      tidy(cm) %>%
+        filter(name %in% c("cell_1_3", "cell_3_3")) %>%
+        pivot_wider(names_from = name) %>%
+        transmute(new_accuracy = cell_3_3 / (cell_3_3 + cell_1_3)) %>%
+        pull(new_accuracy)
+    })) %>%
+    unnest(new_accuracy) %>%
+    select(-conf_mat) %>%
+    pull(new_accuracy)
+  
+  tab_ds %>%
+    mutate(Taxa = str_replace_all(taxa,"_", " ")) %>%
+    mutate(new_accuracy = new_ds)
+})
+
+ds_summary_tbl %>%
+  filter(!is.nan(new_accuracy)) %>%
+  arrange(-new_accuracy) %>%
+  mutate_at(.vars = c("baseline", "xgboost", "new_accuracy"), .funs = ~paste0(round(100*.), "%")) %>%
+  mutate(`REPEL (Overall/New Outbreaks)` = paste(xgboost, new_accuracy, sep = " / ")) %>%
+  rename("Baseline Accuracy" = baseline) %>%
+  select(Taxa, `Baseline Accuracy`, `REPEL (Overall/New Outbreaks)`) %>% 
+  kbl() %>% 
+  kable_styling() 
+
+```
+</details>
+
+<details>
+<summary>disease status direction change confusion matrix by continent</summary>
+```{r ds-cm-continent-dc, fig.width = 15, fig.height = 8}
+
+ds_summary_tbl <- map_dfr(na.omit(unique(scored_data_ds$continent)), function(continent){
+  
+  out_disease_dc <- ds_summary("full_model", filter_var = "continent", filter_values = continent,
+                               truth = "disease_status_dirchange_actual", estimate = "disease_status_dirchange_predicted")
+  
+  tab_ds <- out_disease_dc[[1]] %>%
+    filter(.metric == "accuracy") %>%
+    select(model, full_model) %>%
+    pivot_wider(names_from = model, values_from = full_model)
+  
+  new_ds <-  out_disease_dc[[3]] %>%
+    filter(model == "xgboost") %>%
+    select(-model, -lab) %>%
+    mutate(new_accuracy = map(conf_mat, function(cm){
+      tidy(cm) %>%
+        filter(name %in% c("cell_1_3", "cell_3_3")) %>%
+        pivot_wider(names_from = name) %>%
+        transmute(new_accuracy = cell_3_3 / (cell_3_3 + cell_1_3)) %>%
+        pull(new_accuracy)
+    })) %>%
+    unnest(new_accuracy) %>%
+    select(-conf_mat) %>%
+    pull(new_accuracy)
+  
+  tab_ds %>%
+    mutate(Continent = str_replace_all(continent,"_", " ")) %>%
+    mutate(new_accuracy = new_ds)
+})
+
+ds_summary_tbl %>%
+  filter(!is.nan(new_accuracy)) %>%
+  arrange(-new_accuracy) %>%
+  mutate_at(.vars = c("baseline", "xgboost", "new_accuracy"), .funs = ~paste0(round(100*.), "%")) %>%
+  mutate(`REPEL (Overall/New Outbreaks)` = paste(xgboost, new_accuracy, sep = " / ")) %>%
+  rename("Baseline Accuracy" = baseline) %>%
+  select(Continent, `Baseline Accuracy`, `REPEL (Overall/New Outbreaks)`) %>% 
+  kbl() %>% 
+  kable_styling() 
+```
+</details>
+
+<details>
+<summary>cases model stats</summary>
+```{r cs-stats}
+scored_data_cs_baseline <- scored_baseline$scored_tibble %>%
+  select(disease, taxa, country_iso3c, cases_actual, cases_predicted, cases_dirchange_actual, cases_dirchange_predicted, cases_error) %>%
+  mutate(model = "baseline") %>%
+  drop_na(cases_actual)
+scored_data_cs_boost <- scored_boost$scored_tibble%>%
+  select(disease, taxa, country_iso3c, cases_actual, cases_predicted, cases_dirchange_actual, cases_dirchange_predicted, cases_error) %>%
+  mutate(model = "xgboost") %>%
+  drop_na(cases_actual)
+
+scored_data_cs <- bind_rows(scored_data_cs_baseline, scored_data_cs_boost) %>%
+  mutate(continent = countrycode::countrycode(country_iso3c, origin = "iso3c", destination = "continent")) %>%
+  mutate(full_model = "full_model") # dummy var
+
+scored_data_cs %>%
+  group_by(model) %>%
+  yardstick::metrics(truth = cases_actual, estimate = cases_predicted)
+```
+</details>
+
+<details>
+<summary>cases residuals</summary>
+```{r cd-resid, fig.height=5}
+scored_data_cs %>%
+  ggplot(., aes(x = cases_actual, y = cases_predicted, color = log10(cases_error))) +
+  geom_point(alpha = 0.5) +
+  facet_wrap(model ~ .) +
+  scale_y_log10(limits = c(1, max(c(scored_data_cs$cases_actual, scored_data_cs$cases_predicted)))) +
+  scale_x_log10(limits = c(1, max(c(scored_data_cs$cases_actual, scored_data_cs$cases_predicted)))) +
+  scale_color_viridis_c() +
+  theme_bw()
+```
+</details>
+
+<details>
+<summary>cases residuals by disease</summary>
+```{r cd-resid-disease, fig.height=10, fig.width=20}
+scored_data_cs %>%
+  filter(disease %in% oie_high_importance_diseases) %>% 
+  ggplot(., aes(x = cases_actual, y = cases_predicted, color = log10(cases_error))) +
+  geom_point(alpha = 0.5) +
+  facet_grid(model ~ disease) +
+  scale_y_log10(limits = c(1, max(c(scored_data_cs$cases_actual, scored_data_cs$cases_predicted)))) +
+  scale_x_log10(limits = c(1, max(c(scored_data_cs$cases_actual, scored_data_cs$cases_predicted)))) +
+  scale_color_viridis_c() +
+  theme_bw()
+```
+</details>
+
+<details>
+<summary>cases residuals by taxa</summary>
+```{r cd-resid-taxa, fig.height=10, fig.width=15}
+scored_data_cs %>%
+  ggplot(., aes(x = cases_actual, y = cases_predicted, color = log10(cases_error))) +
+  geom_point(alpha = 0.5) +
+  facet_grid(model ~ taxa) +
+  scale_y_log10(limits = c(1, max(c(scored_data_cs$cases_actual, scored_data_cs$cases_predicted)))) +
+  scale_x_log10(limits = c(1, max(c(scored_data_cs$cases_actual, scored_data_cs$cases_predicted)))) +
+  scale_color_viridis_c() +
+  theme_bw()
+```
+</details>
+
+<details>
+<summary>cases residuals by continent</summary>
+```{r cd-resid-continent, fig.height=10, fig.width=15}
+scored_data_cs %>%
+  ggplot(., aes(x = cases_actual, y = cases_predicted, color = log10(cases_error))) +
+  geom_point(alpha = 0.5) +
+  facet_grid(model ~ continent) +
+  scale_y_log10(limits = c(1, max(c(scored_data_cs$cases_actual, scored_data_cs$cases_predicted)))) +
+  scale_x_log10(limits = c(1, max(c(scored_data_cs$cases_actual, scored_data_cs$cases_predicted)))) +
+  scale_color_viridis_c() +
+  theme_bw()
+```
+</details>
+
+```{r disconnect}
+repel_local_disconnect()
+```
+
