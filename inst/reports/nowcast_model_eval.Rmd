@@ -1,6 +1,8 @@
 ---
 title: "REPEL nowcast eval"
-output: html_document
+output: 
+  html_document:
+    keep_md: TRUE
 ---
 
 ```{r setup, include=FALSE}
@@ -255,10 +257,10 @@ valdat <- annual_reports_animal_hosts_validation(conn) %>%
 ```{r load-models}
 
 ## baseline
-# forecasted_baseline <- repel_forecast(model_object = nowcast_baseline_model(),
-#                                   conn = conn,
-#                                   newdata = valdat)
-# write_rds(forecasted_baseline, here::here("tmp/forecasted_baseline.rds"))
+forecasted_baseline <- repel_forecast(model_object = nowcast_baseline_model(),
+                                      conn = conn,
+                                      newdata = valdat)
+write_rds(forecasted_baseline, here::here("tmp/forecasted_baseline.rds"))
 forecasted_baseline <- read_rds(here::here("tmp/forecasted_baseline.rds"))
 
 scored_baseline <- repel_score(model_object = nowcast_baseline_model(),
@@ -267,10 +269,10 @@ scored_baseline <- repel_score(model_object = nowcast_baseline_model(),
 
 
 ## xgboost
-# forecasted_boost <- repel_forecast(model_object = model_object,
-#                                   conn = conn,
-#                                   newdata = valdat, use_cache = TRUE)
-# write_rds(forecasted_boost, here::here("tmp/forecasted_boost.rds"))
+forecasted_boost <- repel_forecast(model_object = model_object,
+                                   conn = conn,
+                                   newdata = valdat, use_cache = TRUE)
+write_rds(forecasted_boost, here::here("tmp/forecasted_boost.rds"))
 forecasted_boost <- read_rds(here::here("tmp/forecasted_boost.rds"))
 
 scored_boost <- repel_score(model_object = model_object,
@@ -331,6 +333,32 @@ ds_summary <- function(grp_var, filter_var = NULL, filter_values = NULL, truth, 
   return(list("summary_table" = out_table, "conf_matrix" = out_plots, "raw" = cm_scored_mat))
 }
 ```
+
+<details>
+<summary>disease status confusion matrix</summary>
+```{r ds-cm-full-model, fig.width = 10, fig.height = 5}
+out_full_model <- ds_summary("full_model", truth = "disease_status_actual", estimate = "disease_status_predicted")
+out_full_model[[1]]  %>% 
+  filter(! .metric %in% c("sens", "spec")) %>% 
+  kbl() %>% 
+  collapse_rows(columns = 1:2, valign = "middle") %>% 
+  kable_styling() 
+```
+</details>
+
+<details>
+<summary>disease status direction change confusion matrix</summary>
+```{r ds-cm-full-model-dc, fig.width = 10, fig.height = 5}
+out_full_model_dc <- ds_summary("full_model", truth = "disease_status_dirchange_actual", estimate = "disease_status_dirchange_predicted")
+out_full_model_dc[[1]]  %>% 
+  filter(! .metric %in% c("sens", "spec")) %>% 
+  kbl() %>% 
+  collapse_rows(columns = 1:2, valign = "middle") %>% 
+  kable_styling() 
+```
+Note there are baseline cases where disease status is positive but cases are NA, which are imputed in the model as 0. 
+</details>
+
 
 <details>
 <summary>disease status direction change confusion matrix by select diseases</summary>
@@ -473,7 +501,7 @@ ds_summary_tbl <- map_dfr(na.omit(unique(scored_data_ds$continent)), function(co
     mutate(new_accuracy = new_ds)
 })
 
- ds_summary_tbl %>%
+ds_summary_tbl %>%
   filter(!is.nan(new_accuracy)) %>%
   arrange(-new_accuracy) %>%
   mutate_at(.vars = c("baseline", "xgboost", "new_accuracy"), .funs = ~paste0(round(100*.), "%")) %>%
