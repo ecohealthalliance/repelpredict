@@ -8,7 +8,7 @@ conn <- repeldata::repel_local_conn()
 
 model_object <- nowcast_baseline_model()
 
-traindat <- repel_cases_train(conn) %>%
+traindat <- repel_training(model_object, conn) %>%
   select(all_of(grouping_vars)) %>%
   distinct()
 

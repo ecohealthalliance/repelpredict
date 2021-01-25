@@ -13,7 +13,7 @@ repel_augment <- function(x, ...){
 #' @export
 repel_augment.nowcast_baseline <- function(model_object, conn, newdata) {
 
-  lagged_newdata <- get_nowcast_lag(conn, newdata, lags = 1, control_measures = FALSE) %>%
+  lagged_newdata <- repel_lag(model_object, conn, newdata, lags = 1, control_measures = FALSE) %>%
     mutate_at(names(.)[str_detect(names(.), "disease_status")],  ~recode(., "present" = 1, "suspected" = 1, "absent" = 0))
 
   lag_vars <- colnames(lagged_newdata)[str_detect(names(lagged_newdata), "disease_status_lag|cases_lag")]
@@ -47,7 +47,7 @@ repel_augment.nowcast_baseline <- function(model_object, conn, newdata) {
 repel_augment.nowcast_boost <- function(model_object, conn, newdata) {
 
   # get lag cases
-  lagged_newdata <- get_nowcast_lag(conn, newdata, lags = 1:3, control_measures = TRUE)
+  lagged_newdata <- model_object(model_object, conn, newdata, lags = 1:3, control_measures = TRUE)
 
   # add continent
   lagged_newdata <- lagged_newdata %>%
@@ -79,7 +79,7 @@ repel_augment.nowcast_boost <- function(model_object, conn, newdata) {
     rename(country_origin = country_iso3c) %>%
     left_join(borders,  by = "country_origin") %>%
     rename(country_iso3c = country_destination) %>%
-    get_nowcast_lag(conn, newdata = ., lags = 1:3, control_measures = FALSE)
+    get_nowcast_lag(model_object, conn, newdata = ., lags = 1:3, control_measures = FALSE)
 
   lagged_borders_sum <- lagged_borders %>%
     select(-cases) %>%
