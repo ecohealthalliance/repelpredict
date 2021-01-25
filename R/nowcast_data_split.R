@@ -4,12 +4,17 @@ taxa_list <- c( "sheep/goats",
 
 grouping_vars <- c("country_iso3c", "report_year", "report_semester", "disease", "disease_population", "taxa")
 
+#' @export
+repel_split <- function(x, ...){
+  UseMethod("repel_split")
+}
+
 #' @import repeldata dplyr tidyr readr
 #' @importFrom DBI dbDisconnect
 #' @importFrom readr read_csv
 #' @importFrom here here
-#' @noRd
-split_annual_reports_animal_hosts <- function(conn, clean_disease_names = TRUE){
+#' @export
+repel_split.nowcast_model <- function(model_object, conn, clean_disease_names = TRUE){
 
   # read in static file from inst/generate_data_split_lookup.R
   validation_split <- read_csv(system.file("lookup", "validation_split_lookup.csv.gz", package = "repelpredict"),
@@ -23,7 +28,7 @@ split_annual_reports_animal_hosts <- function(conn, clean_disease_names = TRUE){
                                  validation_set = col_logical()
                                ))
 
-  all_dat <- init_annual_reports_animal_hosts(conn) %>%
+  all_dat <- repel_init(model_object, conn) %>%
     arrange(country_iso3c, taxa, disease, disease_population, report_year, report_semester) %>%
     left_join(validation_split,  by = c("country_iso3c", "report_year", "report_semester", "taxa", "disease", "disease_population"))
 
@@ -44,12 +49,17 @@ split_annual_reports_animal_hosts <- function(conn, clean_disease_names = TRUE){
   return(all_dat)
 }
 
+#' @export
+repel_training <- function(x, ...){
+  UseMethod("repel_training")
+}
+
 #' Get cases training set (~80%)
 #' @import repeldata dplyr tidyr
 #' @return a tibble
 #' @export
-annual_reports_animal_hosts_training <- function(conn){
-  all_dat <- split_annual_reports_animal_hosts(conn)
+repel_training.nowcast_model <- function(model_object, conn){
+  all_dat <- repel_split(model_object, conn)
   message(paste0("validation set is ", round(100*sum(all_dat$validation_set)/nrow(all_dat)), "% of data"))
   train_dat <- all_dat %>%
     filter(!validation_set) %>%
@@ -63,12 +73,17 @@ annual_reports_animal_hosts_training <- function(conn){
 }
 
 
+#' @export
+repel_validation <- function(x, ...){
+  UseMethod("repel_validation")
+}
+
 #' Hold out validation set (~20%)
 #' @import repeldata dplyr tidyr
 #' @return a tibble
 #' @export
-annual_reports_animal_hosts_validation <- function(conn){
-  val_dat <- split_annual_reports_animal_hosts(conn) %>%
+repel_validation.nowcast_model <- function(model_object, conn){
+  val_dat <- repel_split(model_object, conn) %>%
     filter(validation_set) %>%
     select(-validation_set)
   return(val_dat)

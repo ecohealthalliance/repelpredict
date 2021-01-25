@@ -1,7 +1,14 @@
+#' define generic augment
+#' @export
+repel_init <- function(x, ...){
+  UseMethod("repel_init")
+}
+
+#' Preprocess nowcast data
 #' @import repeldata dplyr tidyr stringr
 #' @importFrom purrr map_chr
-#'@noRd
-init_annual_reports_animal_hosts <- function(conn){
+#' @export
+repel_init.nowcast_model <- function(model_object, conn){
 
   annual_reports_animal_hosts <- tbl(conn, "annual_reports_animal_hosts") %>%
     mutate(taxa = ifelse(taxa %in% c("goats", "sheep"), "sheep/goats", taxa)) %>%

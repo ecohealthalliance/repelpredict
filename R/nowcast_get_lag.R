@@ -1,8 +1,14 @@
+#' @export
+repel_lag <- function(x, ...){
+  UseMethod("repel_lag")
+}
+
+
 #' Get case and status lags
 #' @import repeldata dplyr tidyr
 #' @importFrom assertthat has_name assert_that
 #' @export
-get_nowcast_lag <- function(conn, newdata, lags = 1:3, control_measures = FALSE){
+repel_lag.nowcast_model <- function(model_object, conn, newdata, lags = 1:3, control_measures = FALSE){
 
   # check newdata has correct input vars
   assertthat::has_name(newdata, grouping_vars)
@@ -11,7 +17,7 @@ get_nowcast_lag <- function(conn, newdata, lags = 1:3, control_measures = FALSE)
   assertthat::assert_that(all(unique(newdata$taxa) %in% taxa_list))
 
   # start lookup table for augmenting
-  annual_reports_animal_hosts <- split_annual_reports_animal_hosts(conn)
+  annual_reports_animal_hosts <- repel_split(model_object, conn)
 
   # add 2 semesters into future (to be able to pull lag from reports two years into future)
   last_two <- annual_reports_animal_hosts %>%
