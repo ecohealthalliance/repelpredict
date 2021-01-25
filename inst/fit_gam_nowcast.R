@@ -15,7 +15,7 @@ gam_predict <- function(model, newdata) {
 # GAM Prep --------------------------------------------------------------------
 gam_mod <- nowcast_gam_model()
 
-traindat <- repel_cases_train(conn) %>%
+traindat <- repel_training(gam_mod, conn) %>%
   drop_na(cases) %>%
   sample_n(10000)
 

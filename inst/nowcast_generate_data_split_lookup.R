@@ -2,6 +2,8 @@ devtools::load_all()
 library(tidyverse)
 set.seed(2222)
 
+model_object <-  nowcast_boost_model(disease_status_model = NULL, cases_model = NULL)
+
 generate_indices <- function(n, prop){
   init_sample <- sample(n, ceiling(prop*n), replace = FALSE)
   init_sample_next <- ifelse(init_sample < n, init_sample + 1, init_sample - 1)
@@ -11,7 +13,7 @@ generate_indices <- function(n, prop){
 conn <- repeldata::repel_local_conn()
 #repeldata::repel_local_download()
 
-all_dat <- init_annual_reports_animal_hosts(conn) %>%
+all_dat <- repel_init(model_object, conn) %>%
   select(country_iso3c, report_year, report_semester, taxa, disease, disease_population) %>%
   arrange() %>%
   distinct()

@@ -1,9 +1,11 @@
 devtools::load_all()
 
+model_object <-  nowcast_boost_model(disease_status_model = NULL, cases_model = NULL)
+
 #repeldata::repel_local_download()
 conn <- repeldata::repel_local_conn()
 
-diseases <- init_annual_reports_animal_hosts(conn) %>%
+diseases <- repel_init(model_object, conn) %>%
   group_by(disease) %>%
   count() %>%
   ungroup() %>%
