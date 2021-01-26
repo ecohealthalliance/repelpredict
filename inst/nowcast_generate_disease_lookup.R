@@ -19,11 +19,11 @@ diseases_recode <- diseases %>%
   mutate(disease_recode = janitor::make_clean_names(disease)) %>%
   select(-n)
 
-readr::write_csv(diseases_recode, here::here("inst", "lookup", "diseases_recode.csv"))
+readr::write_csv(diseases_recode, here::here("inst", "lookup", "nowcast_diseases_recode.csv"))
 
 diseases_recode_rare <- diseases %>%
   mutate(disease_recode = janitor::make_clean_names(disease)) %>%
   mutate(disease_recode_rare = ifelse(n <= rare, "rare_disease", disease_recode)) %>%
   select(-n)
 
-readr::write_csv(diseases_recode_rare, here::here("inst", "lookup", "diseases_recode_rare.csv"))
+readr::write_csv(diseases_recode_rare, here::here("inst", "lookup", "nowcast_diseases_recode_rare.csv"))

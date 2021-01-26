@@ -23,7 +23,7 @@ all_dat <- repel_init(model_object, conn) %>%
 all_dat_grid <- all_dat %>%
   distinct(disease) %>%
   expand_grid(country_iso3c = unique(all_dat$country_iso3c),
-              month = seq(min(all_dat$month), ymd("2030-11-01"), by = "months")) %>%
+              month = seq(min(all_dat$month), lubridate::ymd("2030-11-01"), by = "months")) %>%
   arrange(country_iso3c, disease, month) %>%
   group_by(country_iso3c, disease) %>%
   mutate(validation_set = row_number() %in% generate_indices(n = n(), prop = 0.1))  %>%
@@ -31,4 +31,4 @@ all_dat_grid <- all_dat %>%
 
 message(paste0("validation set is ", round(100*sum(all_dat_grid$validation_set)/nrow(all_dat_grid)), "% of data"))
 
-readr::write_csv(all_dat_grid, gzfile(here::here("inst/lookup/network_validation_split_lookup.csv.gz")))
+vroom::vroom_write(all_dat_grid, gzfile(here::here("inst/lookup/network_validation_split_lookup.csv.gz")))

@@ -31,7 +31,7 @@ repel_forecast.nowcast_boost <- function(model_object, conn, newdata, use_cache 
   newdata <- select(newdata, all_of(grouping_vars))
 
   # check diseases match training data (can be with or without spaces)
-  diseases_recode <- read_csv(system.file("lookup", "diseases_recode.csv",  package = "repelpredict"), col_types = cols(
+  diseases_recode <- read_csv(system.file("lookup", "nowcast_diseases_recode.csv",  package = "repelpredict"), col_types = cols(
     disease = col_character(),
     disease_recode = col_character()
   ))
