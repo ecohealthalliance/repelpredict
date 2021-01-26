@@ -31,4 +31,4 @@ all_dat_grid <- all_dat %>%
 
 message(paste0("validation set is ", round(100*sum(all_dat_grid$validation_set)/nrow(all_dat_grid)), "% of data"))
 
-readr::write_csv(all_dat_grid, gzfile(here::here("inst/lookup/validation_split_lookup.csv.gz")))
+readr::write_csv(all_dat_grid, gzfile(here::here("inst/lookup/nowcast_validation_split_lookup.csv.gz")))
