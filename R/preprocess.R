@@ -38,17 +38,15 @@ repel_init.nowcast_model <- function(model_object, conn){
 
 #' Preprocess nowcast data
 #' @import repeldata dplyr tidyr stringr
-#' @importFrom purrr map_chr
+#' @importFrom tidyr expand
 #' @importFrom lubridate floor_date ceiling_date
 #' @export
 repel_init.network_model <- function(model_object, conn){
 
-  events <- tbl(conn, "outbreak_reports_events") %>%
+  immediate_events <- tbl(conn, "outbreak_reports_events") %>%
     filter(!is.na(country_iso3c)) %>% # TODO: fix these events to be assigned to a current country
     collect() %>%
-    mutate_at(vars(contains("date")), as.Date)
-
-  immediate_events <- events %>%
+    mutate_at(vars(contains("date")), as.Date) %>%
     filter(str_detect(report_type, "immediate notification"))
 
   # Remove disease that have have reports in only one country_iso3c
@@ -74,7 +72,7 @@ repel_init.network_model <- function(model_object, conn){
     summarize(outbreak_end = -n())
 
   # determine if outbreak is ongoing in a given month
-  tl <- immediate_events_mult %>%
+  immediate_events_status <- immediate_events_mult %>%
     tidyr::expand(
       country_iso3c,
       disease,
@@ -83,37 +81,37 @@ repel_init.network_model <- function(model_object, conn){
         to = Sys.Date(),
         by = "months")
     ) %>%
-    left_join(mutate(event_starts, country_iso3c, disease, month = start_month, outbreak_start, .keep = "none")) %>%
-    left_join(mutate(event_ends, country_iso3c, disease, month = end_month, outbreak_end, .keep = "none")) %>%
+    left_join(mutate(event_starts, country_iso3c, disease, month = start_month, outbreak_start, .keep = "none"),  by = c("country_iso3c", "disease", "month")) %>%
+    left_join(mutate(event_ends, country_iso3c, disease, month = end_month, outbreak_end, .keep = "none"),  by = c("country_iso3c", "disease", "month")) %>%
     mutate_at(c("outbreak_start", "outbreak_end"), ~coalesce(., 0)) %>%
     group_by(country_iso3c, disease) %>%
     arrange(month) %>%
     mutate(outbreak_ongoing = as.numeric(cumsum(outbreak_start + outbreak_end) > 0)) %>%
-    ungroup()
+    ungroup() %>%
+    select(-outbreak_end)
 
-  # reshape wide
-  tl_wide <- tl %>%
-    select(country_iso3c, disease, month, outbreak_ongoing) %>%
-    pivot_wider(names_from = country_iso3c, values_from = outbreak_ongoing)
+  return(immediate_events_status)
 
-  tl_all <- tl %>%
-    select(country_iso3c, disease, month, outbreak_start) %>%
-    left_join(tl_wide, by = c("disease", "month")) %>%
-    group_split(country_iso3c) %>%
-    map_dfr(function(z) {
-      z[[z$country_iso3c[1]]] <- 0
-      z
-    }) %>%
-    mutate(outbreak_start = outbreak_start > 0)
+  #   # reshape wide
+  #   tl_wide <- tl %>%
+  #   select(country_iso3c, disease, month, outbreak_ongoing) %>%
+  #   pivot_wider(names_from = country_iso3c, values_from = outbreak_ongoing)
+  #
+  # tl_all <- tl %>%
+  #   select(country_iso3c, disease, month, outbreak_start) %>%
+  #   left_join(tl_wide, by = c("disease", "month")) %>%
+  #   group_split(country_iso3c) %>%
+  #   map_dfr(function(z) {
+  #     z[[z$country_iso3c[1]]] <- 0
+  #     z
+  #   }) %>%
+  #   mutate(outbreak_start = outbreak_start > 0)
+  #
+  # tl_long <- tl_all %>%
+  #   pivot_longer(cols = AFG:ZWE)
 
-  tl_long <- tl_all %>%
-    pivot_longer(cols = AFG:ZWE)
 
-  return(tl_long)
-
-  #TODO figure out best spot to split this code between init and augment
-
-    # # indicate whether outbreak is ongoing in continent or world in previous month
+  # # indicate whether outbreak is ongoing in continent or world in previous month
   # # sum of other countries
   #
   # continent_lookup <- tl %>%
@@ -158,7 +156,4 @@ repel_init.network_model <- function(model_object, conn){
   #   rename(country_iso3c = country_destination)  %>%
   #   left_join(year_lookup) %>%
   #   select(-year)
-
-
-
 }
