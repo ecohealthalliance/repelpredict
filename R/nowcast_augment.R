@@ -305,6 +305,7 @@ repel_augment.nowcast_gam <- function(model_object, conn, newdata, rare = 1000) 
 #' @import repeldata dplyr tidyr
 #' @importFrom assertthat has_name assert_that
 #' @importFrom janitor make_clean_names
+#' @importFrom lubridate ymd
 #' @importFrom purrr map_dfr
 #' @export
 repel_augment.network_lme <- function(model_object, conn, newdata) {
