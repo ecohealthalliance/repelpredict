@@ -49,5 +49,7 @@ write_rds(mod2, here::here("tmp/lme_mod_v2.rds"))
 
 parallel::stopCluster(cl = cl)
 
+# outbreak_start ~ (disease | country_iso3c) + (trade_var1|disease)
+
 # disconnect --------------------------------------------------------------
 DBI::dbDisconnect(conn)
