@@ -302,7 +302,7 @@ repel_augment.nowcast_gam <- function(model_object, conn, newdata, rare = 1000) 
 
 
 #' Augment nowcast baseline model object
-#' @import repeldata dplyr tidyr
+#' @import repeldata dplyr tidyr dtplyr
 #' @importFrom assertthat has_name assert_that
 #' @importFrom janitor make_clean_names
 #' @importFrom lubridate ymd
@@ -325,6 +325,7 @@ repel_augment.network_lme <- function(model_object, conn, newdata) {
   # add in endemic diseases that may not be in outbreaks
   endemic_status_present <- tbl(conn, "annual_reports_animal_hosts") %>%
     filter(report_semester != "0") %>%
+    filter(disease_status == "present") %>%
     select(country_iso3c, report_year, disease) %>%
     collect() %>%
     distinct()
@@ -341,22 +342,25 @@ repel_augment.network_lme <- function(model_object, conn, newdata) {
     left_join(diseases_recode, by = "disease") %>%
     left_join(year_lookup, by = "report_year") %>%
     select(country_origin = country_iso3c, month, disease = disease_recode) %>%
-    drop_na(disease) #TODO confirm why NA
+    drop_na(disease) #TODO confirm why NA - probably because it affects taxa outside our current interest (eg aquatic)
 
   disease_status_present <- bind_rows(outbreak_status_present, endemic_status_present) %>%
     distinct()
 
-  # filter dataset to min year from endemic #TODO revisit
+  # filter dataset to min/max year from endemic #TODO revisit
   outbreak_status <- outbreak_status %>%
-    filter(month >= min(year_lookup$month))
+    filter(month >= min(year_lookup$month), month <= max(year_lookup$month))
 
   # set up country origin/destination combinations - origin is countries that have the disease present in the given month
   outbreak_status <- outbreak_status %>%
     left_join(disease_status_present, by = c("month", "disease")) %>%
-    drop_na(country_origin) %>%
     rename(country_destination = country_iso3c) %>%
     filter(country_destination != country_origin) %>%
     select(-outbreak_ongoing)
+
+  assertthat::assert_that(!any(is.na(outbreak_status$country_origin))) # if this is false, need to incorportate NA handling (should assume 0s for trade vars etc)
+  # then would take duplicate rows of all 0s and reduce them and give them a weight
+  # weight = multiple of number of times output duplicates
 
   # bring in static vars
   connect_static <- tbl(conn, "connect_static_vars")  %>%
@@ -371,19 +375,17 @@ repel_augment.network_lme <- function(model_object, conn, newdata) {
   connect_yearly <- DBI::dbReadTable(conn, "connect_yearly_vars") %>%
     collect()
 
-  year_lookup <- map_dfr(unique(connect_yearly$year), function(yr){
-    tibble(year = yr, month = seq(ymd(paste0(yr, "-01-01")), ymd(paste0(yr, "-12-01")), by = 'months'))
-  })
+  outbreak_status <-  outbreak_status %>%
+    mutate(year = lubridate::year(month))
 
   # human movement vars
   human_movement <- connect_yearly %>%
     select(country_origin, country_destination, year, starts_with("n_")) %>%
-    left_join(year_lookup,  by = "year") %>%
-    select(-year) %>%
     mutate_at(vars(starts_with("n_")), as.numeric) %>%
     mutate_if(is.numeric, ~replace_na(., 0)) #TODO confirm this!!!!
 
-  outbreak_status <- left_join(outbreak_status, human_movement, by = c("country_destination", "month", "country_origin"))
+  outbreak_status <- left_join(outbreak_status, human_movement, by = c("country_destination", "year", "country_origin")) %>%
+    filter(year >= min(human_movement$year), year <= max(human_movement$year)) #TODO confirm this!!!!
 
   # trade vars
   trade_vars <- connect_yearly %>%
@@ -414,43 +416,42 @@ repel_augment.network_lme <- function(model_object, conn, newdata) {
     )) %>%
     left_join(trade_lookup,  by = c("product_code", "source"))
 
-  # trade_vars_groups_summed <- trade_vars %>%
-  #   left_join(trade_vars_lookup, by = "name") %>%
-  #   mutate(value = as.numeric(value)) %>%
-  #   mutate(value = replace_na(value, 0)) %>%
-  #   group_by(country_origin, country_destination, year, source, group_name) %>% # sum over groups
-  #   summarize(value = sum(value, na.rm = TRUE)) %>%
-  #   ungroup()
-  # vroom::vroom_write(trade_vars_groups_summed, here::here("tmp/trade_vars_groups_summed.csv"))
-  trade_vars_groups_summed <- vroom::vroom(here::here("tmp/trade_vars_groups_summed.csv"))
+  trade_vars_groups_summed <- trade_vars %>%
+    left_join(trade_vars_lookup, by = "name") %>%
+    lazy_dt() %>%
+    mutate(value = as.numeric(value)) %>%
+    mutate(value = replace_na(value, 0)) %>%
+    group_by(country_origin, country_destination, year, source, group_name) %>% # sum over groups
+    summarize(value = sum(value, na.rm = TRUE)) %>%
+    ungroup()
 
   trade_vars_groups_total <- trade_vars_groups_summed %>%
     group_by(country_origin, country_destination, year, source) %>%
     summarize(value = sum(value)) %>%
     ungroup() %>%
-    pivot_wider(names_from = source, values_from = value) %>%
-    left_join(year_lookup,  by = "year") %>%
-    select(-year)
+    as_tibble() %>%
+    pivot_wider(names_from = source, values_from = value)
 
-  outbreak_status <- left_join(outbreak_status, trade_vars_groups_total, by = c("country_destination", "month", "country_origin"))
+  outbreak_status <- left_join(outbreak_status, trade_vars_groups_total, by = c("country_destination", "year", "country_origin"))
 
   trade_vars_groups_summed <- trade_vars_groups_summed %>%
     mutate(group_name = str_extract(group_name, "[^;]+")) %>%
     mutate(group_name = paste0("trade_", group_name)) %>%
     select(-source) %>%
+    as_tibble() %>%
     pivot_wider(names_from = group_name, values_from = value) %>%
-    janitor::clean_names() %>%
-    left_join(year_lookup) %>%
-    select(-year)
+    janitor::clean_names()
 
-  outbreak_status <- left_join(outbreak_status, trade_vars_groups_summed,  by = c("country_destination", "month", "country_origin"))
+  outbreak_status <- left_join(outbreak_status, trade_vars_groups_summed,  by = c("country_destination", "year", "country_origin"))
 
   outbreak_status <- outbreak_status %>%
-    select(-gc_dist, -country_origin) %>%
+    lazy_dt() %>%
+    select(-gc_dist, -country_origin, -year) %>%
     group_by(country_destination, disease, month, outbreak_start) %>%
     summarize_all(~sum(., na.rm = TRUE)) %>%  #TODO DEAL WITH NAS in human movement
     ungroup() %>%
-    rename(country_iso3c = country_destination)
+    rename(country_iso3c = country_destination) %>%
+    as_tibble()
 
   augmented_newdata <- left_join(newdata, outbreak_status, by = c("country_iso3c", "disease", "month"))
 
