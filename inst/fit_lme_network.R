@@ -55,16 +55,19 @@ frm <- as.formula(paste0("outbreak_start ~ (disease | country_iso3c) + ",
                          paste0("(", vars, "|disease)", collapse = " + ")))
 
 
-mod <- lme4::glmer(data = augmented_data, family = binomial, formula = frm,
+mod <- lme4::glmer(data = augmented_data, family = binomial, formula = frm, verbose = TRUE,
                    control = glmerControl(
                      optimizer="bobyqa",
                      check.nobs.vs.nlev="ignore",
                      check.nobs.vs.nRE="ignore"))
 write_rds(mod, here::here("tmp/lme_mod_v2.rds"))
 
-parallel::stopCluster(cl = cl)
+#TODO add verbose argument - process
+# single threaded calculations, matrix calculations use more cores
+# turn on - hpc package - low level blas cores - make 16
 
-# include 0s - spontaneous outbreaks - informs intercept
+
+parallel::stopCluster(cl = cl)
 
 
 # Review mods -------------------------------------------------------------

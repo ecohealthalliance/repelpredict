@@ -302,7 +302,7 @@ repel_augment.nowcast_gam <- function(model_object, conn, newdata, rare = 1000) 
 
 
 #' Augment nowcast baseline model object
-#' @import repeldata dplyr tidyr dtplyr
+#' @import repeldata dplyr tidyr dtplyr data.table
 #' @importFrom assertthat has_name assert_that
 #' @importFrom janitor make_clean_names
 #' @importFrom lubridate ymd
@@ -326,13 +326,17 @@ repel_augment.network_lme <- function(model_object, conn, newdata) {
   endemic_status_present <- tbl(conn, "annual_reports_animal_hosts") %>%
     filter(report_semester != "0") %>%
     filter(disease_status == "present") %>%
-    select(country_iso3c, report_year, disease) %>%
+    select(country_iso3c, report_year, report_months, disease, taxa) %>%
     collect() %>%
     distinct()
 
-  year_lookup <- map_dfr(unique(endemic_status_present$report_year), function(yr){
-    tibble(report_year = yr, month = seq(ymd(paste0(yr, "-01-01")), ymd(paste0(yr, "-12-01")), by = 'months'))
-  })
+  year_lookup <- endemic_status_present %>%
+    distinct(report_months, report_year) %>%
+    mutate(month = case_when(
+      report_months == 'Jan-Jun' ~ list(seq(1, 6)),
+      report_months == 'Jul-Dec' ~ list(seq(7, 12))))
+  year_lookup <- unnest(year_lookup, month) %>%
+    mutate(month = ymd(paste(report_year, month, "01")))
 
   diseases_recode <- vroom::vroom(system.file("lookup", "nowcast_diseases_recode.csv",  package = "repelpredict"), col_types = cols(
     disease = col_character(),
@@ -340,9 +344,9 @@ repel_augment.network_lme <- function(model_object, conn, newdata) {
 
   endemic_status_present <- endemic_status_present %>%
     left_join(diseases_recode, by = "disease") %>%
-    left_join(year_lookup, by = "report_year") %>%
+    left_join(year_lookup,  by = c("report_year", "report_months")) %>%
     select(country_origin = country_iso3c, month, disease = disease_recode) %>%
-    drop_na(disease) #TODO confirm why NA - probably because it affects taxa outside our current interest (eg aquatic)
+    drop_na(disease) # remove diseases that affect taxa outside our current interest (eg aquatic)
 
   disease_status_present <- bind_rows(outbreak_status_present, endemic_status_present) %>%
     distinct()
@@ -355,12 +359,8 @@ repel_augment.network_lme <- function(model_object, conn, newdata) {
   outbreak_status <- outbreak_status %>%
     left_join(disease_status_present, by = c("month", "disease")) %>%
     rename(country_destination = country_iso3c) %>%
-    filter(country_destination != country_origin) %>%
+    mutate(country_origin = if_else(country_origin == country_destination, NA_character_, country_origin)) %>%
     select(-outbreak_ongoing)
-
-  assertthat::assert_that(!any(is.na(outbreak_status$country_origin))) # if this is false, need to incorportate NA handling (should assume 0s for trade vars etc)
-  # then would take duplicate rows of all 0s and reduce them and give them a weight
-  # weight = multiple of number of times output duplicates
 
   # bring in static vars
   connect_static <- tbl(conn, "connect_static_vars")  %>%
@@ -422,8 +422,9 @@ repel_augment.network_lme <- function(model_object, conn, newdata) {
     mutate(value = as.numeric(value)) %>%
     mutate(value = replace_na(value, 0)) %>%
     group_by(country_origin, country_destination, year, source, group_name) %>% # sum over groups
-    summarize(value = sum(value, na.rm = TRUE)) %>%
-    ungroup()
+    summarize(value = sum(value, na.rm = TRUE)) %>% # will turn all NAs in 0
+    ungroup() %>%
+    as_tibble()
 
   trade_vars_groups_total <- trade_vars_groups_summed %>%
     group_by(country_origin, country_destination, year, source) %>%
@@ -452,6 +453,14 @@ repel_augment.network_lme <- function(model_object, conn, newdata) {
     ungroup() %>%
     rename(country_iso3c = country_destination) %>%
     as_tibble()
+
+  # finishing touches
+  outbreak_status <- outbreak_status %>%
+    mutate(outbreak_start = outbreak_start>0) %>%
+    select(country_iso3c, disease, month, outbreak_start,
+           shared_borders_from_outbreaks = shared_border,
+           ots_trade_dollars_from_outbreaks = ots_trade_dollars,
+           fao_livestock_heads_from_outbreaks = fao_livestock_heads)
 
   augmented_newdata <- left_join(newdata, outbreak_status, by = c("country_iso3c", "disease", "month"))
 
