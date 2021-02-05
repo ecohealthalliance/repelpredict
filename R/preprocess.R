@@ -62,7 +62,7 @@ repel_init.network_model <- function(model_object, conn){
     ))
 
   immediate_events <- immediate_events %>%
-    left_join(taxa_lookup) %>%
+    left_join(taxa_lookup, by = "id") %>%
     filter(taxa %in% taxa_list) %>%
     select(-taxa)
 
