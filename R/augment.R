@@ -323,10 +323,12 @@ repel_augment.network_lme <- function(model_object, conn, newdata) {
     select(country_origin = country_iso3c, month, disease)
 
   # add in endemic diseases that may not be in outbreaks
-  endemic_status_present <- tbl(conn, "annual_reports_animal_hosts") %>%
+  endemic_status_present <-  annual_reports_animal_hosts <- tbl(conn, "annual_reports_animal_hosts") %>%
+    mutate(taxa = ifelse(taxa %in% c("goats", "sheep"), "sheep/goats", taxa)) %>%
+    filter(taxa %in% taxa_list) %>%
     filter(report_semester != "0") %>%
-    filter(disease_status == "present") %>%
-    select(country_iso3c, report_year, report_months, disease, taxa) %>%
+    filter(disease_status %in% c("present", "suspected")) %>%
+    select(country_iso3c, report_year, report_months, disease) %>%
     collect() %>%
     distinct()
 
@@ -345,8 +347,7 @@ repel_augment.network_lme <- function(model_object, conn, newdata) {
   endemic_status_present <- endemic_status_present %>%
     left_join(diseases_recode, by = "disease") %>%
     left_join(year_lookup,  by = c("report_year", "report_months")) %>%
-    select(country_origin = country_iso3c, month, disease = disease_recode) %>%
-    drop_na(disease) # remove diseases that affect taxa outside our current interest (eg aquatic)
+    select(country_origin = country_iso3c, month, disease = disease_recode)
 
   disease_status_present <- bind_rows(outbreak_status_present, endemic_status_present) %>%
     distinct()
@@ -395,7 +396,7 @@ repel_augment.network_lme <- function(model_object, conn, newdata) {
   ots_lookup <- DBI::dbReadTable(conn, "connect_ots_lookup") %>%
     collect() %>%
     mutate(source = "ots_trade_dollars") %>%
-    select(product_code, group_name, source)
+    select(product_code, group_name = product_fullname_english, source)
 
   connect_fao_lookup <- DBI::dbReadTable(conn, "connect_fao_lookup") %>%
     collect() %>%
@@ -414,7 +415,9 @@ repel_augment.network_lme <- function(model_object, conn, newdata) {
       name == "n_human_migrants" ~ "un_human_migration",
       name == "n_tourists" ~ "un_wto_tourism"
     )) %>%
-    left_join(trade_lookup,  by = c("product_code", "source"))
+    left_join(trade_lookup,  by = c("product_code", "source")) %>%
+    mutate(group_name = str_extract(group_name, "[^;]+"))
+
 
   trade_vars_groups_summed <- trade_vars %>%
     left_join(trade_vars_lookup, by = "name") %>%
@@ -436,7 +439,6 @@ repel_augment.network_lme <- function(model_object, conn, newdata) {
   outbreak_status <- left_join(outbreak_status, trade_vars_groups_total, by = c("country_destination", "year", "country_origin"))
 
   trade_vars_groups_summed <- trade_vars_groups_summed %>%
-    mutate(group_name = str_extract(group_name, "[^;]+")) %>%
     mutate(group_name = paste0("trade_", group_name)) %>%
     select(-source) %>%
     as_tibble() %>%
@@ -446,6 +448,7 @@ repel_augment.network_lme <- function(model_object, conn, newdata) {
   outbreak_status <- left_join(outbreak_status, trade_vars_groups_summed,  by = c("country_destination", "year", "country_origin"))
 
   outbreak_status <- outbreak_status %>%
+    select(-starts_with("trade_")) %>%
     lazy_dt() %>%
     select(-gc_dist, -country_origin, -year) %>%
     group_by(country_destination, disease, month, outbreak_start) %>%
@@ -457,6 +460,7 @@ repel_augment.network_lme <- function(model_object, conn, newdata) {
   # finishing touches
   outbreak_status <- outbreak_status %>%
     mutate(outbreak_start = outbreak_start>0) %>%
+    mutate(shared_border = shared_border>0) %>%
     select(country_iso3c, disease, month, outbreak_start,
            shared_borders_from_outbreaks = shared_border,
            ots_trade_dollars_from_outbreaks = ots_trade_dollars,

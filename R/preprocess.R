@@ -43,11 +43,28 @@ repel_init.nowcast_model <- function(model_object, conn){
 #' @export
 repel_init.network_model <- function(model_object, conn){
 
+  # read in immediate outbreaks
   immediate_events <- tbl(conn, "outbreak_reports_events") %>%
-   filter(!is.na(country_iso3c), country_iso3c != "NA") %>% # TODO: fix these events to be assigned to a current country
+    filter(!is.na(country_iso3c), country_iso3c != "NA") %>% # TODO: fix these events to be assigned to a current country
     collect() %>%
     mutate_at(vars(contains("date")), as.Date) %>%
     filter(str_detect(report_type, "immediate notification"))
+
+  # filter for taxa of interest
+  taxa_lookup <- tbl(conn, "outbreak_reports_outbreaks") %>%
+    select(id, taxa = species) %>%
+    collect() %>%
+    distinct() %>%
+    mutate(taxa = case_when(
+      taxa == "sheep / goats" ~ "sheep/goats",
+      taxa == "hares / rabbits" ~ "hares/rabbits",
+      TRUE ~ taxa
+    ))
+
+  immediate_events <- immediate_events %>%
+    left_join(taxa_lookup) %>%
+    filter(taxa %in% taxa_list) %>%
+    select(-taxa)
 
   # Remove disease that have have reports in only one country_iso3c
   diseases_keep <- immediate_events %>%

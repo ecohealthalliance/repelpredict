@@ -1,15 +1,10 @@
 disease,disease_recode
-abortion in ewes,abortion_in_ewes
 african horse sickness,african_horse_sickness
 african swine fever,african_swine_fever
-american fool brood,american_fool_brood
 anthrax,anthrax
 aujeszkys disease,aujeszkys_disease
-avian chlamydiosis,avian_chlamydiosis
 avian infectious bronchitis,avian_infectious_bronchitis
 avian infectious laryngotracheitis,avian_infectious_laryngotracheitis
-bonamia exitiosa,bonamia_exitiosa
-bonamia ostreae,bonamia_ostreae
 bovine anaplasmosis,bovine_anaplasmosis
 bovine babesiosis,bovine_babesiosis
 bovine leukosis,bovine_leukosis
@@ -17,17 +12,11 @@ bovine spongiform encephalopathy,bovine_spongiform_encephalopathy
 brucella abortus,brucella_abortus
 brucella melitensis,brucella_melitensis
 brucella suis,brucella_suis
-candidatus xenohaliotis californiensis,candidatus_xenohaliotis_californiensis
-caprine arthritis and encephalitis,caprine_arthritis_and_encephalitis
 classical swine fever,classical_swine_fever
-contagious agalactia,contagious_agalactia
 coronavirus,coronavirus
-crayfish plague,crayfish_plague
 dourine,dourine
 eastern equine encephalitis,eastern_equine_encephalitis
-echinococcosis,echinococcosis
 epizootic haemorrhagic disease,epizootic_haemorrhagic_disease
-epizootic ulcerative syndrome,epizootic_ulcerative_syndrome
 equine encephalitis,equine_encephalitis
 equine infectious anaemia,equine_infectious_anaemia
 equine influenza,equine_influenza
@@ -37,32 +26,20 @@ equine viral rhinopneumonitis,equine_viral_rhinopneumonitis
 foot-and-mouth disease,foot_and_mouth_disease
 fowl typhoid,fowl_typhoid
 glanders,glanders
-gyrodactylus salaris,gyrodactylus_salaris
 heartwater,heartwater
 hemorrhagic septicemia,hemorrhagic_septicemia
-herpesvirus,herpesvirus
 highly pathogenic avian influenza,highly_pathogenic_avian_influenza
-infection with ranavirus,infection_with_ranavirus
 infectious bovine rhinotracheitis,infectious_bovine_rhinotracheitis
-infectious haematopoietic necrosis,infectious_haematopoietic_necrosis
-infectious hypodermal and hematopoietic necrosis ihhn,infectious_hypodermal_and_hematopoietic_necrosis_ihhn
-infectious pancreatic necrosis,infectious_pancreatic_necrosis
-infectious salmon anaemia,infectious_salmon_anaemia
-koi herpesvirus disease,koi_herpesvirus_disease
 leishmaniosis,leishmaniosis
 low pathogenic avian influenza,low_pathogenic_avian_influenza
 lumpy skin disease,lumpy_skin_disease
-maedi visna,maedi_visna
-marteiliosis,marteiliosis
 mycobacterium tuberculosis,mycobacterium_tuberculosis
 myxoma virus,myxoma_virus
 newcastle disease,newcastle_disease
-nodavirus,nodavirus
 ovine bluetongue disease,ovine_bluetongue_disease
 ovine pox disease,ovine_pox_disease
 parasitic gastroenteritis,parasitic_gastroenteritis
 paratuberculosis,paratuberculosis
-perkinsosis,perkinsosis
 peste des petits ruminants,peste_des_petits_ruminants
 pleuropneumonia,pleuropneumonia
 porcine epidemic diarrhea,porcine_epidemic_diarrhea
@@ -72,22 +49,12 @@ poxvirus,poxvirus
 pullorum disease,pullorum_disease
 q fever,q_fever
 rabies,rabies
-red sea bream iridoviral disease rsivd,red_sea_bream_iridoviral_disease_rsivd
 rift valley fever,rift_valley_fever
 schmallenberg virus,schmallenberg_virus
-scrapie,scrapie
-small hive beetle infestation,small_hive_beetle_infestation
-spring viremia of carp,spring_viremia_of_carp
 swine influenza,swine_influenza
 taylorella equigenitalis,taylorella_equigenitalis
-tilapia lake virus,tilapia_lake_virus
-tilapia tilapinevirus,tilapia_tilapinevirus
 trypanosomiasis,trypanosomiasis
-tularemia,tularemia
-varroosis,varroosis
 venezuelan equine encephalitis,venezuelan_equine_encephalitis
 vesicular stomatitis,vesicular_stomatitis
 viral haemorrhagic disease,viral_haemorrhagic_disease
-viral hemorrhagic septicemia,viral_hemorrhagic_septicemia
 west nile encephalitis,west_nile_encephalitis
-white spot syndrome virus 1,white_spot_syndrome_virus_1
