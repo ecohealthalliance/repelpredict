@@ -3,6 +3,7 @@ library(lme4)
 library(tictoc)
 library(insight)
 library(DHARMa)
+library(ggplot2)
 
 # Support functions -------------------------------------------------------
 scale2 <- function(x, na.rm = FALSE) (x - mean(x, na.rm = na.rm)) / sd(x, na.rm)
@@ -38,7 +39,6 @@ augmented_data <- augmented_data %>%
   mutate_if(is.numeric, scale2)
 
 augmented_data_compressed <- augmented_data %>%
-  # filter(disease %in% get_oie_high_importance_diseases()) %>%
   select(-month) %>%
   group_by_all() %>%
   count() %>%
@@ -92,32 +92,23 @@ fixdef <- fixef(mod)
 summary(mod)
 
 # insight package
-get_variance(mod)
+# get_variance(mod)
 # Warning message:
 #   Random slopes not present as fixed effects. This artificially inflates the conditional random effect variances.
 # Solution: Respecify fixed structure!
 
 # dharma
-simulate_residuals <- simulateResiduals(fittedModel = mod, plot = T)
-
-
-# dataset by condition - compressed dataset - condition without outcome calculate fraction of time with outbreak  - compare against prediction
-# metric to compare probabilities (can create qq plot)
+# simulate_residuals <- simulateResiduals(fittedModel = mod, plot = F)
+# resid <- residuals(simulate_residuals, quantileFunction = qnorm, outlierValues = c(-7,7))
+# # plot(simulate_residuals)
+# testResiduals(simulate_residuals)
 
 # View important network vars?
 randef_disease %>% select(disease, shared_borders_from_outbreaksFALSE) %>%  arrange(-shared_borders_from_outbreaksFALSE)
 randef_disease %>% select(disease, ots_trade_dollars_from_outbreaks) %>%  arrange(-ots_trade_dollars_from_outbreaks)
 randef_disease %>% select(disease, fao_livestock_heads_from_outbreaks) %>%  arrange(-fao_livestock_heads_from_outbreaks)
 
-# View baseline disease by country?
-randef_country %>%
-  group_by(country) %>%
-  arrange(-intercept) %>%
-  slice(1:10) %>%
-  ungroup() %>%
-  View
-
-# visualizations from BB paper did not work - needs fixed effects?
+validation_outbrea_comp
 
 # Predictions -------------------------------------------------------------
 # training
@@ -130,24 +121,45 @@ summary(augment_predicted)
 
 # augmented_data_val <- repel_augment(model_object, conn, newdata = valdat)
 # vroom::vroom_write(augmented_data_val, gzfile("tmp/network_augmented_data_val.csv.gz"))
-augmented_data_val <- vroom::vroom(here::here("tmp/network_augmented_data_val.csv.gz"))
-augmented_data_val2 <- augmented_data_val %>%
-  dplyr::select(country_iso3c, disease, month,outbreak_start,
+augmented_data_val <- vroom::vroom(here::here("tmp/network_augmented_data_val.csv.gz"))  %>%
+  dplyr::select(country_iso3c, disease, month, outbreak_start,
                 shared_borders_from_outbreaks,
                 ots_trade_dollars_from_outbreaks,
                 fao_livestock_heads_from_outbreaks) %>%
   drop_na() %>%
   mutate(country_iso3c = as.factor(country_iso3c)) %>%
   mutate(disease = as.factor(disease)) %>%
-  mutate(shared_borders_from_outbreaks = as.factor(as.numeric(shared_borders_from_outbreaks))) %>%
-  mutate_if(is.numeric, scale2) %>%
+  mutate_if(is.numeric, scale2)
+
+# resample validation
+augmented_data_val_bootstrap <- augmented_data_val %>%
   rsample::bootstraps(times = 1) %>%
   pull(splits) %>%
   magrittr::extract2(1) %>%
-  as_tibble()
+  as_tibble() %>%
+  mutate(outbreak_start_predicted = predict(mod, ., type = "response"))
 
-augment_predicted_val <- predict(mod, augmented_data_val2, type = "response")
-max(augment_predicted_val)
+# get predicted outbreak start probability by condition
+augmented_data_val_compressed <- augmented_data_val_bootstrap %>%
+  distinct(country_iso3c, disease, shared_borders_from_outbreaks, ots_trade_dollars_from_outbreaks, fao_livestock_heads_from_outbreaks, outbreak_start_predicted) %>%
+  rename(outbreak_start_predict_prob = outbreak_start_predicted)
+
+# get actual outbreak start probability by condition from the full dataset
+augmented_data_all_compressed <- augmented_data %>%
+  bind_rows(augmented_data_val) %>%
+  group_by(country_iso3c, disease, shared_borders_from_outbreaks, ots_trade_dollars_from_outbreaks, fao_livestock_heads_from_outbreaks) %>%
+  summarize(outbreak_start_actual_prob = sum(outbreak_start)/n()) %>%
+  ungroup()
+
+# compare validation predicted against actual prob
+validation_outbreak_comp <- augmented_data_val_compressed %>%
+  left_join(augmented_data_all_compressed)
+
+ggplot(validation_outbreak_comp, aes(x = outbreak_start_actual_prob, y = outbreak_start_predict_prob)) +
+  geom_point() +
+  scale_x_continuous(limits = c(0,1)) +
+  #scale_y_continuous(limits = c(0,1)) +
+  NULL
 
 # scored
 scored_tibble <- augmented_data_val2 %>%
@@ -163,22 +175,6 @@ scored_tibble %>% filter(outbreak_start_actual==1) %>% pull(outbreak_start_predi
 #   yardstick::conf_mat(outbreak_start_actual,  outbreak_start_predicted)
 
 # outbreak status partial dependency by variable
-
-oie_high_importance_diseases <- get_oie_high_importance_diseases()
-lag_vars <- c("shared_borders_from_outbreaks", "ots_trade_dollars_from_outbreaks", "fao_livestock_heads_from_outbreaks")
-
-library(DALEX)
-
-explainer <- explain(
-  model = mod,
-  data = augmented_data_compressed,
-  y = "outbreak_start",
-  predict_function = predict
-)
-
-model_performance(explainer = explainer)
-vip_glm <- variable_importance(explainer)
-
 
 # Baseline ----------------------------------------------------------------
 # For spread forecasting, the practical naïve baseline will be assumption of movement to the most strongly connected locale of the current outbreak.
