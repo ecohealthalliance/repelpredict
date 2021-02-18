@@ -75,8 +75,13 @@ toc()
 
 write_rds(mod, here::here("tmp/lme_mod_all_diseases.rds"))
 
-# Review mods -------------------------------------------------------------
+# Review mod -------------------------------------------------------------
 mod <- read_rds(here::here("tmp/lme_mod_all_diseases.rds"))
+
+# Overall
+summary(mod)
+
+# Random effects
 randef <- ranef(mod)
 randef_disease <- randef$disease %>%
   tibble::rownames_to_column(var = "disease") %>%
@@ -88,8 +93,38 @@ randef_country <- randef$country_iso3c %>%
   rename(intercept = `(Intercept)` )
 fixdef <- fixef(mod)
 
-# Overall
-summary(mod)
+randef_disease_long <- randef_disease %>%
+  filter(disease %in% get_oie_high_importance_diseases()) %>%
+  pivot_longer(-disease) %>%
+  mutate(disease = str_replace_all(disease, "_", " "))
+
+vars_clean <- c("No shared border with one or more country with existing outbreaks",
+                       "Shared border with one or more country with existing outbreaks",
+                       "Trade value of animal products from countries with existing outbreaks",
+                       "Livestock (heads) from countries with existing outbreaks"
+                       )
+names(vars_clean) <- unique(randef_disease_long$name)
+
+
+randef_coeffs <- purrr::map(unique(randef_disease_long$name), function(var){
+  dat <- randef_disease_long %>%
+    filter(name == var) %>%
+    mutate(disease = forcats::fct_reorder(disease, value)) %>%
+    mutate(pos = value > 0)
+  title <- vars_clean[var]
+  ggplot(dat) +
+    geom_hline(aes(yintercept = 0), color = "gray50") +
+    geom_point(aes(x = disease, y = value, color = pos), size = 2) +
+    geom_segment(aes(x = disease, xend = disease, y = value, yend = 0, color = pos)) +
+    scale_color_manual(values = c("TRUE" = "#0072B2", "FALSE" = "#D55E00")) +
+    labs(x = "", y = "", title = title) +
+    coord_flip() +
+    theme_minimal() +
+    theme(legend.position = "none", axis.text = element_text(size = 12)) +
+    NULL
+
+})
+
 
 # insight package
 # get_variance(mod)
@@ -102,13 +137,6 @@ summary(mod)
 # resid <- residuals(simulate_residuals, quantileFunction = qnorm, outlierValues = c(-7,7))
 # # plot(simulate_residuals)
 # testResiduals(simulate_residuals)
-
-# View important network vars?
-randef_disease %>% select(disease, shared_borders_from_outbreaksFALSE) %>%  arrange(-shared_borders_from_outbreaksFALSE)
-randef_disease %>% select(disease, ots_trade_dollars_from_outbreaks) %>%  arrange(-ots_trade_dollars_from_outbreaks)
-randef_disease %>% select(disease, fao_livestock_heads_from_outbreaks) %>%  arrange(-fao_livestock_heads_from_outbreaks)
-
-validation_outbrea_comp
 
 # Predictions -------------------------------------------------------------
 # training
