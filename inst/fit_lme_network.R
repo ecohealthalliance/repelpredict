@@ -1,9 +1,9 @@
 devtools::load_all()
 library(lme4)
 library(tictoc)
-library(insight)
-library(DHARMa)
-library(ggplot2)
+# library(insight)
+# library(DHARMa)
+
 
 # Support functions -------------------------------------------------------
 scale2 <- function(x, na.rm = FALSE) (x - mean(x, na.rm = na.rm)) / sd(x, na.rm)
@@ -32,7 +32,7 @@ augmented_data <- augmented_data %>%
   select(country_iso3c, disease, month, outbreak_start,
          shared_borders_from_outbreaks,
          ots_trade_dollars_from_outbreaks,
-         fao_livestock_heads_from_outbreaks) %>%
+         starts_with("fao"), -fao_livestock_heads_from_outbreaks) %>%
   drop_na() %>%
   mutate(country_iso3c = as.factor(country_iso3c)) %>%
   mutate(disease = as.factor(disease)) %>%
@@ -46,20 +46,21 @@ augmented_data_compressed <- augmented_data %>%
   select(country_iso3c, disease, count = n, outbreak_start, everything()) %>%
   arrange(disease, desc(count), country_iso3c)
 
-augmented_data_compressed %>%
-  group_by(disease, outbreak_start) %>%
-  count() %>%
-  ungroup()# outbreak counts of 1 are diseases where the rest of the outbreaks are in the validation set
+# augmented_data_compressed %>%
+#   group_by(disease, outbreak_start) %>%
+#   count() %>%
+#   ungroup()# outbreak counts of 1 are diseases where the rest of the outbreaks are in the validation set
 
 # how many outbreak starts
 table(augmented_data$outbreak_start) #(0.1%)
 
 # lme setup ---------------------------------------------------------------
 wgts <- augmented_data_compressed$count
-vars <- c("shared_borders_from_outbreaks", "ots_trade_dollars_from_outbreaks", "fao_livestock_heads_from_outbreaks")
+vars <- c("ots_trade_dollars_from_outbreaks", names(augmented_data)[str_starts(names(augmented_data), "fao_")])
 
 frm <- as.formula(paste0("outbreak_start ~
                          0 + (1 | country_iso3c:disease) + ", # baseline intercept for disease in country
+                         '(1 + dummy(shared_borders_from_outbreaks, "TRUE") | disease) + ',
                          paste0("(0 + ", vars, "|disease)", collapse = " + "))) #  “variance of trade by disease”
 
 # Fit ---------------------------------------------------------------------

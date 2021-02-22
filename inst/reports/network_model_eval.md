@@ -8,42 +8,94 @@ output:
 
 
 
-```
-## Generalized linear mixed model fit by maximum likelihood (Adaptive
-##   Gauss-Hermite Quadrature, nAGQ = 0) [glmerMod]
-##  Family: binomial  ( logit )
-## Formula: 
-## outbreak_start ~ 0 + (1 | country_iso3c:disease) + (0 + shared_borders_from_outbreaks |  
-##     disease) + (0 + ots_trade_dollars_from_outbreaks | disease) +  
-##     (0 + fao_livestock_heads_from_outbreaks | disease)
-##    Data: augmented_data_compressed
-## Weights: wgts
-## Control: glmerControl(calc.derivs = TRUE)
-## 
-##      AIC      BIC   logLik deviance df.resid 
-##  17115.0  17175.1  -8551.5  17103.0   164686 
-## 
-## Scaled residuals: 
-##    Min     1Q Median     3Q    Max 
-## -2.255 -0.058 -0.034 -0.023 48.727 
-## 
-## Random effects:
-##  Groups                Name                               Variance  Std.Dev.
-##  country_iso3c.disease (Intercept)                        2.796e+00  1.67209
-##  disease               shared_borders_from_outbreaksFALSE 1.084e+02 10.40943
-##                        shared_borders_from_outbreaksTRUE  7.531e+01  8.67839
-##  disease.1             ots_trade_dollars_from_outbreaks   2.737e-03  0.05231
-##  disease.2             fao_livestock_heads_from_outbreaks 3.926e-03  0.06266
-##  Corr
-##      
-##      
-##  0.99
-##      
-##      
-## Number of obs: 164692, groups:  country_iso3c:disease, 9617; disease, 59
-```
 
-![](network_model_eval_files/figure-html/coef-plots-1.png)<!-- -->![](network_model_eval_files/figure-html/coef-plots-2.png)<!-- -->
+
+
+
+<small>_Click on the_ ▶ _︎arrows to expand sections._</small>
+
+
+
+
+<details>
+<summary>shared borders with country with existing outbreak</summary>
+![](network_model_eval_files/figure-html/tab-cat-1-1.png)<!-- -->
+</details>
+<details>
+<summary>trade value of animal products from countries with existing outbreak</summary>
+![](network_model_eval_files/figure-html/tab-cat-2-1.png)<!-- -->
+</details>
+<details>
+<summary>asses from countries with existing outbreak</summary>
+![](network_model_eval_files/figure-html/tab-cat-3-1.png)<!-- -->
+</details>
+<details>
+<summary>buffaloes from countries with existing outbreak</summary>
+![](network_model_eval_files/figure-html/tab-cat-4-1.png)<!-- -->
+</details>
+<details>
+<summary>camelids (other) from countries with existing outbreak</summary>
+![](network_model_eval_files/figure-html/tab-cat-5-1.png)<!-- -->
+</details>
+<details>
+<summary>camels from countries with existing outbreak</summary>
+![](network_model_eval_files/figure-html/tab-cat-6-1.png)<!-- -->
+</details>
+<details>
+<summary>cattle from countries with existing outbreak</summary>
+![](network_model_eval_files/figure-html/tab-cat-7-1.png)<!-- -->
+</details>
+<details>
+<summary>chickens from countries with existing outbreak</summary>
+![](network_model_eval_files/figure-html/tab-cat-8-1.png)<!-- -->
+</details>
+<details>
+<summary>ducks from countries with existing outbreak</summary>
+![](network_model_eval_files/figure-html/tab-cat-9-1.png)<!-- -->
+</details>
+<details>
+<summary>goats from countries with existing outbreak</summary>
+![](network_model_eval_files/figure-html/tab-cat-10-1.png)<!-- -->
+</details>
+<details>
+<summary>horses from countries with existing outbreak</summary>
+![](network_model_eval_files/figure-html/tab-cat-11-1.png)<!-- -->
+</details>
+<details>
+<summary>mules from countries with existing outbreak</summary>
+![](network_model_eval_files/figure-html/tab-cat-12-1.png)<!-- -->
+</details>
+<details>
+<summary>pigeons (other) birds from countries with existing outbreak</summary>
+![](network_model_eval_files/figure-html/tab-cat-13-1.png)<!-- -->
+</details>
+<details>
+<summary>pigs from countries with existing outbreak</summary>
+![](network_model_eval_files/figure-html/tab-cat-14-1.png)<!-- -->
+</details>
+<details>
+<summary>rabbits and hares from countries with existing outbreak</summary>
+![](network_model_eval_files/figure-html/tab-cat-15-1.png)<!-- -->
+</details>
+<details>
+<summary>rodents (other) from countries with existing outbreak</summary>
+![](network_model_eval_files/figure-html/tab-cat-16-1.png)<!-- -->
+</details>
+<details>
+<summary>sheep from countries with existing outbreak</summary>
+![](network_model_eval_files/figure-html/tab-cat-17-1.png)<!-- -->
+</details>
+<details>
+<summary>turkeys from countries with existing outbreak</summary>
+![](network_model_eval_files/figure-html/tab-cat-18-1.png)<!-- -->
+</details>
+
+<details>
+<summary>Validation</summary>
+
+```
+## [1] TRUE
+```
 
 ![](network_model_eval_files/figure-html/predict-1.png)<!-- -->
-
+</details>

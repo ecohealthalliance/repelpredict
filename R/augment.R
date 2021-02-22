@@ -448,7 +448,7 @@ repel_augment.network_lme <- function(model_object, conn, newdata) {
   outbreak_status <- left_join(outbreak_status, trade_vars_groups_summed,  by = c("country_destination", "year", "country_origin"))
 
   outbreak_status <- outbreak_status %>%
-    select(-starts_with("trade_")) %>%
+    select(1:29) %>%
     lazy_dt() %>%
     select(-gc_dist, -country_origin, -year) %>%
     group_by(country_destination, disease, month, outbreak_start) %>%
@@ -464,7 +464,12 @@ repel_augment.network_lme <- function(model_object, conn, newdata) {
     select(country_iso3c, disease, month, outbreak_start,
            shared_borders_from_outbreaks = shared_border,
            ots_trade_dollars_from_outbreaks = ots_trade_dollars,
-           fao_livestock_heads_from_outbreaks = fao_livestock_heads)
+           fao_livestock_heads_from_outbreaks = fao_livestock_heads,
+           everything(), -trade_animals_live_nes)
+
+  names(outbreak_status)[str_starts(names(outbreak_status), "trade_")] <- paste0("fao_",
+                                                                                   names(outbreak_status)[str_starts(names(outbreak_status), "trade_")],
+                                                                                   "_from_outbreaks")
 
   augmented_newdata <- left_join(newdata, outbreak_status, by = c("country_iso3c", "disease", "month"))
 

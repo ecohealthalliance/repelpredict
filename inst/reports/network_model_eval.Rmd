@@ -6,13 +6,14 @@ output:
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE, fig.width = 13, fig.height = 10)
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE, fig.width = 7, fig.height = 5)
 devtools::load_all()
 library(ggplot2)
 library(lme4)
+library(binom)
+library(knitr)
 
 scale2 <- function(x, na.rm = FALSE) (x - mean(x, na.rm = na.rm)) / sd(x, na.rm)
-
 
 cbp1 <- c("#999999", "#E69F00", "#56B4E9", "#009E73",
           "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
@@ -22,83 +23,110 @@ mod <- read_rds(here::here("tmp/lme_mod_all_diseases.rds"))
 ```
 
 ```{r summary}
-summary(mod)
-
+# summary(mod)
 ```
 
 ```{r coef-plots}
-
 # Random effects
 randef <- ranef(mod)
 randef_disease <- randef$disease %>%
   tibble::rownames_to_column(var = "disease") %>%
-  as_tibble()
+  as_tibble() %>% 
+  select(-`(Intercept)`) %>% 
+  rename(shared_borders_from_outbreaks = "dummy(shared_borders_from_outbreaks, \"TRUE\")")
 # randef_country <- randef$country_iso3c %>%
-#   tibble::rownames_to_column(var = "country_disease") %>%
-#   as_tibble() %>%
-#   separate(country_disease, into = c("country", "disease"), sep = ":") %>%
-#   rename(intercept = `(Intercept)` )
+# tibble::rownames_to_column(var = "country_disease") %>%
+# as_tibble() %>%
+# separate(country_disease, into = c("country", "disease"), sep = ":") %>%
+# rename(intercept = `(Intercept)` )
 # fixdef <- fixef(mod)
 
 randef_disease_long <- randef_disease %>%
-  filter(disease %in% get_oie_high_importance_diseases()) %>%
-  pivot_longer(-disease) %>%
-  mutate(disease = str_replace_all(disease, "_", " "))
-
-vars_clean <- c("No shared border with one or more country with existing outbreaks",
-                       "Shared border with one or more country with existing outbreaks",
-                       "Trade value of animal products from countries with existing outbreaks",
-                       "Livestock (heads) from countries with existing outbreaks"
-                       )
-names(vars_clean) <- unique(randef_disease_long$name)
-
+  pivot_longer(-disease) %>% 
+  mutate(name = str_replace(name, "_from_outbreaks", " from countries with existing outbreak"),
+         name = str_replace(name, "ots_trade_dollars", "trade value of animal products"),
+         name = str_replace(name, "fao_trade_", ""),
+         name = str_replace(name, "_other", " (other)"),
+         name = str_replace_all(name, "_", " "),
+         name = str_replace(name, "shared borders from countries with existing outbreak", "shared borders with country with existing outbreak"))
 
 randef_coeffs <- purrr::map(unique(randef_disease_long$name), function(var){
   dat <- randef_disease_long %>%
     filter(name == var) %>%
-    mutate(disease = forcats::fct_reorder(disease, value)) %>%
     mutate(pos = value > 0)
-  title <- vars_clean[var]
+  # xmin <- min(dat$value)
+  # xmax <- max(dat$value)
+  dat <- dat %>% 
+    filter(disease %in% get_oie_high_importance_diseases()) %>% 
+    mutate(disease = str_replace_all(disease, "_", " ")) %>% 
+    mutate(disease = forcats::fct_reorder(disease, value))
+  title <- var
   ggplot(dat) +
     geom_hline(aes(yintercept = 0), color = "gray50") +
     geom_point(aes(x = disease, y = value, color = pos), size = 2) +
     geom_segment(aes(x = disease, xend = disease, y = value, yend = 0, color = pos)) +
+    #    scale_y_continuous(limits = c(xmin,  xmax)) +
     scale_color_manual(values = c("TRUE" = "#0072B2", "FALSE" = "#D55E00")) +
-    labs(x = "", y = "", title = title) +
+    labs(y = "Coefficient", x = "", title = title) +
     coord_flip() +
     theme_minimal() +
-    theme(legend.position = "none", axis.text = element_text(size = 12)) +
+    theme(legend.position = "none", 
+          axis.text = element_text(size = 12), 
+          title = element_text(size = 12),
+          plot.title.position = "plot") +
     NULL
-
+  
 })
 
-randef_coeffs[[3]]
-randef_coeffs[[4]]
+names(randef_coeffs) <- unique(randef_disease_long$name)
+
 ```
 
-```{r predict}
 
+<small>_Click on the_ ▶ _︎arrows to expand sections._</small>
+
+```{r, include = FALSE}
+src <- map_chr(seq_along(randef_coeffs), ~ {
+  tab_name <- names(randef_coeffs[.x])
+  knit_expand(text = c("<details>",
+                       "<summary>{{tab_name}}</summary>",
+                       "```{r tab-cat-{{.x}}, echo = FALSE, align = 'left'}", 
+                       "randef_coeffs[[{{.x}}]]",
+                       "```",
+                       "</details>"))
+})
+
+```
+
+`r knit_child(text = src)`
+
+<details>
+<summary>Validation</summary>
+```{r predict}
+# training data
 augmented_data_training <- vroom::vroom(here::here("tmp/network_augmented_data.csv.gz"))  %>%
   select(country_iso3c, disease, month, outbreak_start,
          shared_borders_from_outbreaks,
          ots_trade_dollars_from_outbreaks,
-         fao_livestock_heads_from_outbreaks) %>%
+         starts_with("fao"), -fao_livestock_heads_from_outbreaks) %>%
   drop_na() %>%
   mutate(country_iso3c = as.factor(country_iso3c)) %>%
   mutate(disease = as.factor(disease)) %>%
   mutate_if(is.numeric, scale2)
 
 # validated
+# model_object <- network_lme_model()
+# conn <- repeldata::repel_local_conn()
 # valdat <- repel_validation(model_object, conn) %>%
 #   select(country_iso3c, disease, month)
 
 # augmented_data_val <- repel_augment(model_object, conn, newdata = valdat)
 # vroom::vroom_write(augmented_data_val, gzfile("tmp/network_augmented_data_val.csv.gz"))
 augmented_data_val <- vroom::vroom(here::here("tmp/network_augmented_data_val.csv.gz"))  %>%
-  dplyr::select(country_iso3c, disease, month, outbreak_start,
-                shared_borders_from_outbreaks,
-                ots_trade_dollars_from_outbreaks,
-                fao_livestock_heads_from_outbreaks) %>%
+  select(country_iso3c, disease, month, outbreak_start,
+         shared_borders_from_outbreaks,
+         ots_trade_dollars_from_outbreaks,
+         starts_with("fao"), -fao_livestock_heads_from_outbreaks) %>%
   drop_na() %>%
   mutate(country_iso3c = as.factor(country_iso3c)) %>%
   mutate(disease = as.factor(disease)) %>%
@@ -114,25 +142,68 @@ augmented_data_val_bootstrap <- augmented_data_val %>%
 
 # get predicted outbreak start probability by condition
 augmented_data_val_compressed <- augmented_data_val_bootstrap %>%
-  distinct(country_iso3c, disease, shared_borders_from_outbreaks, ots_trade_dollars_from_outbreaks, fao_livestock_heads_from_outbreaks, outbreak_start_predicted) %>%
-  rename(outbreak_start_predict_prob = outbreak_start_predicted)
-
-# get actual outbreak start probability by condition from the full dataset
-augmented_data_all_compressed <- augmented_data_training %>%
-  bind_rows(augmented_data_val) %>%
-  group_by(country_iso3c, disease, shared_borders_from_outbreaks, ots_trade_dollars_from_outbreaks, fao_livestock_heads_from_outbreaks) %>%
-  summarize(outbreak_start_actual_prob = sum(outbreak_start)/n()) %>%
+  select(country_iso3c, disease, shared_borders_from_outbreaks, ots_trade_dollars_from_outbreaks, starts_with("fao"), outbreak_start_predicted) %>%
+  distinct() %>% 
+  rename(outbreak_start_predict_prob = outbreak_start_predicted) %>% 
+  mutate(outbreak_start_predict_prob_grp = cut_number(outbreak_start_predict_prob, n = 20)) %>% 
+  group_by(outbreak_start_predict_prob_grp) %>% 
+  mutate(outbreak_start_predict_prob_grp_median = median(outbreak_start_predict_prob)) %>% 
   ungroup()
 
-# compare validation predicted against actual prob
-validation_outbreak_comp <- augmented_data_val_compressed %>%
-  left_join(augmented_data_all_compressed)
+test <- augmented_data_val_compressed %>% 
+  group_by_at(vars(-outbreak_start_predict_prob)) %>%
+  count() %>% 
+  ungroup() 
+assert_that(nrow(test) == nrow(augmented_data_val_compressed))
 
-ggplot(validation_outbreak_comp, aes(x = outbreak_start_actual_prob, y = outbreak_start_predict_prob)) +
+augmented_data_val_binoms <- augmented_data_training %>%
+  bind_rows(augmented_data_val) %>% 
+  right_join(augmented_data_val_compressed) %>% 
+  group_by(outbreak_start_predict_prob_grp) %>% 
+  group_split() %>%
+  purrr::map_dfr(., function(tw){
+    binom <-  binom.confint(x = sum(tw$outbreak_start), n=nrow(tw), methods = "wilson")
+    tw %>%
+      distinct(outbreak_start_predict_prob_grp, outbreak_start_predict_prob_grp_median) %>%
+      mutate(outbreak_start_actual_prob = binom$mean, outbreak_start_actual_low = binom$lower, outbreak_start_actual_upper = binom$upper)})
+
+options(scipen = 999)
+ggplot(augmented_data_val_binoms, aes(x = outbreak_start_predict_prob_grp_median, y  = outbreak_start_actual_prob)) +
   geom_point() +
-  scale_x_continuous(limits = c(0,1)) +
-  #scale_y_continuous(limits = c(0,1)) +
+  geom_errorbar(aes(ymin = outbreak_start_actual_low, ymax = outbreak_start_actual_upper)) +
+  scale_x_log10()  +
+  labs(x = "Forcasted probability", y = "Actual probabilty") +
+  theme_minimal() +
+  theme(legend.position = "none", 
+        axis.text = element_text(size = 12), 
+        title = element_text(size = 12),
+        plot.title.position = "plot") +
   NULL
 
-```
+# get actual outbreak start probability by condition from the full dataset
+# by condition
+# augmented_data_all_compressed <- augmented_data_training %>%
+#   bind_rows(augmented_data_val) %>%
+#   select(-month) %>% 
+#   group_by_at(vars(-outbreak_start)) %>%
+#   group_split() %>% 
+#   purrr::map_dfr(., function(tw){
+#   binom <- binom_out(x = sum(tw$outbreak_start), n=nrow(tw))
+#   tw %>% 
+#     select(-outbreak_start) %>% 
+#     distinct() %>% 
+#     mutate(outbreak_start_actual_prob = binom$mean, outbreak_start_actual_low = binom$lower, outbreak_start_actual_upper = binom$upper)
+# })
 
+# compare validation predicted against actual prob
+# validation_outbreak_comp <- augmented_data_val_compressed %>%
+#   left_join(augmented_data_all_compressed)
+
+# ggplot(validation_outbreak_comp, aes(x = outbreak_start_actual_prob, y = outbreak_start_predict_prob)) +
+#   geom_point() +
+#   scale_x_continuous(limits = c(0,1)) +
+#   #scale_y_continuous(limits = c(0,1)) +
+#   NULL
+
+```
+</details>
