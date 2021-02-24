@@ -322,21 +322,18 @@ repel_augment.network_lme <- function(model_object, conn, newdata) {
     filter(outbreak_ongoing == 1)  %>%
     select(country_origin = country_iso3c, month, disease)
 
-  # add in endemic diseases that may not be in outbreaks
-  endemic_status_present <-  annual_reports_animal_hosts <- tbl(conn, "annual_reports_animal_hosts") %>%
-    mutate(taxa = ifelse(taxa %in% c("goats", "sheep"), "sheep/goats", taxa)) %>%
-    filter(taxa %in% taxa_list) %>%
-    filter(report_semester != "0") %>%
-    filter(disease_status %in% c("present", "suspected")) %>%
-    select(country_iso3c, report_year, report_months, disease) %>%
+  endemic_status_present <- tbl(conn, "nowcast_boost_augment_predict")  %>%
     collect() %>%
-    distinct()
+    mutate(cases = as.integer(predicted_cases)) %>%
+    mutate(cases = coalesce(cases, predicted_cases)) %>%
+    filter(cases>0) %>%
+    select(country_iso3c, report_year, report_semester, disease)
 
   year_lookup <- endemic_status_present %>%
-    distinct(report_months, report_year) %>%
+    distinct(report_semester, report_year) %>%
     mutate(month = case_when(
-      report_months == 'Jan-Jun' ~ list(seq(1, 6)),
-      report_months == 'Jul-Dec' ~ list(seq(7, 12))))
+      report_semester == 1 ~ list(seq(1, 6)),
+      report_semester == 2 ~ list(seq(7, 12))))
   year_lookup <- unnest(year_lookup, month) %>%
     mutate(month = ymd(paste(report_year, month, "01")))
 
@@ -345,9 +342,8 @@ repel_augment.network_lme <- function(model_object, conn, newdata) {
     disease_recode = col_character()))
 
   endemic_status_present <- endemic_status_present %>%
-    left_join(diseases_recode, by = "disease") %>%
-    left_join(year_lookup,  by = c("report_year", "report_months")) %>%
-    select(country_origin = country_iso3c, month, disease = disease_recode)
+    left_join(year_lookup,  by = c("report_year", "report_semester")) %>%
+    select(country_origin = country_iso3c, month, disease)
 
   disease_status_present <- bind_rows(outbreak_status_present, endemic_status_present) %>%
     distinct()
@@ -417,7 +413,6 @@ repel_augment.network_lme <- function(model_object, conn, newdata) {
     )) %>%
     left_join(trade_lookup,  by = c("product_code", "source")) %>%
     mutate(group_name = str_extract(group_name, "[^;]+"))
-
 
   trade_vars_groups_summed <- trade_vars %>%
     left_join(trade_vars_lookup, by = "name") %>%
