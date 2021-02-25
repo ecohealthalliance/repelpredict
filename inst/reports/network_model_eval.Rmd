@@ -19,7 +19,16 @@ cbp1 <- c("#999999", "#E69F00", "#56B4E9", "#009E73",
           "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
 
 # Load model
-mod <- read_rds(here::here("tmp/lme_mod_all_diseases.rds"))
+mod_fao <- read_rds(here::here("tmp/lme_mod_fao.rds"))
+mod_simp <- read_rds(here::here("tmp/lme_mod_simple.rds"))
+
+AIC(mod_fao)
+AIC(mod_simp)
+
+# mod_simp is slightly better
+
+mod <- mod_simp
+
 ```
 
 ```{r summary}
@@ -101,14 +110,14 @@ src <- map_chr(seq_along(randef_coeffs), ~ {
 `r knit_child(text = src)`
 
 <details>
-<summary>Validation</summary>
+<summary>validation</summary>
 ```{r predict}
 # training data
 augmented_data_training <- vroom::vroom(here::here("tmp/network_augmented_data.csv.gz"))  %>%
   select(country_iso3c, disease, month, outbreak_start,
          shared_borders_from_outbreaks,
          ots_trade_dollars_from_outbreaks,
-         starts_with("fao"), -fao_livestock_heads_from_outbreaks) %>%
+        fao_livestock_heads_from_outbreaks) %>%
   drop_na() %>%
   mutate(country_iso3c = as.factor(country_iso3c)) %>%
   mutate(disease = as.factor(disease)) %>%
@@ -126,7 +135,7 @@ augmented_data_val <- vroom::vroom(here::here("tmp/network_augmented_data_val.cs
   select(country_iso3c, disease, month, outbreak_start,
          shared_borders_from_outbreaks,
          ots_trade_dollars_from_outbreaks,
-         starts_with("fao"), -fao_livestock_heads_from_outbreaks) %>%
+         fao_livestock_heads_from_outbreaks) %>%
   drop_na() %>%
   mutate(country_iso3c = as.factor(country_iso3c)) %>%
   mutate(disease = as.factor(disease)) %>%
@@ -154,7 +163,7 @@ test <- augmented_data_val_compressed %>%
   group_by_at(vars(-outbreak_start_predict_prob)) %>%
   count() %>% 
   ungroup() 
-assert_that(nrow(test) == nrow(augmented_data_val_compressed))
+#assert_that(nrow(test) == nrow(augmented_data_val_compressed))
 
 augmented_data_val_binoms <- augmented_data_training %>%
   bind_rows(augmented_data_val) %>% 
