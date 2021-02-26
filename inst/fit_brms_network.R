@@ -36,7 +36,7 @@ augmented_data <- augmented_data %>%
   drop_na() %>%
   mutate(country_iso3c = as.factor(country_iso3c)) %>%
   mutate(disease = as.factor(disease)) %>%
-  mutate(shared_borders_from_outbreaks = as.factor(shared_borders_from_outbreaks)) %>%
+ # mutate(shared_borders_from_outbreaks = as.factor(shared_borders_from_outbreaks)) %>%
   mutate_if(is.numeric, scale2)
 
 augmented_data_compressed <- augmented_data %>%
@@ -53,15 +53,22 @@ augmented_data_compressed <- augmented_data %>%
 #   ungroup()# outbreak counts of 1 are diseases where the rest of the outbreaks are in the validation set
 
 # how many outbreak starts
-table(augmented_data$outbreak_start) #(0.1%)
+#table(augmented_data$outbreak_start) #(0.1%)
 
 # brms setup ---------------------------------------------------------------
 vars <- c("ots_trade_dollars_from_outbreaks", "shared_borders_from_outbreaks", "fao_livestock_heads_from_outbreaks")
 
-frm <- as.formula(paste0("outbreak_start|weights(count)  ~
+frm <- bf(paste0("outbreak_start|weights(count)  ~
                          0 + (1 | country_iso3c:disease) + ", # baseline intercept for disease in country
                          paste0("(0 + ", vars, "|disease)", collapse = " + "))) #  “variance of trade by disease”
 # https://discourse.mc-stan.org/t/are-complex-surveys-feasible-in-brms/17058/25
+
+prev_mod <- read_rds(here::here("tmp/brms_mod_simp.rds"))
+
+# brms_post <- prev_mod %>%
+#   tidybayes::spread_draws(r_disease[disease,name])
+
+
 
 # Fit ---------------------------------------------------------------------
 
@@ -85,7 +92,7 @@ mod <- brms::brm(
   formula = frm,
   data = augmented_data_compressed,
   family = 'bernoulli',
-  inits = "0", # how to get inits from lme
+  inits = prev_mod,
   iter = 2000,
   chains = 4,
   cores = 4#,
@@ -96,17 +103,7 @@ toc()
 
 write_rds(mod, here::here("tmp/brms_mod_simp.rds"))
 
-# insight package
-# get_variance(mod)
-# Warning message:
-#   Random slopes not present as fixed effects. This artificially inflates the conditional random effect variances.
-# Solution: Respecify fixed structure!
-
-# dharma
-# simulate_residuals <- simulateResiduals(fittedModel = mod, plot = F)
-# resid <- residuals(simulate_residuals, quantileFunction = qnorm, outlierValues = c(-7,7))
-# # plot(simulate_residuals)
-# testResiduals(simulate_residuals)
+# Challenge in setting intial values: https://github.com/paul-buerkner/brms/issues/883
 
 # Baseline ----------------------------------------------------------------
 # For spread forecasting, the practical naïve baseline will be assumption of movement to the most strongly connected locale of the current outbreak.
