@@ -10,111 +10,22 @@ output:
 
 ```{r setup, include=FALSE}
 
-# TODO
-# brms dummy for shared borders
-# brms validation
-
 knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE, fig.width = 7, fig.height = 5)
 devtools::load_all()
 library(ggplot2)
 library(lme4)
 library(binom)
 library(knitr)
+library(forcats)
+library(brms)
+library(bayestestR)
+library(tidybayes) #extract and visualize tidy data frames of draws from posterior distributions of model variables, fits, and predictions from brms::brm
 
 scale2 <- function(x, na.rm = FALSE) (x - mean(x, na.rm = na.rm)) / sd(x, na.rm)
 
 cbp1 <- c("#999999", "#E69F00", "#56B4E9", "#009E73",
           "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
 
-# Load model
-mod_fao <- read_rds(here::here("tmp/lme_mod_fao.rds"))
-mod_simp <- read_rds(here::here("tmp/lme_mod_simple.rds"))
-
-# AIC(mod_fao)
-# AIC(mod_simp)
-
-# mod_simp is slightly better
-
-mod <- mod_simp
-
-```
-
-### lme4
-```{r coef-plots}
-# Random effects
-randef <- ranef(mod)
-randef_disease <- randef$disease %>%
-  tibble::rownames_to_column(var = "disease") %>%
-  as_tibble() %>% 
-  select(-`(Intercept)`) %>% 
-  rename(shared_borders_from_outbreaks = "dummy(shared_borders_from_outbreaks, \"TRUE\")")
-# randef_country <- randef$country_iso3c %>%
-# tibble::rownames_to_column(var = "country_disease") %>%
-# as_tibble() %>%
-# separate(country_disease, into = c("country", "disease"), sep = ":") %>%
-# rename(intercept = `(Intercept)` )
-# fixdef <- fixef(mod)
-
-randef_disease_long <- randef_disease %>%
-  pivot_longer(-disease) %>% 
-  mutate(name = str_replace(name, "_from_outbreaks", " from countries with existing outbreak"),
-         name = str_replace(name, "ots_trade_dollars", "trade value of animal products"),
-         name = str_replace(name, "fao_trade_", ""),
-         name = str_replace(name, "_other", " (other)"),
-         name = str_replace_all(name, "_", " "),
-         name = str_replace(name, "shared borders from countries with existing outbreak", "shared borders with country with existing outbreak"))
-
-randef_coeffs <- purrr::map(unique(randef_disease_long$name), function(var){
-  dat <- randef_disease_long %>%
-    filter(name == var) %>%
-    mutate(pos = value > 0)
-  # xmin <- min(dat$value)
-  # xmax <- max(dat$value)
-  dat <- dat %>% 
-    filter(disease %in% get_oie_high_importance_diseases()) %>% 
-    mutate(disease = str_replace_all(disease, "_", " ")) %>% 
-    mutate(disease = forcats::fct_reorder(disease, value))
-  title <- var
-  ggplot(dat) +
-    geom_hline(aes(yintercept = 0), color = "gray50") +
-    geom_point(aes(x = disease, y = value, color = pos), size = 2) +
-    geom_segment(aes(x = disease, xend = disease, y = value, yend = 0, color = pos)) +
-    #    scale_y_continuous(limits = c(xmin,  xmax)) +
-    scale_color_manual(values = c("TRUE" = "#0072B2", "FALSE" = "#D55E00")) +
-    labs(y = "Coefficient", x = "", title = title) +
-    coord_flip() +
-    theme_minimal() +
-    theme(legend.position = "none", 
-          axis.text = element_text(size = 12), 
-          title = element_text(size = 12),
-          plot.title.position = "plot") +
-    NULL
-  
-})
-
-names(randef_coeffs) <- unique(randef_disease_long$name)
-
-```
-
-
-```{r, include = FALSE}
-src <- map_chr(seq_along(randef_coeffs), ~ {
-  tab_name <- names(randef_coeffs[.x])
-  knit_expand(text = c("<details>",
-                       "<summary>{{tab_name}}</summary>",
-                       "```{r tab-cat-{{.x}}, echo = FALSE, align = 'left'}", 
-                       "randef_coeffs[[{{.x}}]]",
-                       "```",
-                       "</details>"))
-})
-
-```
-
-`r knit_child(text = src)`
-
-<details>
-<summary>validation</summary>
-```{r predict}
 # training data
 augmented_data_training <- vroom::vroom(here::here("tmp/network_augmented_data.csv.gz"))  %>%
   select(country_iso3c, disease, month, outbreak_start,
@@ -149,95 +60,56 @@ augmented_data_val_bootstrap <- augmented_data_val %>%
   rsample::bootstraps(times = 1) %>%
   pull(splits) %>%
   magrittr::extract2(1) %>%
-  as_tibble() %>%
-  mutate(outbreak_start_predicted = predict(mod, ., type = "response"))
-
-# get predicted outbreak start probability by condition
-augmented_data_val_compressed <- augmented_data_val_bootstrap %>%
-  select(country_iso3c, disease, shared_borders_from_outbreaks, ots_trade_dollars_from_outbreaks, starts_with("fao"), outbreak_start_predicted) %>%
-  distinct() %>% 
-  rename(outbreak_start_predict_prob = outbreak_start_predicted) %>% 
-  mutate(outbreak_start_predict_prob_grp = cut_number(outbreak_start_predict_prob, n = 20)) %>% 
-  group_by(outbreak_start_predict_prob_grp) %>% 
-  mutate(outbreak_start_predict_prob_grp_median = median(outbreak_start_predict_prob)) %>% 
-  ungroup()
-
-test <- augmented_data_val_compressed %>% 
-  group_by_at(vars(-outbreak_start_predict_prob)) %>%
-  count() %>% 
-  ungroup() 
-#assert_that(nrow(test) == nrow(augmented_data_val_compressed))
-
-augmented_data_val_binoms <- augmented_data_training %>%
-  bind_rows(augmented_data_val) %>% 
-  right_join(augmented_data_val_compressed) %>% 
-  group_by(outbreak_start_predict_prob_grp) %>% 
-  group_split() %>%
-  purrr::map_dfr(., function(tw){
-    binom <-  binom.confint(x = sum(tw$outbreak_start), n=nrow(tw), methods = "wilson")
-    tw %>%
-      distinct(outbreak_start_predict_prob_grp, outbreak_start_predict_prob_grp_median) %>%
-      mutate(outbreak_start_actual_prob = binom$mean, outbreak_start_actual_low = binom$lower, outbreak_start_actual_upper = binom$upper)})
-
-options(scipen = 999)
-ggplot(augmented_data_val_binoms, aes(x = outbreak_start_predict_prob_grp_median, y  = outbreak_start_actual_prob)) +
-  geom_point() +
-  geom_errorbar(aes(ymin = outbreak_start_actual_low, ymax = outbreak_start_actual_upper)) +
-  scale_x_log10()  +
-  labs(x = "Forcasted probability", y = "Actual probabilty") +
-  theme_minimal() +
-  theme(legend.position = "none", 
-        axis.text = element_text(size = 12), 
-        title = element_text(size = 12),
-        plot.title.position = "plot") +
-  NULL
-
-
-
+  as_tibble()
 ```
-</details>
 
-### brms
+### lme4
+```{r lme mods}
+# Load model
+lme_mod_fao <- read_rds(here::here("tmp/lme_mod_fao.rds"))
+lme_mod_simp <- read_rds(here::here("tmp/lme_mod_simple.rds"))
 
-```{r brms}
-library(brms)
-library(bayestestR)
-library(tidybayes) #extract and visualize tidy data frames of draws from posterior distributions of model variables, fits, and predictions from brms::brm
-mod <- read_rds(here::here("tmp/brms_mod_simp.rds"))
+# AIC(lme_mod_fao)
+# AIC(lme_mod_simp)
 
-vars <- get_variables(mod)
+# mod_simp is slightly better
+```
 
-draws <- mod %>%
-  spread_draws(r_disease[disease,name]) 
+```{r prep-lme-coef-plots}
+# Random effects
+randef <- ranef(lme_mod_simp)
+randef_disease <- randef$disease %>%
+  tibble::rownames_to_column(var = "disease") %>%
+  as_tibble() %>% 
+  select(-`(Intercept)`) %>% 
+  rename(shared_borders_from_outbreaks = "dummy(shared_borders_from_outbreaks, \"TRUE\")")
 
-draws_sum <- draws %>% 
-  group_by(disease, name) %>% 
-  summarize(r_disease_median = median(r_disease), 
-            hd_low = bayestestR::hdi(r_disease)$CI_low,
-            hd_high = bayestestR::hdi(r_disease)$CI_high) %>% 
-  ungroup() %>% 
-    mutate(name = str_replace(name, "_from_outbreaks", " from countries with existing outbreak"),
+randef_disease_long <- randef_disease %>%
+  pivot_longer(-disease) %>% 
+  mutate(name = str_replace(name, "_from_outbreaks", " from countries with existing outbreak"),
          name = str_replace(name, "ots_trade_dollars", "trade value of animal products"),
          name = str_replace(name, "fao_trade_", ""),
          name = str_replace(name, "_other", " (other)"),
          name = str_replace_all(name, "_", " "),
          name = str_replace(name, "shared borders from countries with existing outbreak", "shared borders with country with existing outbreak"))
 
-
-brms_coefs <- purrr::map(unique(draws_sum$name), function(var){
-  dat <- draws_sum %>%
-    filter(name == var) 
+lme_coeffs <- purrr::map(unique(randef_disease_long$name), function(var){
+  dat <- randef_disease_long %>%
+    filter(name == var) %>%
+    mutate(pos = value > 0)
   # xmin <- min(dat$value)
   # xmax <- max(dat$value)
   dat <- dat %>% 
     filter(disease %in% get_oie_high_importance_diseases()) %>% 
     mutate(disease = str_replace_all(disease, "_", " ")) %>% 
-    mutate(disease = forcats::fct_reorder(disease, r_disease_median))
+    mutate(disease = forcats::fct_reorder(disease, value))
   title <- var
-  ggplot(dat, aes(x = disease, y = r_disease_median)) +
+  ggplot(dat) +
     geom_hline(aes(yintercept = 0), color = "gray50") +
-    geom_point(size = 2) +
-    geom_errorbar(aes(ymin = hd_low, ymax =hd_high),  width = 0.2) +
+    geom_point(aes(x = disease, y = value, color = pos), size = 2) +
+    geom_segment(aes(x = disease, xend = disease, y = value, yend = 0, color = pos)) +
+    #    scale_y_continuous(limits = c(xmin,  xmax)) +
+    scale_color_manual(values = c("TRUE" = "#0072B2", "FALSE" = "#D55E00")) +
     labs(y = "Coefficient", x = "", title = title) +
     coord_flip() +
     theme_minimal() +
@@ -249,21 +121,181 @@ brms_coefs <- purrr::map(unique(draws_sum$name), function(var){
   
 })
 
-names(brms_coefs) <- unique(draws_sum$name)
+names(lme_coeffs) <- unique(randef_disease_long$name)
+
+```
+
+
+```{r, include = FALSE}
+src_lme <- map_chr(seq_along(lme_coeffs), ~ {
+  tab_name <- names(lme_coeffs[.x])
+  knit_expand(text = c("<details>",
+                       "<summary>{{tab_name}}</summary>",
+                       "```{r lme-coef-{{.x}}, echo = FALSE, align = 'left'}", 
+                       "lme_coeffs[[{{.x}}]]",
+                       "```",
+                       "</details>"))
+})
+
+```
+
+`r knit_child(text = src_lme)`
+
+<details>
+<summary>validation</summary>
+```{r lme-validation}
+lme_predict <- augmented_data_val_bootstrap %>%
+  mutate(outbreak_start_predicted = predict(lme_mod_simp, ., type = "response"))
+
+# get predicted outbreak start probability by condition
+lme_predict_compressed <- lme_predict %>%
+  select(country_iso3c, disease, shared_borders_from_outbreaks, ots_trade_dollars_from_outbreaks, starts_with("fao"), outbreak_start_predicted) %>%
+  distinct() %>% 
+  rename(outbreak_start_predict_prob = outbreak_start_predicted) %>% 
+  mutate(outbreak_start_predict_prob_grp = cut_number(outbreak_start_predict_prob, n = 20)) %>% 
+  group_by(outbreak_start_predict_prob_grp) %>% 
+  mutate(outbreak_start_predict_prob_grp_median = median(outbreak_start_predict_prob)) %>% 
+  ungroup()
+
+lme_predict_compressed %>% 
+  group_by_at(vars(-outbreak_start_predict_prob)) %>%
+  count() %>% 
+  ungroup()  %>% 
+  nrow() %>% 
+  assertthat::are_equal(. , nrow(lme_predict_compressed))
+
+lme_binoms <- augmented_data_training %>%
+  bind_rows(augmented_data_val) %>% 
+  right_join(lme_predict_compressed) %>% 
+  group_by(outbreak_start_predict_prob_grp) %>% 
+  group_split() %>%
+  purrr::map_dfr(., function(tw){
+    binom <-  binom.confint(x = sum(tw$outbreak_start), n=nrow(tw), methods = "wilson")
+    tw %>%
+      distinct(outbreak_start_predict_prob_grp, outbreak_start_predict_prob_grp_median) %>%
+      mutate(outbreak_start_actual_prob = binom$mean, outbreak_start_actual_low = binom$lower, outbreak_start_actual_upper = binom$upper)})
+
+options(scipen = 999)
+ggplot(lme_binoms, aes(x = outbreak_start_predict_prob_grp_median, y  = outbreak_start_actual_prob)) +
+  geom_point() +
+  geom_errorbar(aes(ymin = outbreak_start_actual_low, ymax = outbreak_start_actual_upper)) +
+  scale_x_log10()  +
+  labs(x = "Forcasted probability", y = "Actual probabilty") +
+  theme_minimal() +
+  theme(legend.position = "none", 
+        axis.text = element_text(size = 12), 
+        title = element_text(size = 12),
+        plot.title.position = "plot") +
+  NULL
+
+```
+</details>
+
+### brms
+```{r brms-mods}
+brms_mod <- read_rds(here::here("tmp/brms_mod_simp.rds"))
+
+brms_post <- brms_mod %>%
+  spread_draws(r_disease[disease,name])  %>% 
+  mutate(name = str_replace(name, "_from_outbreaks", " from countries with existing outbreak"),
+         name = str_replace(name, "ots_trade_dollars", "trade value of animal products"),
+         name = str_replace(name, "fao_trade_", ""),
+         name = str_replace(name, "_other", " (other)"),
+         name = str_replace_all(name, "_", " "),
+         name = str_replace(name, "shared borders from countries with existing outbreak", "shared borders with country with existing outbreak")) %>% 
+  filter(disease %in% get_oie_high_importance_diseases()) %>% 
+  mutate(disease = str_replace_all(disease, "_", " ")) 
+
+```
+
+
+```{r prep-brms-coef-plots}
+
+brms_coefs <- purrr::map(unique(brms_post$name), function(var){
+  dat <- brms_post %>%
+    filter(name == var)  %>% 
+    mutate(r_disease_med = median(r_disease)) %>% 
+    ungroup()
+
+  
+ ggplot(dat, aes(y = fct_reorder(disease, r_disease_med), x = r_disease)) +
+   stat_halfeye(.width = c(.90, .5))   +
+    labs(x = "Coefficient", y = "", title = var) +
+    theme_minimal() +
+    theme(legend.position = "none", 
+          axis.text = element_text(size = 12), 
+          title = element_text(size = 12),
+          plot.title.position = "plot") +
+    NULL
+  
+})
+
+names(brms_coefs) <- unique(brms_post$name)
 
 ```
 
 ```{r, include = FALSE}
-src <- map_chr(seq_along(brms_coefs), ~ {
+src_brm <- map_chr(seq_along(brms_coefs), ~ {
   tab_name <- names(brms_coefs[.x])
   knit_expand(text = c("<details>",
                        "<summary>{{tab_name}}</summary>",
-                       "```{r tab-cat-2-{{.x}}, echo = FALSE, align = 'left'}", 
+                       "```{r brm-coef-{{.x}}, echo = FALSE, align = 'left'}", 
                        "brms_coefs[[{{.x}}]]",
                        "```",
                        "</details>"))
 })
 
 ```
-`r knit_child(text = src)`
+`r knit_child(text = src_brm)`
 
+
+<details>
+<summary>validation</summary>
+```{r brm-validation}
+# brms_predict <- brms_mod %>%
+#   fitted_draws(., newdata = augmented_data_val_bootstrap) 
+# 
+# # get predicted outbreak start probability by condition
+# lme_predict_compressed <- lme_predict %>%
+#   select(country_iso3c, disease, shared_borders_from_outbreaks, ots_trade_dollars_from_outbreaks, starts_with("fao"), outbreak_start_predicted) %>%
+#   distinct() %>% 
+#   rename(outbreak_start_predict_prob = outbreak_start_predicted) %>% 
+#   mutate(outbreak_start_predict_prob_grp = cut_number(outbreak_start_predict_prob, n = 20)) %>% 
+#   group_by(outbreak_start_predict_prob_grp) %>% 
+#   mutate(outbreak_start_predict_prob_grp_median = median(outbreak_start_predict_prob)) %>% 
+#   ungroup()
+# 
+# lme_predict_compressed %>% 
+#   group_by_at(vars(-outbreak_start_predict_prob)) %>%
+#   count() %>% 
+#   ungroup()  %>% 
+#   nrow() %>% 
+#   assertthat::are_equal(. , nrow(lme_predict_compressed))
+# 
+# lme_binoms <- augmented_data_training %>%
+#   bind_rows(augmented_data_val) %>% 
+#   right_join(lme_predict_compressed) %>% 
+#   group_by(outbreak_start_predict_prob_grp) %>% 
+#   group_split() %>%
+#   purrr::map_dfr(., function(tw){
+#     binom <-  binom.confint(x = sum(tw$outbreak_start), n=nrow(tw), methods = "wilson")
+#     tw %>%
+#       distinct(outbreak_start_predict_prob_grp, outbreak_start_predict_prob_grp_median) %>%
+#       mutate(outbreak_start_actual_prob = binom$mean, outbreak_start_actual_low = binom$lower, outbreak_start_actual_upper = binom$upper)})
+# 
+# options(scipen = 999)
+# ggplot(lme_binoms, aes(x = outbreak_start_predict_prob_grp_median, y  = outbreak_start_actual_prob)) +
+#   geom_point() +
+#   geom_errorbar(aes(ymin = outbreak_start_actual_low, ymax = outbreak_start_actual_upper)) +
+#   scale_x_log10()  +
+#   labs(x = "Forcasted probability", y = "Actual probabilty") +
+#   theme_minimal() +
+#   theme(legend.position = "none", 
+#         axis.text = element_text(size = 12), 
+#         title = element_text(size = 12),
+#         plot.title.position = "plot") +
+#   NULL
+# 
+
+```
+</details>
