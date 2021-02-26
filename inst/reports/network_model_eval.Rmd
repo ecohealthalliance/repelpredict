@@ -259,6 +259,17 @@ src_brm <- map_chr(seq_along(brms_coefs), ~ {
 # brms_predict <-predict(brms_mod, augmented_data_val_bootstrap, type = "response") %>% 
 #   as_tibble()
 # vroom::vroom_write(brms_predict, here::here("tmp/network_validation_brms_predict.csv.gz")) 
+
+brms_predict <- split(augmented_data_val_bootstrap, (as.numeric(rownames(augmented_data_val_bootstrap))-1) %/% 5000) %>%   purrr::map_dfr(function(x){
+    fitted_draws(model = brms_mod, newdata = x, n = 100) %>% 
+    summarize(estimate = mean(.value)) %>% 
+    ungroup()
+})
+vroom::vroom_write(brms_predict, here::here("tmp/network_validation_brms_predict.csv.gz"))
+
+
+
+
 brms_predict <- vroom::vroom(here::here("tmp/network_validation_brms_predict.csv.gz")) 
 brms_predict <- augmented_data_val_bootstrap %>% 
   bind_cols(brms_predict) %>% 
