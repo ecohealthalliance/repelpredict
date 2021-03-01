@@ -23,7 +23,7 @@ scale2 <- function(x, na.rm = FALSE) (x - mean(x, na.rm = na.rm)) / sd(x, na.rm)
 # tic()
 # augmented_data <- repel_augment(model_object = model_object,
 #                                 conn = conn, newdata = traindat)
-# toc() # 551.726s
+# toc() # 590.689s
 # vroom::vroom_write(augmented_data, gzfile("tmp/network_augmented_data.csv.gz"))
 
 augmented_data <- vroom::vroom(here::here("tmp/network_augmented_data.csv.gz"))
@@ -32,7 +32,8 @@ augmented_data <- augmented_data %>%
   select(country_iso3c, disease, month, outbreak_start,
          shared_borders_from_outbreaks,
          ots_trade_dollars_from_outbreaks,
-         starts_with("fao"), -fao_livestock_heads_from_outbreaks) %>%
+         starts_with("fao"),
+         -fao_livestock_heads_from_outbreaks) %>%
   drop_na() %>%
   mutate(country_iso3c = as.factor(country_iso3c)) %>%
   mutate(disease = as.factor(disease)) %>%
@@ -74,7 +75,7 @@ mod <- lme4::glmer(data = augmented_data_compressed,
                    verbose = 2, control = glmerControl(calc.derivs = TRUE))
 toc()
 
-write_rds(mod, here::here("tmp/lme_mod_all_diseases.rds"))
+write_rds(mod, here::here("tmp/lme_mod_fao.rds"))
 
 # insight package
 # get_variance(mod)

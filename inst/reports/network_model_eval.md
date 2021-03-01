@@ -70,5 +70,5 @@ output:
 
 <details>
 <summary>validation</summary>
-
+![](network_model_eval_files/figure-html/brm-validation-1.png)<!-- -->
 </details>

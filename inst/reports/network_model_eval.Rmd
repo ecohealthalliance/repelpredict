@@ -147,16 +147,23 @@ src_lme <- map_chr(seq_along(lme_coeffs), ~ {
 lme_predict <- augmented_data_val_bootstrap %>%
   mutate(outbreak_start_predicted = predict(lme_mod_simp, ., type = "response"))
 
-# get predicted outbreak start probability by condition
+# simple prediction versus actual
+# lme_predict %>% 
+#   mutate(outbreak_start_actual = as.numeric(outbreak_start)) %>% 
+#   ggplot(aes(x = outbreak_start_predicted, outbreak_start_actual)) +
+#   geom_point()
+
+# get predicted outbreak start probability by condition - break into groups by forecasted probability
 lme_predict_compressed <- lme_predict %>%
   select(country_iso3c, disease, shared_borders_from_outbreaks, ots_trade_dollars_from_outbreaks, starts_with("fao"), outbreak_start_predicted) %>%
   distinct() %>% 
   rename(outbreak_start_predict_prob = outbreak_start_predicted) %>% 
-  mutate(outbreak_start_predict_prob_grp = cut_number(outbreak_start_predict_prob, n = 20)) %>% 
+  mutate(outbreak_start_predict_prob_grp = cut_number(outbreak_start_predict_prob, n = 30)) %>% 
   group_by(outbreak_start_predict_prob_grp) %>% 
   mutate(outbreak_start_predict_prob_grp_median = median(outbreak_start_predict_prob)) %>% 
   ungroup()
 
+# confirm we get the same prediction when conditions are the same
 lme_predict_compressed %>% 
   group_by_at(vars(-outbreak_start_predict_prob)) %>%
   count() %>% 
@@ -164,6 +171,7 @@ lme_predict_compressed %>%
   nrow() %>% 
   assertthat::are_equal(. , nrow(lme_predict_compressed))
 
+# to get actual probability, bring in data from full dataset that applies to the given conditions
 lme_binoms <- augmented_data_training %>%
   bind_rows(augmented_data_val) %>% 
   right_join(lme_predict_compressed) %>% 
@@ -198,6 +206,19 @@ ggplot(lme_binoms, aes(x = outbreak_start_predict_prob_grp_median, y  = outbreak
 ### brms
 ```{r brms-mods}
 brms_mod <- read_rds(here::here("tmp/brms_mod_simp.rds"))
+#TODO check warnings
+# plot(brms_mod)
+
+# Warning messages:
+# 1: In .local(object, ...) :
+#   some chains had errors; consider specifying chains = 1 to debug
+# 2: Bulk Effective Samples Size (ESS) is too low, indicating posterior means and medians may be unreliable.
+# Running the chains for more iterations may help. See
+# http://mc-stan.org/misc/warnings.html#bulk-ess 
+# 3: Tail Effective Samples Size (ESS) is too low, indicating posterior variances and tail quantiles may be unreliable.
+# Running the chains for more iterations may help. See
+# http://mc-stan.org/misc/warnings.html#tail-ess 
+
 
 brms_post <- brms_mod %>%
   spread_draws(r_disease[disease,name])  %>% 
@@ -256,37 +277,30 @@ src_brm <- map_chr(seq_along(brms_coefs), ~ {
 <summary>validation</summary>
 ```{r brm-validation}
 
-# brms_predict <-predict(brms_mod, augmented_data_val_bootstrap, type = "response") %>% 
-#   as_tibble()
-# vroom::vroom_write(brms_predict, here::here("tmp/network_validation_brms_predict.csv.gz")) 
-
-brms_predict <- split(augmented_data_val_bootstrap, (as.numeric(rownames(augmented_data_val_bootstrap))-1) %/% 5000) %>%   purrr::map_dfr(function(x){
-    fitted_draws(model = brms_mod, newdata = x, n = 100) %>% 
-    summarize(estimate = mean(.value)) %>% 
-    ungroup()
-})
-vroom::vroom_write(brms_predict, here::here("tmp/network_validation_brms_predict.csv.gz"))
+# tic()
+# brms_predict <- split(augmented_data_val_bootstrap, (as.numeric(rownames(augmented_data_val_bootstrap))-1) %/% 5000) %>%   purrr::map_dfr(function(x){
+#     fitted_draws(model = brms_mod, newdata = x, n = 100) %>%
+#     summarize(estimate = mean(.value)) %>%
+#     ungroup()
+# })
+# vroom::vroom_write(brms_predict, here::here("tmp/network_validation_brms_predict.csv.gz"))
+# toc()
 
 
+# predictions have randomness, multiple predicitons per condition, in separate groups. 
+# get actual by condition, assign to multiple groups?
+# or just get actual from validation set?
+# going with latter option for now (ie not including training data in actual prob)
 
-
-brms_predict <- vroom::vroom(here::here("tmp/network_validation_brms_predict.csv.gz")) 
-brms_predict <- augmented_data_val_bootstrap %>% 
-  bind_cols(brms_predict) %>% 
-  mutate(outbreak_start_predict_prob = Estimate)
-
-# get predicted outbreak start probability by condition
-brms_predict_compressed <- brms_predict %>%
-  select(country_iso3c, disease, shared_borders_from_outbreaks, ots_trade_dollars_from_outbreaks, starts_with("fao"), outbreak_start_predict_prob) %>%
-  distinct() %>%
-  mutate(outbreak_start_predict_prob_grp = cut_number(outbreak_start_predict_prob, n = 2)) %>%
-  group_by(outbreak_start_predict_prob_grp) %>%
-  mutate(outbreak_start_predict_prob_grp_median = median(outbreak_start_predict_prob)) %>%
+brms_predict <- vroom::vroom(here::here("tmp/network_validation_brms_predict.csv.gz"))  %>% 
+  rename(outbreak_start_predict_prob = estimate) %>% 
+  mutate(outbreak_start_predict_prob_grp = cut_number(outbreak_start_predict_prob, n = 30)) %>% 
+  group_by(outbreak_start_predict_prob_grp) %>% 
+  mutate(outbreak_start_predict_prob_grp_median = median(outbreak_start_predict_prob)) %>% 
   ungroup()
 
-brms_binoms <- augmented_data_training %>%
-  bind_rows(augmented_data_val) %>%
-  right_join(brms_predict_compressed) %>%
+
+brms_binoms <- brms_predict %>%
   group_by(outbreak_start_predict_prob_grp) %>%
   group_split() %>%
   purrr::map_dfr(., function(tw){
@@ -295,22 +309,22 @@ brms_binoms <- augmented_data_training %>%
       distinct(outbreak_start_predict_prob_grp, outbreak_start_predict_prob_grp_median) %>%
       mutate(outbreak_start_actual_prob = binom$mean, outbreak_start_actual_low = binom$lower, outbreak_start_actual_upper = binom$upper)})
 
-# options(scipen = 999)
-# ggplot(brms_binoms, aes(x = outbreak_start_predict_prob_grp_median, y  = outbreak_start_actual_prob)) +
-#   geom_abline(color = "gray50") +
-#   geom_errorbar(aes(ymin = outbreak_start_actual_low, ymax = outbreak_start_actual_upper), width = 0) +
-#   geom_point(pch = 21,fill = "white") +
-#   # scale_x_continuous(limits = c(0, max(brms_binoms$outbreak_start_actual_upper))) +
-#   # scale_y_continuous(limits = c(0, max(brms_binoms$outbreak_start_actual_upper))) +
-#   labs(x = "Forecasted probability", y = "Actual probabilty", 
-#        caption = paste("Forecasted probilities are binned into", n_distinct(brms_binoms$outbreak_start_predict_prob_grp_median), "groups by distribution density.\nActual probabilities are  binomial probabilities and confidence intervals for actual outbreaks occurring within the forecasted interval")) +
-#   theme_minimal() +
-#   theme(legend.position = "none", 
-#         axis.text = element_text(size = 12), 
-#         title = element_text(size = 12),
-#         plot.title.position = "plot",
-#         plot.caption = element_text(hjust = 0)) +
-#   NULL
+options(scipen = 999)
+ggplot(brms_binoms, aes(x = outbreak_start_predict_prob_grp_median, y  = outbreak_start_actual_prob)) +
+  geom_abline(color = "gray50") +
+  geom_errorbar(aes(ymin = outbreak_start_actual_low, ymax = outbreak_start_actual_upper), width = 0) +
+  geom_point(pch = 21,fill = "white") +
+  scale_x_continuous(limits = c(0, max(brms_binoms$outbreak_start_actual_upper))) +
+  scale_y_continuous(limits = c(0, max(brms_binoms$outbreak_start_actual_upper))) +
+  labs(x = "Forecasted probability", y = "Actual probabilty",
+       caption = paste("Forecasted probilities are binned into", n_distinct(brms_binoms$outbreak_start_predict_prob_grp_median), "groups by distribution density.\nActual probabilities are  binomial probabilities and confidence intervals for actual outbreaks occurring within the forecasted interval")) +
+  theme_minimal() +
+  theme(legend.position = "none",
+        axis.text = element_text(size = 12),
+        title = element_text(size = 12),
+        plot.title.position = "plot",
+        plot.caption = element_text(hjust = 0)) +
+  NULL
 
 
 ```
