@@ -79,7 +79,7 @@ repel_augment.nowcast_boost <- function(model_object, conn, newdata) {
     rename(country_origin = country_iso3c) %>%
     left_join(borders,  by = "country_origin") %>%
     rename(country_iso3c = country_destination) %>%
-    get_nowcast_lag(model_object, conn, newdata = ., lags = 1:3, control_measures = FALSE)
+    repel_lag(model_object, conn, newdata = ., lags = 1:3, control_measures = FALSE)
 
   lagged_borders_sum <- lagged_borders %>%
     select(-cases) %>%
