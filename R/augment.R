@@ -239,6 +239,9 @@ repel_augment.nowcast_boost <- function(model_object, conn, newdata) {
       mutate_at(var, ~replace_na(., 0))
   }
 
+  lagged_newdata <- lagged_newdata %>%
+    mutate(cases_missing_disease_present = is.na(cases))
+
   # add column to indicate first year country reporting
   lagged_newdata <- lagged_newdata %>%
     mutate(report_period = as.integer(paste0(report_year, report_semester))) %>%
@@ -263,7 +266,7 @@ repel_augment.nowcast_boost <- function(model_object, conn, newdata) {
     mutate_if(is.logical, as.double) %>%
     #reorder
     select(report_year, report_semester, disease, taxa, country_iso3c, continent, disease_population,
-           starts_with("cases"), starts_with("disease_status"),
+           starts_with("cases"),  starts_with("disease_status"),
            starts_with("ever_in"),
            log_human_population, human_population_missing,
            log_taxa_population, taxa_population_missing,

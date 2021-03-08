@@ -37,7 +37,8 @@ Imports:
     parallel,
     purrr,
     recipes,
-    rsample
+    rsample,
+    R.utils
 Suggests:
     spelling, 
     testthat,

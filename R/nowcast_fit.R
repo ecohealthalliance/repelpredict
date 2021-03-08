@@ -30,7 +30,7 @@ repel_fit.nowcast_boost <- function(model_object,
     disease_status_recipe <-
       recipe(formula = disease_status ~ ., data = augmented_data) %>%
       step_mutate(report_semester_1 = as.numeric(report_semester == 1)) %>%
-      step_rm(report_year, report_semester, cases) %>%
+      step_rm(report_year, report_semester, cases, cases_missing_disease_present) %>%
       step_novel(all_nominal(), -all_outcomes()) %>%
       step_dummy(all_nominal(), -all_outcomes(), one_hot = TRUE) %>%
       step_zv(all_predictors()) %>%
@@ -135,7 +135,7 @@ repel_fit.nowcast_boost <- function(model_object,
     cases_recipe <-
       recipe(formula = cases ~ ., data = augmented_data_cases) %>%
       step_mutate(report_semester_1 = as.numeric(report_semester == 1)) %>%
-      step_rm(report_year, report_semester, disease_status) %>%
+      step_rm(report_year, report_semester, disease_status, cases_missing_disease_present) %>%
       step_novel(all_nominal(), -all_outcomes()) %>%
       step_dummy(all_nominal(), -all_outcomes(), one_hot = TRUE) %>%
       step_zv(all_predictors()) %>%
