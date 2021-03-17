@@ -36,8 +36,8 @@ augmented_data <- augmented_data %>%
   drop_na() %>%
   mutate(country_iso3c = as.factor(country_iso3c)) %>%
   mutate(disease = as.factor(disease)) %>%
- # mutate(shared_borders_from_outbreaks = as.factor(shared_borders_from_outbreaks)) %>%
-  mutate_if(is.numeric, scale2)
+  mutate_if(is.numeric, scale2) %>%
+  mutate(shared_borders_from_outbreaks = as.numeric(shared_borders_from_outbreaks))
 
 augmented_data_compressed <- augmented_data %>%
   select(-month) %>%
@@ -64,11 +64,6 @@ frm <- bf(paste0("outbreak_start|weights(count)  ~
 # https://discourse.mc-stan.org/t/are-complex-surveys-feasible-in-brms/17058/25
 
 prev_mod <- read_rds(here::here("tmp/brms_mod_simp.rds"))
-
-# brms_post <- prev_mod %>%
-#   tidybayes::spread_draws(r_disease[disease,name])
-
-
 
 # Fit ---------------------------------------------------------------------
 
@@ -101,7 +96,7 @@ mod <- brms::brm(
 )
 toc()
 
-write_rds(mod, here::here("tmp/brms_mod_simp.rds"))
+# write_rds(mod, here::here("tmp/brms_mod_simp.rds"))
 
 # Challenge in setting intial values: https://github.com/paul-buerkner/brms/issues/883
 

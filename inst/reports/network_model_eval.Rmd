@@ -206,30 +206,17 @@ ggplot(lme_binoms, aes(x = outbreak_start_predict_prob_grp_median, y  = outbreak
 ### brms
 ```{r brms-mods}
 brms_mod <- read_rds(here::here("tmp/brms_mod_simp.rds"))
-#TODO check warnings
-# plot(brms_mod)
-
-# Warning messages:
-# 1: In .local(object, ...) :
-#   some chains had errors; consider specifying chains = 1 to debug
-# 2: Bulk Effective Samples Size (ESS) is too low, indicating posterior means and medians may be unreliable.
-# Running the chains for more iterations may help. See
-# http://mc-stan.org/misc/warnings.html#bulk-ess 
-# 3: Tail Effective Samples Size (ESS) is too low, indicating posterior variances and tail quantiles may be unreliable.
-# Running the chains for more iterations may help. See
-# http://mc-stan.org/misc/warnings.html#tail-ess 
-
 
 brms_post <- brms_mod %>%
   spread_draws(r_disease[disease,name])  %>% 
+  filter(disease %in% get_oie_high_importance_diseases()) %>% 
+  mutate(disease = str_replace_all(disease, "_", " ")) %>% 
   mutate(name = str_replace(name, "_from_outbreaks", " from countries with existing outbreak"),
          name = str_replace(name, "ots_trade_dollars", "trade value of animal products"),
          name = str_replace(name, "fao_trade_", ""),
          name = str_replace(name, "_other", " (other)"),
          name = str_replace_all(name, "_", " "),
-         name = str_replace(name, "shared borders from countries with existing outbreak", "shared borders with country with existing outbreak")) %>% 
-  filter(disease %in% get_oie_high_importance_diseases()) %>% 
-  mutate(disease = str_replace_all(disease, "_", " ")) 
+         name = str_replace(name, "shared borders from countries with existing outbreak", "shared borders with country with existing outbreak")) 
 
 ```
 

@@ -59,12 +59,8 @@ output:
 ![](network_model_eval_files/figure-html/brm-coef-2-1.png)<!-- -->
 </details>
 <details>
-<summary>shared borders with country with existing outbreakFALSE</summary>
+<summary>shared borders with country with existing outbreak</summary>
 ![](network_model_eval_files/figure-html/brm-coef-3-1.png)<!-- -->
-</details>
-<details>
-<summary>shared borders with country with existing outbreakTRUE</summary>
-![](network_model_eval_files/figure-html/brm-coef-4-1.png)<!-- -->
 </details>
 
 
