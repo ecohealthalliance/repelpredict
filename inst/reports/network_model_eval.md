@@ -24,12 +24,16 @@ output:
 ![](network_model_eval_files/figure-html/lme-coef-1-1.png)<!-- -->
 </details>
 <details>
-<summary>trade value of animal products from countries with existing outbreak</summary>
+<summary>ots trade pc1 soy corn</summary>
 ![](network_model_eval_files/figure-html/lme-coef-2-1.png)<!-- -->
 </details>
 <details>
-<summary>fao livestock heads from countries with existing outbreak</summary>
+<summary>ots trade pc2 trunks fish leather</summary>
 ![](network_model_eval_files/figure-html/lme-coef-3-1.png)<!-- -->
+</details>
+<details>
+<summary>fao livestock heads from countries with existing outbreak</summary>
+![](network_model_eval_files/figure-html/lme-coef-4-1.png)<!-- -->
 </details>
 
 <details>

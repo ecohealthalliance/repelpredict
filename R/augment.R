@@ -329,7 +329,7 @@ repel_augment.network_lme <- function(model_object, conn, newdata) {
     collect() %>%
     mutate(cases = as.integer(predicted_cases)) %>%
     mutate(cases = coalesce(cases, predicted_cases)) %>%
-    filter(cases>0) %>%
+    filter(cases > 0) %>%
     select(country_iso3c, report_year, report_semester, disease)
 
   year_lookup <- endemic_status_present %>%
@@ -417,6 +417,7 @@ repel_augment.network_lme <- function(model_object, conn, newdata) {
     left_join(trade_lookup,  by = c("product_code", "source")) %>%
     mutate(group_name = str_extract(group_name, "[^;]+"))
 
+  # sum trade vars over groups
   trade_vars_groups_summed <- trade_vars %>%
     left_join(trade_vars_lookup, by = "name") %>%
     lazy_dt() %>%
@@ -427,6 +428,7 @@ repel_augment.network_lme <- function(model_object, conn, newdata) {
     ungroup() %>%
     as_tibble()
 
+  # get total trade heads/dollars by source (fao, ots)
   trade_vars_groups_total <- trade_vars_groups_summed %>%
     group_by(country_origin, country_destination, year, source) %>%
     summarize(value = sum(value)) %>%
@@ -436,6 +438,39 @@ repel_augment.network_lme <- function(model_object, conn, newdata) {
 
   outbreak_status <- left_join(outbreak_status, trade_vars_groups_total, by = c("country_destination", "year", "country_origin"))
 
+  # do a pca on ots trade groups
+  pca_dat <- trade_vars_groups_summed %>%
+    filter(source == "ots_trade_dollars" ) %>%
+    select(-source) %>%
+    pivot_wider(names_from = group_name, values_from = value) %>%
+    janitor::clean_names()
+
+  pca <- prcomp(pca_dat %>% select(-country_origin, -country_destination, -year), )
+  # summary(pca)
+
+  pca_vals <- pca$rotation %>%
+    as_tibble() %>%
+    mutate(var = rownames(pca$rotation))
+
+  # PC1 interp: high soy and corn
+  pc1 <- pca_vals %>%
+    select(var, PC1) %>%
+    arrange(-abs(PC1))
+
+  # PC2 interp: high trunks, fish, leather
+  pc2 <- pca_vals %>%
+    select(var, PC2) %>%
+    arrange(-abs(PC2))
+
+  pcout <- pca$x %>%
+    as_tibble() %>%
+    select(PC1, PC2) %>%
+    bind_cols(pca_dat %>% select(country_origin, country_destination, year), .) %>%
+    rename(ots_trade_pc1_soy_corn = PC1, ots_trade_pc2_trunks_fish_leather = PC2)
+
+  outbreak_status <- left_join(outbreak_status, pcout, by = c("country_destination", "year", "country_origin"))
+
+  # add in all the grouped summed trade values
   trade_vars_groups_summed <- trade_vars_groups_summed %>%
     mutate(group_name = paste0("trade_", group_name)) %>%
     select(-source) %>%
@@ -445,8 +480,9 @@ repel_augment.network_lme <- function(model_object, conn, newdata) {
 
   outbreak_status <- left_join(outbreak_status, trade_vars_groups_summed,  by = c("country_destination", "year", "country_origin"))
 
+  # sum all incoming values into destination country
   outbreak_status <- outbreak_status %>%
-    select(1:29) %>%
+    select(1:31) %>% # NOTE THIS MANUAL SELECTION
     lazy_dt() %>%
     select(-gc_dist, -country_origin, -year) %>%
     group_by(country_destination, disease, month, outbreak_start) %>%

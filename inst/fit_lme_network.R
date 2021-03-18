@@ -1,9 +1,9 @@
 devtools::load_all()
 library(lme4)
 library(tictoc)
-# library(insight)
-# library(DHARMa)
 
+#cmdstanr::install_cmdstan()
+#cmdstanr::set_cmdstan_path(path = NULL)
 
 # Support functions -------------------------------------------------------
 scale2 <- function(x, na.rm = FALSE) (x - mean(x, na.rm = na.rm)) / sd(x, na.rm)
@@ -23,7 +23,7 @@ scale2 <- function(x, na.rm = FALSE) (x - mean(x, na.rm = na.rm)) / sd(x, na.rm)
 # tic()
 # augmented_data <- repel_augment(model_object = model_object,
 #                                 conn = conn, newdata = traindat)
-# toc() # 590.689s
+# toc() # 854.062 sec elapsed
 # vroom::vroom_write(augmented_data, gzfile("tmp/network_augmented_data.csv.gz"))
 
 augmented_data <- vroom::vroom(here::here("tmp/network_augmented_data.csv.gz"))
@@ -31,9 +31,9 @@ augmented_data <- vroom::vroom(here::here("tmp/network_augmented_data.csv.gz"))
 augmented_data <- augmented_data %>%
   select(country_iso3c, disease, month, outbreak_start,
          shared_borders_from_outbreaks,
-         ots_trade_dollars_from_outbreaks,
-         starts_with("fao"),
-         -fao_livestock_heads_from_outbreaks) %>%
+         ots_trade_pc1_soy_corn,
+         ots_trade_pc2_trunks_fish_leather,
+         fao_livestock_heads_from_outbreaks) %>%
   drop_na() %>%
   mutate(country_iso3c = as.factor(country_iso3c)) %>%
   mutate(disease = as.factor(disease)) %>%
@@ -53,11 +53,12 @@ augmented_data_compressed <- augmented_data %>%
 #   ungroup()# outbreak counts of 1 are diseases where the rest of the outbreaks are in the validation set
 
 # how many outbreak starts
-table(augmented_data$outbreak_start) #(0.1%)
+#table(augmented_data$outbreak_start) #(0.1%)
+
 
 # lme setup ---------------------------------------------------------------
 wgts <- augmented_data_compressed$count
-vars <- c("ots_trade_dollars_from_outbreaks", names(augmented_data)[str_starts(names(augmented_data), "fao_")])
+vars <- names(augmented_data)[str_starts(names(augmented_data), "fao_|ots_")]
 
 frm <- as.formula(paste0("outbreak_start ~
                          0 + (1 | country_iso3c:disease) + ", # baseline intercept for disease in country
@@ -75,7 +76,7 @@ mod <- lme4::glmer(data = augmented_data_compressed,
                    verbose = 2, control = glmerControl(calc.derivs = TRUE))
 toc()
 
-write_rds(mod, here::here("tmp/lme_mod_fao.rds"))
+write_rds(mod, here::here("tmp/lme_mod.rds"))
 
 # insight package
 # get_variance(mod)

@@ -30,7 +30,8 @@ cbp1 <- c("#999999", "#E69F00", "#56B4E9", "#009E73",
 augmented_data_training <- vroom::vroom(here::here("tmp/network_augmented_data.csv.gz"))  %>%
   select(country_iso3c, disease, month, outbreak_start,
          shared_borders_from_outbreaks,
-         ots_trade_dollars_from_outbreaks,
+         ots_trade_pc1_soy_corn,
+         ots_trade_pc2_trunks_fish_leather,
          fao_livestock_heads_from_outbreaks) %>%
   drop_na() %>%
   mutate(country_iso3c = as.factor(country_iso3c)) %>%
@@ -43,12 +44,13 @@ augmented_data_training <- vroom::vroom(here::here("tmp/network_augmented_data.c
 # valdat <- repel_validation(model_object, conn) %>%
 #   select(country_iso3c, disease, month)
 
-# augmented_data_val <- repel_augment(model_object, conn, newdata = valdat)
+# augmented_data_val <- repel_augment(model_object, conn, newdata = valdat) 
 # vroom::vroom_write(augmented_data_val, gzfile("tmp/network_augmented_data_val.csv.gz"))
 augmented_data_val <- vroom::vroom(here::here("tmp/network_augmented_data_val.csv.gz"))  %>%
   select(country_iso3c, disease, month, outbreak_start,
          shared_borders_from_outbreaks,
-         ots_trade_dollars_from_outbreaks,
+         ots_trade_pc1_soy_corn,
+         ots_trade_pc2_trunks_fish_leather,
          fao_livestock_heads_from_outbreaks) %>%
   drop_na() %>%
   mutate(country_iso3c = as.factor(country_iso3c)) %>%
@@ -66,18 +68,12 @@ augmented_data_val_bootstrap <- augmented_data_val %>%
 ### lme4
 ```{r lme mods}
 # Load model
-lme_mod_fao <- read_rds(here::here("tmp/lme_mod_fao.rds"))
-lme_mod_simp <- read_rds(here::here("tmp/lme_mod_simple.rds"))
-
-# AIC(lme_mod_fao)
-# AIC(lme_mod_simp)
-
-# mod_simp is slightly better
+lme_mod <- read_rds(here::here("tmp/lme_mod.rds"))
 ```
 
 ```{r prep-lme-coef-plots}
 # Random effects
-randef <- ranef(lme_mod_simp)
+randef <- ranef(lme_mod)
 randef_disease <- randef$disease %>%
   tibble::rownames_to_column(var = "disease") %>%
   as_tibble() %>% 
@@ -87,7 +83,7 @@ randef_disease <- randef$disease %>%
 randef_disease_long <- randef_disease %>%
   pivot_longer(-disease) %>% 
   mutate(name = str_replace(name, "_from_outbreaks", " from countries with existing outbreak"),
-         name = str_replace(name, "ots_trade_dollars", "trade value of animal products"),
+         #   name = str_replace(name, "ots_trade_dollars", "trade value of animal products"),
          name = str_replace(name, "fao_trade_", ""),
          name = str_replace(name, "_other", " (other)"),
          name = str_replace_all(name, "_", " "),
@@ -145,7 +141,7 @@ src_lme <- map_chr(seq_along(lme_coeffs), ~ {
 <summary>validation</summary>
 ```{r lme-validation}
 lme_predict <- augmented_data_val_bootstrap %>%
-  mutate(outbreak_start_predicted = predict(lme_mod_simp, ., type = "response"))
+  mutate(outbreak_start_predicted = predict(lme_mod, ., type = "response"))
 
 # simple prediction versus actual
 # lme_predict %>% 
@@ -155,7 +151,8 @@ lme_predict <- augmented_data_val_bootstrap %>%
 
 # get predicted outbreak start probability by condition - break into groups by forecasted probability
 lme_predict_compressed <- lme_predict %>%
-  select(country_iso3c, disease, shared_borders_from_outbreaks, ots_trade_dollars_from_outbreaks, starts_with("fao"), outbreak_start_predicted) %>%
+  select(country_iso3c, disease, shared_borders_from_outbreaks, ots_trade_pc1_soy_corn,
+         ots_trade_pc2_trunks_fish_leather, starts_with("fao"), outbreak_start_predicted) %>%
   distinct() %>% 
   rename(outbreak_start_predict_prob = outbreak_start_predicted) %>% 
   mutate(outbreak_start_predict_prob_grp = cut_number(outbreak_start_predict_prob, n = 30)) %>% 
