@@ -45,8 +45,8 @@ repel_init.network_model <- function(model_object, conn){
 
   # read in immediate outbreaks
   immediate_events <- tbl(conn, "outbreak_reports_events") %>%
-    filter(!is.na(country_iso3c), country_iso3c != "NA") %>% # TODO: fix these events to be assigned to a current country
     collect() %>%
+    filter(!is.na(country_iso3c), country_iso3c != "NA") %>% # TODO: fix these events to be assigned to a current country
     mutate_at(vars(contains("date")), as.Date) %>%
     filter(str_detect(report_type, "immediate notification"))
 

@@ -222,3 +222,57 @@ repel_fit.nowcast_boost <- function(model_object,
     parallel::stopCluster(cl = cl)
   }
 }
+
+
+
+#' Fit network LME model object
+#' @return list containing predicted count and whether disease is expected or not (T/F)
+#' @import dplyr tidyr lme4 tictoc
+#' @importFrom here here
+#' @importFrom RhpcBLASctl blas_set_num_threads
+#' @export
+repel_fit.network_lme <- function(model_object,
+                                  augmented_data,
+                                  predictor_vars,
+                                  output_directory,
+                                  verbose = interactive()) {
+
+
+  augmented_data_select <- augmented_data %>%
+    select(country_iso3c, disease, month, outbreak_start,
+           !!predictor_vars) %>%
+    drop_na() %>%
+    mutate(country_iso3c = as.factor(country_iso3c)) %>%
+    mutate(disease = as.factor(disease)) %>%
+    mutate_if(is.numeric, scale2)
+
+  augmented_data_compressed <- augmented_data_select %>%
+    select(-month) %>%
+    group_by_all() %>%
+    count() %>%
+    ungroup() %>%
+    select(country_iso3c, disease, count = n, outbreak_start, everything()) %>%
+    arrange(disease, desc(count), country_iso3c)
+
+  wgts <- augmented_data_compressed$count
+  vars <- names(augmented_data_select)[str_starts(names(augmented_data_select), "fao_|ots_")]
+
+  frm <- as.formula(paste0("outbreak_start ~
+                         0 + (1 | country_iso3c:disease) + ", # baseline intercept for disease in country
+                           '(1 + dummy(shared_borders_from_outbreaks, "TRUE") | disease) + ',
+                           paste0("(0 + ", vars, "|disease)", collapse = " + "))) #  “variance of trade by disease”
+
+  RhpcBLASctl::blas_set_num_threads(16)
+  tic("16 blas threads")
+  mod <- lme4::glmer(data = augmented_data_compressed,
+                     weights = wgts,
+                     family = binomial,
+                     formula = frm,
+                     nAGQ = 0, # adaptive Gaussian quadrature instead the Laplace approximation. The former is known to be better for binomial data.
+                     verbose = 2, control = glmerControl(calc.derivs = TRUE))
+  toc()
+
+  write_rds(mod, here::here(paste0(output_directory, "/lme_mod_network.rds")))
+  aws.s3::s3saveRDS(mod, bucket = "repeldb/models", object = "lme_mod_network.rds")
+}
+
