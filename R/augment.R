@@ -340,10 +340,6 @@ repel_augment.network_lme <- function(model_object, conn, newdata) {
   year_lookup <- unnest(year_lookup, month) %>%
     mutate(month = ymd(paste(report_year, month, "01")))
 
-  diseases_recode <- vroom::vroom(system.file("lookup", "nowcast_diseases_recode.csv",  package = "repelpredict"), col_types = cols(
-    disease = col_character(),
-    disease_recode = col_character()))
-
   endemic_status_present <- endemic_status_present %>%
     left_join(year_lookup,  by = c("report_year", "report_semester")) %>%
     select(country_origin = country_iso3c, month, disease)
