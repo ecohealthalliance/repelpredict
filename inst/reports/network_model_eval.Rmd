@@ -21,22 +21,12 @@ library(brms)
 library(bayestestR)
 library(tidybayes) #extract and visualize tidy data frames of draws from posterior distributions of model variables, fits, and predictions from brms::brm
 
-scale2 <- function(x, na.rm = FALSE) (x - mean(x, na.rm = na.rm)) / sd(x, na.rm)
-
 cbp1 <- c("#999999", "#E69F00", "#56B4E9", "#009E73",
           "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
 
 # training data
 augmented_data_training <- vroom::vroom(here::here("tmp/network_augmented_data.csv.gz"))  %>%
-  select(country_iso3c, disease, month, outbreak_start,
-         shared_borders_from_outbreaks,
-         ots_trade_pc1_soy_corn,
-         ots_trade_pc2_trunks_fish_leather,
-         fao_livestock_heads_from_outbreaks) %>%
-  drop_na() %>%
-  mutate(country_iso3c = as.factor(country_iso3c)) %>%
-  mutate(disease = as.factor(disease)) %>%
-  mutate_if(is.numeric, scale2)
+  network_recipe(., predictor_vars = c("shared_borders_from_outbreaks", "ots_trade_dollars_from_outbreaks", "fao_livestock_heads_from_outbreaks"))
 
 # validated
 # model_object <- network_lme_model()
@@ -47,15 +37,7 @@ augmented_data_training <- vroom::vroom(here::here("tmp/network_augmented_data.c
 # augmented_data_val <- repel_augment(model_object, conn, newdata = valdat) 
 # vroom::vroom_write(augmented_data_val, gzfile("tmp/network_augmented_data_val.csv.gz"))
 augmented_data_val <- vroom::vroom(here::here("tmp/network_augmented_data_val.csv.gz"))  %>%
-  select(country_iso3c, disease, month, outbreak_start,
-         shared_borders_from_outbreaks,
-         ots_trade_pc1_soy_corn,
-         ots_trade_pc2_trunks_fish_leather,
-         fao_livestock_heads_from_outbreaks) %>%
-  drop_na() %>%
-  mutate(country_iso3c = as.factor(country_iso3c)) %>%
-  mutate(disease = as.factor(disease)) %>%
-  mutate_if(is.numeric, scale2)
+  network_recipe(., predictor_vars = c("shared_borders_from_outbreaks", "ots_trade_dollars_from_outbreaks", "fao_livestock_heads_from_outbreaks"))
 
 # resample validation
 augmented_data_val_bootstrap <- augmented_data_val %>%
@@ -68,7 +50,10 @@ augmented_data_val_bootstrap <- augmented_data_val %>%
 ### lme4
 ```{r lme mods}
 # Load model
-lme_mod <- read_rds(here::here("tmp/lme_mod.rds"))
+model_object <-  network_lme_model(
+  network_model = aws.s3::s3readRDS(bucket = "repeldb/models", object = "lme_mod_network.rds")
+)
+lme_mod <- model_object$network_model
 ```
 
 ```{r prep-lme-coef-plots}
@@ -140,8 +125,8 @@ src_lme <- map_chr(seq_along(lme_coeffs), ~ {
 <details>
 <summary>validation</summary>
 ```{r lme-validation}
-lme_predict <- augmented_data_val_bootstrap %>%
-  mutate(outbreak_start_predicted = predict(lme_mod, ., type = "response"))
+lme_predict <-  augmented_data_val_bootstrap %>%
+  mutate(outbreak_start_predicted = repel_predict(model_object, .))
 
 # simple prediction versus actual
 # lme_predict %>% 
@@ -151,8 +136,8 @@ lme_predict <- augmented_data_val_bootstrap %>%
 
 # get predicted outbreak start probability by condition - break into groups by forecasted probability
 lme_predict_compressed <- lme_predict %>%
-  select(country_iso3c, disease, shared_borders_from_outbreaks, ots_trade_pc1_soy_corn,
-         ots_trade_pc2_trunks_fish_leather, starts_with("fao"), outbreak_start_predicted) %>%
+  # select(country_iso3c, disease, shared_borders_from_outbreaks, ots_trade_pc1_soy_corn,
+  #        ots_trade_pc2_trunks_fish_leather, starts_with("fao"), outbreak_start_predicted) %>%
   distinct() %>% 
   rename(outbreak_start_predict_prob = outbreak_start_predicted) %>% 
   mutate(outbreak_start_predict_prob_grp = cut_number(outbreak_start_predict_prob, n = 30)) %>% 
@@ -196,120 +181,6 @@ ggplot(lme_binoms, aes(x = outbreak_start_predict_prob_grp_median, y  = outbreak
         plot.title.position = "plot",
         plot.caption = element_text(hjust = 0)) +
   NULL
-
-```
-</details>
-
-### brms
-```{r brms-mods}
-brms_mod <- read_rds(here::here("tmp/brms_mod_simp.rds"))
-
-brms_post <- brms_mod %>%
-  spread_draws(r_disease[disease,name])  %>% 
-  filter(disease %in% get_oie_high_importance_diseases()) %>% 
-  mutate(disease = str_replace_all(disease, "_", " ")) %>% 
-  mutate(name = str_replace(name, "_from_outbreaks", " from countries with existing outbreak"),
-         name = str_replace(name, "ots_trade_dollars", "trade value of animal products"),
-         name = str_replace(name, "fao_trade_", ""),
-         name = str_replace(name, "_other", " (other)"),
-         name = str_replace_all(name, "_", " "),
-         name = str_replace(name, "shared borders from countries with existing outbreak", "shared borders with country with existing outbreak")) 
-
-```
-
-
-```{r prep-brms-coef-plots}
-
-brms_coefs <- purrr::map(unique(brms_post$name), function(var){
-  dat <- brms_post %>%
-    filter(name == var)  %>% 
-    mutate(r_disease_med = median(r_disease)) %>% 
-    ungroup()
-  
-  ggplot(dat, aes(y = fct_reorder(disease, r_disease_med), x = r_disease)) +
-    stat_halfeye(.width = c(.90, .5))   +
-    labs(x = "Coefficient", y = "", title = var) +
-    theme_minimal() +
-    theme(legend.position = "none", 
-          axis.text = element_text(size = 12), 
-          title = element_text(size = 12),
-          plot.title.position = "plot") +
-    NULL
-  
-})
-
-names(brms_coefs) <- unique(brms_post$name)
-
-```
-
-```{r, include = FALSE}
-src_brm <- map_chr(seq_along(brms_coefs), ~ {
-  tab_name <- names(brms_coefs[.x])
-  knit_expand(text = c("<details>",
-                       "<summary>{{tab_name}}</summary>",
-                       "```{r brm-coef-{{.x}}, echo = FALSE, align = 'left'}", 
-                       "brms_coefs[[{{.x}}]]",
-                       "```",
-                       "</details>"))
-})
-
-```
-`r knit_child(text = src_brm)`
-
-
-<details>
-<summary>validation</summary>
-```{r brm-validation}
-
-# tic()
-# brms_predict <- split(augmented_data_val_bootstrap, (as.numeric(rownames(augmented_data_val_bootstrap))-1) %/% 5000) %>%   purrr::map_dfr(function(x){
-#     fitted_draws(model = brms_mod, newdata = x, n = 100) %>%
-#     summarize(estimate = mean(.value)) %>%
-#     ungroup()
-# })
-# vroom::vroom_write(brms_predict, here::here("tmp/network_validation_brms_predict.csv.gz"))
-# toc()
-
-
-# predictions have randomness, multiple predicitons per condition, in separate groups. 
-# get actual by condition, assign to multiple groups?
-# or just get actual from validation set?
-# going with latter option for now (ie not including training data in actual prob)
-
-brms_predict <- vroom::vroom(here::here("tmp/network_validation_brms_predict.csv.gz"))  %>% 
-  rename(outbreak_start_predict_prob = estimate) %>% 
-  mutate(outbreak_start_predict_prob_grp = cut_number(outbreak_start_predict_prob, n = 30)) %>% 
-  group_by(outbreak_start_predict_prob_grp) %>% 
-  mutate(outbreak_start_predict_prob_grp_median = median(outbreak_start_predict_prob)) %>% 
-  ungroup()
-
-
-brms_binoms <- brms_predict %>%
-  group_by(outbreak_start_predict_prob_grp) %>%
-  group_split() %>%
-  purrr::map_dfr(., function(tw){
-    binom <-  binom.confint(x = sum(tw$outbreak_start), n=nrow(tw), methods = "wilson")
-    tw %>%
-      distinct(outbreak_start_predict_prob_grp, outbreak_start_predict_prob_grp_median) %>%
-      mutate(outbreak_start_actual_prob = binom$mean, outbreak_start_actual_low = binom$lower, outbreak_start_actual_upper = binom$upper)})
-
-options(scipen = 999)
-ggplot(brms_binoms, aes(x = outbreak_start_predict_prob_grp_median, y  = outbreak_start_actual_prob)) +
-  geom_abline(color = "gray50") +
-  geom_errorbar(aes(ymin = outbreak_start_actual_low, ymax = outbreak_start_actual_upper), width = 0) +
-  geom_point(pch = 21,fill = "white") +
-  scale_x_continuous(limits = c(0, max(brms_binoms$outbreak_start_actual_upper))) +
-  scale_y_continuous(limits = c(0, max(brms_binoms$outbreak_start_actual_upper))) +
-  labs(x = "Forecasted probability", y = "Actual probabilty",
-       caption = paste("Forecasted probilities are binned into", n_distinct(brms_binoms$outbreak_start_predict_prob_grp_median), "groups by distribution density.\nActual probabilities are  binomial probabilities and confidence intervals for actual outbreaks occurring within the forecasted interval")) +
-  theme_minimal() +
-  theme(legend.position = "none",
-        axis.text = element_text(size = 12),
-        title = element_text(size = 12),
-        plot.title.position = "plot",
-        plot.caption = element_text(hjust = 0)) +
-  NULL
-
 
 ```
 </details>

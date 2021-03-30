@@ -24,16 +24,12 @@ output:
 ![](network_model_eval_files/figure-html/lme-coef-1-1.png)<!-- -->
 </details>
 <details>
-<summary>ots trade pc1 soy corn</summary>
+<summary>ots trade dollars from countries with existing outbreak</summary>
 ![](network_model_eval_files/figure-html/lme-coef-2-1.png)<!-- -->
 </details>
 <details>
-<summary>ots trade pc2 trunks fish leather</summary>
-![](network_model_eval_files/figure-html/lme-coef-3-1.png)<!-- -->
-</details>
-<details>
 <summary>fao livestock heads from countries with existing outbreak</summary>
-![](network_model_eval_files/figure-html/lme-coef-4-1.png)<!-- -->
+![](network_model_eval_files/figure-html/lme-coef-3-1.png)<!-- -->
 </details>
 
 <details>
@@ -44,31 +40,4 @@ output:
 ```
 
 ![](network_model_eval_files/figure-html/lme-validation-1.png)<!-- -->
-</details>
-
-### brms
-
-
-
-
-
-
-
-<details>
-<summary>fao livestock heads from countries with existing outbreak</summary>
-![](network_model_eval_files/figure-html/brm-coef-1-1.png)<!-- -->
-</details>
-<details>
-<summary>trade value of animal products from countries with existing outbreak</summary>
-![](network_model_eval_files/figure-html/brm-coef-2-1.png)<!-- -->
-</details>
-<details>
-<summary>shared borders with country with existing outbreak</summary>
-![](network_model_eval_files/figure-html/brm-coef-3-1.png)<!-- -->
-</details>
-
-
-<details>
-<summary>validation</summary>
-![](network_model_eval_files/figure-html/brm-validation-1.png)<!-- -->
 </details>
