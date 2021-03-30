@@ -318,6 +318,7 @@ repel_augment.network_lme <- function(model_object, conn, newdata) {
 
   # start lookup table for augmenting
   outbreak_status <- repel_split(model_object, conn) %>%
+    mutate(month = as.Date(month), outbreak_start = as.integer(outbreak_start), outbreak_ongoing = as.integer(outbreak_ongoing)) %>%
     select(-validation_set)
 
   # which countries have disease outbreak in a given month
@@ -331,7 +332,9 @@ repel_augment.network_lme <- function(model_object, conn, newdata) {
     mutate(cases = coalesce(cases, predicted_cases)) %>%
     filter(cases > 0) %>%
     select(country_iso3c, report_year, report_semester, disease) %>%
-    mutate(report_year = as.integer(report_year))
+    mutate(report_year = as.integer(report_year)) %>%
+    mutate(report_semester = as.integer(report_semester))
+
 
   year_lookup <- endemic_status_present %>%
     distinct(report_semester, report_year) %>%
@@ -362,7 +365,9 @@ repel_augment.network_lme <- function(model_object, conn, newdata) {
   # bring in static vars
   connect_static <- tbl(conn, "connect_static_vars")  %>%
     collect() %>%
-    select(-starts_with("n_"))
+    select(-starts_with("n_")) %>%
+    mutate(shared_border = as.logical(shared_border)) %>%
+    mutate(gc_dist = as.double(gc_dist))
 
   outbreak_status <- left_join(outbreak_status, connect_static,  by = c("country_destination", "country_origin"))
 
