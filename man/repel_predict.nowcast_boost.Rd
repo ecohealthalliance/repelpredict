@@ -5,16 +5,10 @@
 \title{Predict from nowcast xgboost model object}
 \usage{
 \method{repel_predict}{nowcast_boost}(model_object, newdata, use_cache = TRUE)
-
-\method{repel_predict}{nowcast_boost}(model_object, newdata, use_cache = TRUE)
 }
 \value{
-list containing predicted count and whether disease is expected or not (T/F)
-
-list containing predicted count and whether disease is expected or not (T/F)
+vector containing predicted count
 }
 \description{
 Predict from nowcast xgboost model object
-
-Predict from netwrok lme model object
 }
