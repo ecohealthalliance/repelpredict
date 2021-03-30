@@ -315,6 +315,8 @@ repel_augment.network_lme <- function(model_object, conn, newdata) {
 
   # check newdata has correct input vars
   assertthat::has_name(newdata, c("country_iso3c", "disease", "month"))
+  newdata <- newdata %>%
+    select(country_iso3c, disease, month)
 
   # start lookup table for augmenting
   outbreak_status <- repel_split(model_object, conn) %>%
