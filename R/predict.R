@@ -31,7 +31,7 @@ repel_predict.nowcast_baseline <- function(model_object, newdata) {
 }
 
 #' Predict from nowcast xgboost model object
-#' @return list containing predicted count and whether disease is expected or not (T/F)
+#' @return vector containing predicted count
 #' @import tidyr dplyr workflows
 #' @importFrom here here
 #' @importFrom readr read_rds
@@ -70,3 +70,28 @@ repel_predict.nowcast_boost <- function(model_object, newdata, use_cache = TRUE)
   }
   return(predicted_cases)
 }
+
+
+#' Predict from network lme model object
+#' @return vector containing predicted probability of an outbreak
+#' @import tidyr dplyr stringr lme4
+#' @export
+#'
+repel_predict.network_lme <- function(model_object, newdata, use_cache = TRUE) {
+
+  # Load model
+  lme_mod <- model_object$network_model
+
+  # get predictor_vars and run "recipe" (not with tidy models)
+  predictor_vars <- slot(lme_mod, "frame") %>%
+    select(-outbreak_start, -country_iso3c, -disease, -`(weights)`) %>%
+    colnames() %>%
+    str_remove_all(.,"dummy\\(") %>%
+    str_remove('\\s*,.*')
+
+  newdata2 <- network_recipe(newdata, predictor_vars)
+
+  predict(lme_mod, newdata2, type = "response")
+
+}
+

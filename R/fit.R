@@ -238,13 +238,7 @@ repel_fit.network_lme <- function(model_object,
                                   verbose = interactive()) {
 
 
-  augmented_data_select <- augmented_data %>%
-    select(country_iso3c, disease, month, outbreak_start,
-           !!predictor_vars) %>%
-    drop_na() %>%
-    mutate(country_iso3c = as.factor(country_iso3c)) %>%
-    mutate(disease = as.factor(disease)) %>%
-    mutate_if(is.numeric, scale2)
+  augmented_data_select <- network_recipe(augmented_data, predictor_vars)
 
   augmented_data_compressed <- augmented_data_select %>%
     select(-month) %>%
