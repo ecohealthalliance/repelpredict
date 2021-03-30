@@ -330,7 +330,8 @@ repel_augment.network_lme <- function(model_object, conn, newdata) {
     mutate(cases = as.integer(predicted_cases)) %>%
     mutate(cases = coalesce(cases, predicted_cases)) %>%
     filter(cases > 0) %>%
-    select(country_iso3c, report_year, report_semester, disease)
+    select(country_iso3c, report_year, report_semester, disease) %>%
+    mutate(report_year = as.integer(report_year))
 
   year_lookup <- endemic_status_present %>%
     distinct(report_semester, report_year) %>%
@@ -369,7 +370,8 @@ repel_augment.network_lme <- function(model_object, conn, newdata) {
 
   # bring in yearly vars
   connect_yearly <- DBI::dbReadTable(conn, "connect_yearly_vars") %>%
-    collect()
+    collect() %>%
+    mutate(year = as.integer(year))
 
   outbreak_status <-  outbreak_status %>%
     mutate(year = lubridate::year(month))
@@ -378,7 +380,7 @@ repel_augment.network_lme <- function(model_object, conn, newdata) {
   human_movement <- connect_yearly %>%
     select(country_origin, country_destination, year, starts_with("n_")) %>%
     mutate_at(vars(starts_with("n_")), as.numeric) %>%
-    mutate_if(is.numeric, ~replace_na(., 0)) #TODO confirm this!!!!
+    mutate_if(is.numeric, ~replace_na(., 0))  #TODO confirm this!!!!
 
   outbreak_status <- left_join(outbreak_status, human_movement, by = c("country_destination", "year", "country_origin")) %>%
     filter(year >= min(human_movement$year), year <= max(human_movement$year)) #TODO confirm this!!!!
