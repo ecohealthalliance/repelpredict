@@ -99,7 +99,7 @@ repel_init.network_model <- function(model_object, conn, remove_non_outbreak_eve
             from = floor_date(min(events$date_of_start_of_the_event, na.rm = TRUE), unit = "months"),
             to = Sys.Date(),
             by = "months")
-        )) %>%
+        ), by = c("country_iso3c", "disease")) %>%
     group_by(immediate_report) %>%
     mutate(outbreak_subsequent_month = month > outbreak_start_month & month <= outbreak_end_month) %>%
     mutate(outbreak_start = month == outbreak_start_month) %>%
@@ -130,7 +130,7 @@ repel_init.network_model <- function(model_object, conn, remove_non_outbreak_eve
     distinct()
 
   events <- events %>%
-    left_join(endemic_status_present) %>%
+    left_join(endemic_status_present, by = c("country_iso3c", "disease", "month")) %>%
     mutate(endemic = replace_na(endemic, FALSE))
 
   # filter out endemic and subsequent months
