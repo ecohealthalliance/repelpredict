@@ -79,7 +79,7 @@ repel_init.network_model <- function(model_object, conn){
   events <- events %>%
     filter(disease %in% diseases_keep)
 
-  # remove the subsequent continuous outbreaks. also remove endemic events (from augment). then train/split.
+  # remove the subsequent continuous outbreaks. also remove endemic events
   events <- events %>%
     arrange(country, disease, report_date) %>%
     mutate(report_month = floor_date(report_date, unit = "months")) %>%
@@ -91,12 +91,12 @@ repel_init.network_model <- function(model_object, conn){
     mutate(outbreak_end_month = coalesce(date_event_resolved, report_month)) %>%  # this isnt exactly right because some events are not marked as resolved. here we assume last report is when it's resolved.
     ungroup() %>%
     left_join(
-      immediate_events_mult %>%
+      events %>%
         tidyr::expand(
           country_iso3c,
           disease,
           month = seq.Date(
-            from = floor_date(min(immediate_events_mult$date_of_start_of_the_event, na.rm = TRUE), unit = "months"),
+            from = floor_date(min(events$date_of_start_of_the_event, na.rm = TRUE), unit = "months"),
             to = Sys.Date(),
             by = "months")
         )) %>%
