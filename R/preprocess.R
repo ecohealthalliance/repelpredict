@@ -44,69 +44,104 @@ repel_init.nowcast_model <- function(model_object, conn){
 repel_init.network_model <- function(model_object, conn){
 
   # read in immediate outbreaks
-  immediate_events <- tbl(conn, "outbreak_reports_events") %>%
+  events <- tbl(conn, "outbreak_reports_events") %>%
     collect() %>%
     filter(!is.na(country_iso3c), country_iso3c != "NA") %>% # TODO: fix these events to be assigned to a current country
-    mutate_at(vars(contains("date")), as.Date) %>%
-    filter(str_detect(report_type, "immediate notification"))
+    mutate_at(vars(contains("date")), as.Date) #%>%
+  #filter(str_detect(report_type, "immediate notification"))
 
   # filter for taxa of interest
-  taxa_lookup <- tbl(conn, "outbreak_reports_outbreaks") %>%
-    select(id, taxa = species) %>%
-    collect() %>%
-    distinct() %>%
-    mutate(taxa = case_when(
-      taxa == "sheep / goats" ~ "sheep/goats",
-      taxa == "hares / rabbits" ~ "hares/rabbits",
-      TRUE ~ taxa
-    ))
-
-  immediate_events <- immediate_events %>%
-    left_join(taxa_lookup, by = "id") %>%
-    filter(taxa %in% taxa_list) %>%
-    select(-taxa)
+  # commenting out because the reports are not consistent btw the two tables
+  # taxa_lookup <- tbl(conn, "outbreak_reports_outbreaks") %>%
+  #   select(id, taxa = species) %>%
+  #   collect() %>%
+  #   distinct() %>%
+  #   mutate(taxa = case_when(
+  #     taxa == "sheep / goats" ~ "sheep/goats",
+  #     taxa == "hares / rabbits" ~ "hares/rabbits",
+  #     TRUE ~ taxa
+  #   ))
+  #
+  # events <- events %>%
+  #   left_join(taxa_lookup, by = "id") %>%
+  #   filter(taxa %in% taxa_list) %>%
+  #   select(-taxa) %>%
+  #   distinct()
 
   # Remove disease that have have reports in only one country_iso3c
-  diseases_keep <- immediate_events %>%
+  diseases_keep <- events %>%
     group_by(disease) %>%
     summarize(n_countries = length(unique(country_iso3c))) %>%
     arrange(desc(n_countries)) %>%
     filter(n_countries > 1 ) %>%
     pull(disease)
 
-  immediate_events_mult <- immediate_events %>%
+  events <- events %>%
     filter(disease %in% diseases_keep)
 
-  # get number of events started and ended in a given month
-  event_starts <- immediate_events_mult %>%
-    mutate(start_month = floor_date(date_of_start_of_the_event, unit = "months")) %>%
-    group_by(country_iso3c, disease, start_month) %>%
-    summarize(outbreak_start = n())
-
-  event_ends <- immediate_events_mult %>%
-    mutate(end_month = ceiling_date(date_of_start_of_the_event, unit = "months")) %>%
-    group_by(country_iso3c, disease, end_month) %>%
-    summarize(outbreak_end = -n())
-
-  # determine if outbreak is ongoing in a given month
-  immediate_events_status <- immediate_events_mult %>%
-    tidyr::expand(
-      country_iso3c,
-      disease,
-      month = seq.Date(
-        from = floor_date(min(immediate_events_mult$date_of_start_of_the_event, na.rm = TRUE), unit = "months"),
-        to = Sys.Date(),
-        by = "months")
-    ) %>%
-    left_join(mutate(event_starts, country_iso3c, disease, month = start_month, outbreak_start, .keep = "none"),  by = c("country_iso3c", "disease", "month")) %>%
-    left_join(mutate(event_ends, country_iso3c, disease, month = end_month, outbreak_end, .keep = "none"),  by = c("country_iso3c", "disease", "month")) %>%
-    mutate_at(c("outbreak_start", "outbreak_end"), ~coalesce(., 0)) %>%
-    group_by(country_iso3c, disease) %>%
-    arrange(month) %>%
-    mutate(outbreak_ongoing = as.numeric(cumsum(outbreak_start + outbreak_end) > 0)) %>%
+  # remove the subsequent continuous outbreaks. also remove endemic events (from augment). then train/split.
+  events <- events %>%
+    arrange(country, disease, report_date) %>%
+    mutate(report_month = floor_date(report_date, unit = "months")) %>%
+    mutate(date_of_start_of_the_event = floor_date(date_of_start_of_the_event, "month")) %>%
+    mutate(date_event_resolved = ceiling_date(date_event_resolved, "month")) %>%
+    select(country, country_iso3c, disease, immediate_report, report_type, report_month, date_of_start_of_the_event, date_event_resolved)  %>%
+    group_by(immediate_report) %>%
+    mutate(outbreak_start_month = min(c(report_month, date_of_start_of_the_event))) %>%
+    mutate(outbreak_end_month = coalesce(date_event_resolved, report_month)) %>%  # this isnt exactly right because some events are not marked as resolved. here we assume last report is when it's resolved.
     ungroup() %>%
-    select(-outbreak_end)
+    left_join(
+      immediate_events_mult %>%
+        tidyr::expand(
+          country_iso3c,
+          disease,
+          month = seq.Date(
+            from = floor_date(min(immediate_events_mult$date_of_start_of_the_event, na.rm = TRUE), unit = "months"),
+            to = Sys.Date(),
+            by = "months")
+        )) %>%
+    group_by(immediate_report) %>%
+    mutate(outbreak_subsequent_month = month > outbreak_start_month & month <= outbreak_end_month) %>%
+    mutate(outbreak_start = month == outbreak_start_month) %>%
+    ungroup()
 
-  return(immediate_events_status)
+  # bring in endemic
+  endemic_status_present <- tbl(conn, "nowcast_boost_augment_predict")  %>%
+    collect() %>%
+    mutate(cases = as.integer(predicted_cases)) %>%
+    mutate(cases = coalesce(cases, predicted_cases)) %>%
+    filter(cases > 0) %>%
+    select(country_iso3c, report_year, report_semester, disease) %>%
+    mutate(report_year = as.integer(report_year)) %>%
+    mutate(report_semester = as.integer(report_semester))
+
+  year_lookup <- endemic_status_present %>%
+    distinct(report_semester, report_year) %>%
+    mutate(month = case_when(
+      report_semester == 1 ~ list(seq(1, 6)),
+      report_semester == 2 ~ list(seq(7, 12))))
+  year_lookup <- unnest(year_lookup, month) %>%
+    mutate(month = ymd(paste(report_year, month, "01")))
+
+  endemic_status_present <- endemic_status_present %>%
+    left_join(year_lookup,  by = c("report_year", "report_semester")) %>%
+    select(country_iso3c, month, disease) %>%
+    mutate(endemic = TRUE) %>%
+    distinct()
+
+  events <- events %>%
+    left_join(endemic_status_present) %>%
+    mutate(endemic = replace_na(endemic, FALSE))
+
+  # filter out endemic and subsequent months
+  events <- events %>%
+    filter(!endemic, !outbreak_subsequent_month) %>%
+    #filter(country_iso3c == "AFG", disease == "highly pathogenic avian influenza") %>%  # can have outbreaks in subsequent months due to multiple reports from country
+    group_by(country_iso3c, disease, month) %>%
+    summarize(outbreak_start = any(outbreak_start)) %>%
+    ungroup() %>%
+    distinct()
+
+  return(events)
 
 }
