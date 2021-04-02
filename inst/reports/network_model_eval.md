@@ -32,6 +32,14 @@ output:
 ![](network_model_eval_files/figure-html/lme-coef-3-1.png)<!-- -->
 </details>
 
+
+
+
+
+
+
+
+
 <details>
 <summary>validation</summary>
 

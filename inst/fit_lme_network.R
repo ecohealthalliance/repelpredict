@@ -15,12 +15,12 @@ model_object <- network_lme_model()
 
 traindat <- repel_training(model_object, conn) %>%
   select(country_iso3c, disease, month)
-#
-# tic()
-# augmented_data <- repel_augment(model_object = model_object,
-#                                 conn = conn, newdata = traindat)
-# toc() # 854.062 sec elapsed
-# vroom::vroom_write(augmented_data, gzfile("tmp/network_augmented_data.csv.gz"))
+
+tic()
+augmented_data <- repel_augment(model_object = model_object,
+                                conn = conn, newdata = traindat)
+toc() # 854.062 sec elapsed
+vroom::vroom_write(augmented_data, gzfile("tmp/network_augmented_data.csv.gz"))
 
 augmented_data <- vroom::vroom(here::here("tmp/network_augmented_data.csv.gz"))
 
