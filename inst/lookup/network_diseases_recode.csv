@@ -1,60 +1,93 @@
 disease,disease_recode
-african horse sickness,african_horse_sickness
-african swine fever,african_swine_fever
-anthrax,anthrax
-aujeszkys disease,aujeszkys_disease
-avian infectious bronchitis,avian_infectious_bronchitis
-avian infectious laryngotracheitis,avian_infectious_laryngotracheitis
-bovine anaplasmosis,bovine_anaplasmosis
-bovine babesiosis,bovine_babesiosis
-bovine leukosis,bovine_leukosis
-bovine spongiform encephalopathy,bovine_spongiform_encephalopathy
-brucella abortus,brucella_abortus
-brucella melitensis,brucella_melitensis
-brucella suis,brucella_suis
-classical swine fever,classical_swine_fever
-coronavirus,coronavirus
-dourine,dourine
-eastern equine encephalitis,eastern_equine_encephalitis
-epizootic haemorrhagic disease,epizootic_haemorrhagic_disease
-equine encephalitis,equine_encephalitis
-equine infectious anaemia,equine_infectious_anaemia
-equine influenza,equine_influenza
-equine piroplasmosis,equine_piroplasmosis
-equine viral arthritis,equine_viral_arthritis
-equine viral rhinopneumonitis,equine_viral_rhinopneumonitis
-foot-and-mouth disease,foot_and_mouth_disease
-fowl typhoid,fowl_typhoid
-glanders,glanders
-heartwater,heartwater
-hemorrhagic septicemia,hemorrhagic_septicemia
 highly pathogenic avian influenza,highly_pathogenic_avian_influenza
-infectious bovine rhinotracheitis,infectious_bovine_rhinotracheitis
-leishmaniosis,leishmaniosis
-low pathogenic avian influenza,low_pathogenic_avian_influenza
-lumpy skin disease,lumpy_skin_disease
-mycobacterium tuberculosis,mycobacterium_tuberculosis
-myxoma virus,myxoma_virus
+foot-and-mouth disease,foot_and_mouth_disease
 newcastle disease,newcastle_disease
+african swine fever,african_swine_fever
 ovine bluetongue disease,ovine_bluetongue_disease
-ovine pox disease,ovine_pox_disease
-parasitic gastroenteritis,parasitic_gastroenteritis
-paratuberculosis,paratuberculosis
-peste des petits ruminants,peste_des_petits_ruminants
-pleuropneumonia,pleuropneumonia
-porcine epidemic diarrhea,porcine_epidemic_diarrhea
-porcine reproductive and respiratory syndrome,porcine_reproductive_and_respiratory_syndrome
-poxvirus,poxvirus
-"primary screwworm, new world screwworm",primary_screwworm_new_world_screwworm
-pullorum disease,pullorum_disease
-q fever,q_fever
-rabies,rabies
-rift valley fever,rift_valley_fever
-schmallenberg virus,schmallenberg_virus
-swine influenza,swine_influenza
-taylorella equigenitalis,taylorella_equigenitalis
-trypanosomiasis,trypanosomiasis
-venezuelan equine encephalitis,venezuelan_equine_encephalitis
-vesicular stomatitis,vesicular_stomatitis
-viral haemorrhagic disease,viral_haemorrhagic_disease
+lumpy skin disease,lumpy_skin_disease
+low pathogenic avian influenza,low_pathogenic_avian_influenza
 west nile encephalitis,west_nile_encephalitis
+peste des petits ruminants,peste_des_petits_ruminants
+swine influenza,swine_influenza
+classical swine fever,classical_swine_fever
+equine influenza,equine_influenza
+porcine reproductive and respiratory syndrome,porcine_reproductive_and_respiratory_syndrome
+viral haemorrhagic disease,viral_haemorrhagic_disease
+equine infectious anaemia,equine_infectious_anaemia
+bovine spongiform encephalopathy,bovine_spongiform_encephalopathy
+american fool brood,american_fool_brood
+rift valley fever,rift_valley_fever
+koi herpesvirus disease,koi_herpesvirus_disease
+rabies,rabies
+anthrax,anthrax
+viral hemorrhagic septicemia,viral_hemorrhagic_septicemia
+small hive beetle infestation,small_hive_beetle_infestation
+ovine pox disease,ovine_pox_disease
+african horse sickness,african_horse_sickness
+myxoma virus,myxoma_virus
+brucella suis,brucella_suis
+herpesvirus,herpesvirus
+schmallenberg virus,schmallenberg_virus
+mycobacterium tuberculosis,mycobacterium_tuberculosis
+equine piroplasmosis,equine_piroplasmosis
+varroosis,varroosis
+infectious haematopoietic necrosis,infectious_haematopoietic_necrosis
+white spot syndrome virus 1,white_spot_syndrome_virus_1
+taylorella equigenitalis,taylorella_equigenitalis
+coronavirus,coronavirus
+q fever,q_fever
+aujeszkys disease,aujeszkys_disease
+glanders,glanders
+equine viral rhinopneumonitis,equine_viral_rhinopneumonitis
+crayfish plague,crayfish_plague
+bonamia exitiosa,bonamia_exitiosa
+eastern equine encephalitis,eastern_equine_encephalitis
+venezuelan equine encephalitis,venezuelan_equine_encephalitis
+scrapie,scrapie
+bonamia ostreae,bonamia_ostreae
+porcine epidemic diarrhea,porcine_epidemic_diarrhea
+fowl typhoid,fowl_typhoid
+perkinsosis,perkinsosis
+vesicular stomatitis,vesicular_stomatitis
+epizootic ulcerative syndrome,epizootic_ulcerative_syndrome
+avian infectious laryngotracheitis,avian_infectious_laryngotracheitis
+infectious salmon anaemia,infectious_salmon_anaemia
+infection with ranavirus,infection_with_ranavirus
+brucella abortus,brucella_abortus
+"primary screwworm, new world screwworm",primary_screwworm_new_world_screwworm
+pleuropneumonia,pleuropneumonia
+epizootic haemorrhagic disease,epizootic_haemorrhagic_disease
+hemorrhagic septicemia,hemorrhagic_septicemia
+tilapia tilapinevirus,tilapia_tilapinevirus
+caprine arthritis and encephalitis,caprine_arthritis_and_encephalitis
+equine viral arthritis,equine_viral_arthritis
+brucella melitensis,brucella_melitensis
+spring viremia of carp,spring_viremia_of_carp
+infectious hypodermal and hematopoietic necrosis ihhn,infectious_hypodermal_and_hematopoietic_necrosis_ihhn
+poxvirus,poxvirus
+marteiliosis,marteiliosis
+tularemia,tularemia
+bovine babesiosis,bovine_babesiosis
+avian infectious bronchitis,avian_infectious_bronchitis
+parasitic gastroenteritis,parasitic_gastroenteritis
+bovine anaplasmosis,bovine_anaplasmosis
+maedi visna,maedi_visna
+tilapia lake virus,tilapia_lake_virus
+infectious bovine rhinotracheitis,infectious_bovine_rhinotracheitis
+infectious pancreatic necrosis,infectious_pancreatic_necrosis
+bovine leukosis,bovine_leukosis
+leishmaniosis,leishmaniosis
+contagious agalactia,contagious_agalactia
+red sea bream iridoviral disease rsivd,red_sea_bream_iridoviral_disease_rsivd
+equine encephalitis,equine_encephalitis
+pullorum disease,pullorum_disease
+gyrodactylus salaris,gyrodactylus_salaris
+avian chlamydiosis,avian_chlamydiosis
+echinococcosis,echinococcosis
+abortion in ewes,abortion_in_ewes
+nodavirus,nodavirus
+candidatus xenohaliotis californiensis,candidatus_xenohaliotis_californiensis
+trypanosomiasis,trypanosomiasis
+heartwater,heartwater
+dourine,dourine
+paratuberculosis,paratuberculosis

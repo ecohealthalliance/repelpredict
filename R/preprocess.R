@@ -41,7 +41,7 @@ repel_init.nowcast_model <- function(model_object, conn){
 #' @importFrom tidyr expand
 #' @importFrom lubridate floor_date ceiling_date
 #' @export
-repel_init.network_model <- function(model_object, conn){
+repel_init.network_model <- function(model_object, conn, remove_non_outbreak_events = TRUE){
 
   # read in immediate outbreaks
   events <- tbl(conn, "outbreak_reports_events") %>%
@@ -139,11 +139,17 @@ repel_init.network_model <- function(model_object, conn){
     summarize(outbreak_start = any(outbreak_start),
               outbreak_subsequent_month = any(outbreak_subsequent_month),
               endemic = any(endemic)) %>%
-    ungroup() %>%
-    filter(!endemic, !outbreak_subsequent_month) %>%
-    select(-endemic, -outbreak_subsequent_month) %>%
-    distinct()
+    ungroup() #%>%
+  #mutate(endemic = ifelse(outbreak_start, FALSE, endemic))
+  # ^ this last mutate covers cases where the outbreak makes it into the semester report. the first month of the outbreak should still count.
+  # on the other hand, there are outbreaks that are reported when it really is already endemic, eg rabies, so commenting out for now
+  # events %>% filter(outbreak_start, endemic) %>% View
 
+  if(remove_non_outbreak_events){
+    events <- events %>%
+      filter(!endemic, !outbreak_subsequent_month) %>%
+      select(-endemic, -outbreak_subsequent_month)
+  }
   return(events)
 
 }
