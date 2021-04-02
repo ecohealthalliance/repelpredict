@@ -135,11 +135,13 @@ repel_init.network_model <- function(model_object, conn){
 
   # filter out endemic and subsequent months
   events <- events %>%
-    filter(!endemic, !outbreak_subsequent_month) %>%
-    #filter(country_iso3c == "AFG", disease == "highly pathogenic avian influenza") %>%  # can have outbreaks in subsequent months due to multiple reports from country
     group_by(country_iso3c, disease, month) %>%
-    summarize(outbreak_start = any(outbreak_start)) %>%
+    summarize(outbreak_start = any(outbreak_start),
+              outbreak_subsequent_month = any(outbreak_subsequent_month),
+              endemic = any(endemic)) %>%
     ungroup() %>%
+    filter(!endemic, !outbreak_subsequent_month) %>%
+    select(-endemic, -outbreak_subsequent_month) %>%
     distinct()
 
   return(events)
