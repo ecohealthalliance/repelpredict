@@ -319,50 +319,24 @@ repel_augment.network_lme <- function(model_object, conn, newdata) {
     select(country_iso3c, disease, month)
 
   # start lookup table for augmenting
-  outbreak_status <- repel_split(model_object, conn) %>%
-    mutate(month = as.Date(month), outbreak_start = as.integer(outbreak_start), outbreak_ongoing = as.integer(outbreak_ongoing)) %>%
+  outbreak_status <- repel_split(model_object, conn, remove_non_outbreak_events = TRUE) %>%
+    mutate(month = as.Date(month), outbreak_start = as.integer(outbreak_start)) %>%
     select(-validation_set)
 
   # which countries have disease outbreak in a given month
-  outbreak_status_present <- outbreak_status %>%
-    filter(outbreak_ongoing == 1)  %>%
+  disease_status_present <- repel_split(model_object, conn, remove_non_outbreak_events = FALSE) %>%
+    filter(outbreak_start | outbreak_subsequent_month | endemic) %>%
     select(country_origin = country_iso3c, month, disease)
-
-  endemic_status_present <- tbl(conn, "nowcast_boost_augment_predict")  %>%
-    collect() %>%
-    mutate(cases = as.integer(predicted_cases)) %>%
-    mutate(cases = coalesce(cases, predicted_cases)) %>%
-    filter(cases > 0) %>%
-    select(country_iso3c, report_year, report_semester, disease) %>%
-    mutate(report_year = as.integer(report_year)) %>%
-    mutate(report_semester = as.integer(report_semester))
-
-
-  year_lookup <- endemic_status_present %>%
-    distinct(report_semester, report_year) %>%
-    mutate(month = case_when(
-      report_semester == 1 ~ list(seq(1, 6)),
-      report_semester == 2 ~ list(seq(7, 12))))
-  year_lookup <- unnest(year_lookup, month) %>%
-    mutate(month = ymd(paste(report_year, month, "01")))
-
-  endemic_status_present <- endemic_status_present %>%
-    left_join(year_lookup,  by = c("report_year", "report_semester")) %>%
-    select(country_origin = country_iso3c, month, disease)
-
-  disease_status_present <- bind_rows(outbreak_status_present, endemic_status_present) %>%
-    distinct()
 
   # filter dataset to min/max year from endemic #TODO revisit
   outbreak_status <- outbreak_status %>%
-    filter(month >= min(year_lookup$month), month <= max(year_lookup$month))
+    filter(month >= min(disease_status_present$month), month <= max(disease_status_present$month))
 
   # set up country origin/destination combinations - origin is countries that have the disease present in the given month
   outbreak_status <- outbreak_status %>%
     left_join(disease_status_present, by = c("month", "disease")) %>%
     rename(country_destination = country_iso3c) %>%
-    mutate(country_origin = if_else(country_origin == country_destination, NA_character_, country_origin)) %>%
-    select(-outbreak_ongoing)
+    mutate(country_origin = if_else(country_origin == country_destination, NA_character_, country_origin))
 
   # bring in static vars
   connect_static <- tbl(conn, "connect_static_vars")  %>%
@@ -385,12 +359,14 @@ repel_augment.network_lme <- function(model_object, conn, newdata) {
 
   # human movement vars
   human_movement <- connect_yearly %>%
-    select(country_origin, country_destination, year, starts_with("n_")) %>%
+    select(country_origin, # country with disease
+           country_destination, # country of interest
+           year, starts_with("n_")) %>%
     mutate_at(vars(starts_with("n_")), as.numeric) %>%
     mutate_if(is.numeric, ~replace_na(., 0))  #TODO confirm this!!!!
 
-  outbreak_status <- left_join(outbreak_status, human_movement, by = c("country_destination", "year", "country_origin")) %>%
-    filter(year >= min(human_movement$year), year <= max(human_movement$year)) #TODO confirm this!!!!
+  outbreak_status <- left_join(outbreak_status, human_movement, by = c("country_destination", "year", "country_origin")) #%>%
+   # filter(year >= min(human_movement$year), year <= max(human_movement$year)) #TODO confirm this!!!!
 
   # trade vars
   trade_vars <- connect_yearly %>%
