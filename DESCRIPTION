@@ -38,7 +38,8 @@ Imports:
     purrr,
     recipes,
     rsample,
-    R.utils
+    R.utils,
+    lme4
 Suggests:
     spelling, 
     testthat,
