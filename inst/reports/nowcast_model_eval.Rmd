@@ -79,7 +79,6 @@ importance_disease_status +
 ```
 </details>
 
-
 <details>
 <summary>cases overall variable importance</summary>
 ```{r cs-var-importance}
@@ -239,13 +238,14 @@ ggplot(cs_pd_by_disease_dat, aes(x = disease, y = diff, fill = vname)) +
 ```
 </details>
 
+
 ## Validation
 
 ```{r validation}
 conn <- repeldata::repel_local_conn()
 grouping_vars <- c("country_iso3c", "report_year", "report_semester", "disease", "disease_population", "taxa")
 
-valdat <- annual_reports_animal_hosts_validation(model_object, conn) %>%
+valdat <- repel_validation(model_object, conn) %>%
   select(all_of(grouping_vars)) %>%
   distinct() %>% 
   bootstraps(times = 1) %>% 
@@ -269,10 +269,10 @@ scored_baseline <- repel_score(model_object = nowcast_baseline_model(),
 
 
 ## xgboost
-forecasted_boost <- repel_forecast(model_object = model_object,
-                                   conn = conn,
-                                   newdata = valdat, use_cache = TRUE)
-write_rds(forecasted_boost, here::here("tmp/forecasted_boost.rds"))
+# forecasted_boost <- repel_forecast(model_object = model_object,
+#                                    conn = conn,
+#                                    newdata = valdat, use_cache = TRUE)
+# write_rds(forecasted_boost, here::here("tmp/forecasted_boost.rds"))
 forecasted_boost <- read_rds(here::here("tmp/forecasted_boost.rds"))
 
 scored_boost <- repel_score(model_object = model_object,
@@ -591,6 +591,64 @@ scored_data_cs %>%
   theme_bw()
 ```
 </details>
+
+
+### variable importance for specific cases of successfully predicting 0-1 switch
+```{r}
+# variable importance for specific cases of successfully predicting 0-1 switch
+scored_boost <- repel_score(model_object = model_object,
+                            augmented_data = forecasted_boost$augmented_data,
+                            predicted_cases = forecasted_boost$predicted_cases)
+
+status_switched <- scored_boost$scored_tibble %>% 
+  mutate(ss = disease_status_dirchange_actual == "outbreak starts" &
+         disease_status_dirchange_predicted == "outbreak starts" ) 
+which_status_switched <- which(status_switched$ss)
+
+status_switched_augmented <- forecasted_boost$augmented_data %>% 
+  slice(which_status_switched) %>% 
+  select(-disease_status)
+
+rec <- boost_mod_disease_status %>% pull_workflow_prepped_recipe()
+
+status_switched_mat <- bake(object = rec, new_data = status_switched_augmented) %>%
+  mutate_all(~as.numeric(.)) %>% 
+  as.data.frame() %>%
+  as.matrix() 
+
+lag_vars <- c("disease_status_lag1", "disease_status_lag2", "disease_status_lag3")
+
+explainer_disease_status_sub <- DALEX::explain(
+        model = boost_mod_disease_status_xg,
+        data = status_switched_mat,
+        y = rep(1, nrow(status_switched_mat)),
+        predict_function = predict_raw,
+  verbose = FALSE
+)
+
+vars <- c("log_veterinarians_per_taxa",  "log_taxa_population", "cases_lag_sum_border_countries", "cases_lag1", "cases_lag2", "cases_lag3")
+vars <- c(vars, colnames(status_switched_mat)[str_starts(colnames(status_switched_mat), "control")])
+
+vi <- DALEX::variable_importance(explainer_disease_status_sub)
+tt = vi %>% 
+  as_tibble()
+
+vp <- DALEX::variable_profile(explainer_disease_status_sub, variables = vars)
+vp2 <- vp$agr_profiles  %>% 
+  as_tibble() %>% 
+    janitor::clean_names() %>% 
+  select(-label, -ids) %>% 
+    mutate(x = round(x, 3)) %>%
+  mutate(yhat = round(yhat, 3)) %>% 
+  distinct() 
+
+# make PD plots of x vs yhat by vname
+ggplot(vp2, aes(x = x,  y = yhat)) +
+  geom_line() +
+  facet_wrap(vname~., scales = "free")
+
+```
+
 
 ```{r disconnect}
 repel_local_disconnect()
