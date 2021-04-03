@@ -39,7 +39,10 @@ Imports:
     recipes,
     rsample,
     R.utils,
-    lme4
+    lme4,
+    countrycode,
+    vroom,
+    RhpcBLASctl
 Suggests:
     spelling, 
     testthat,
