@@ -311,7 +311,7 @@ repel_augment.nowcast_gam <- function(model_object, conn, newdata, rare = 1000) 
 #' @importFrom lubridate ymd
 #' @importFrom purrr map_dfr
 #' @export
-repel_augment.network_lme <- function(model_object, conn, newdata) {
+repel_augment.network_lme <- function(model_object, conn, newdata, sum_country_imports = TRUE) {
 
   # check newdata has correct input vars
   assertthat::has_name(newdata, c("country_iso3c", "disease", "month"))
@@ -366,7 +366,7 @@ repel_augment.network_lme <- function(model_object, conn, newdata) {
     mutate_if(is.numeric, ~replace_na(., 0))  #TODO confirm this!!!!
 
   outbreak_status <- left_join(outbreak_status, human_movement, by = c("country_destination", "year", "country_origin")) #%>%
-   # filter(year >= min(human_movement$year), year <= max(human_movement$year)) #TODO confirm this!!!!
+  # filter(year >= min(human_movement$year), year <= max(human_movement$year)) #TODO confirm this!!!!
 
   # trade vars
   trade_vars <- connect_yearly %>%
@@ -417,7 +417,7 @@ repel_augment.network_lme <- function(model_object, conn, newdata) {
     as_tibble() %>%
     pivot_wider(names_from = source, values_from = value)
 
-  outbreak_status <- left_join(outbreak_status, trade_vars_groups_total, by = c("country_destination", "year", "country_origin"))
+  x <- left_join(outbreak_status, trade_vars_groups_total, by = c("country_destination", "year", "country_origin"))
 
   # do a pca on ots trade groups
   pca_dat <- trade_vars_groups_summed %>%
@@ -460,31 +460,36 @@ repel_augment.network_lme <- function(model_object, conn, newdata) {
     janitor::clean_names()
 
   outbreak_status <- left_join(outbreak_status, trade_vars_groups_summed,  by = c("country_destination", "year", "country_origin"))
+  vroom::vroom_write(outbreak_status, here::here("tmp/network_augment_expanded.csv"))
+  outbreak_status <- vroom(here::here("tmp/network_augment_expanded.csv"))
 
-  # sum all incoming values into destination country
-  outbreak_status <- outbreak_status %>%
-    select(1:31) %>% # NOTE THIS MANUAL SELECTION
-    lazy_dt() %>%
-    select(-gc_dist, -country_origin, -year) %>%
-    group_by(country_destination, disease, month, outbreak_start) %>%
-    summarize_all(~sum(., na.rm = TRUE)) %>%  #TODO DEAL WITH NAS in human movement
-    ungroup() %>%
-    rename(country_iso3c = country_destination) %>%
-    as_tibble()
+  if(sum_country_imports){
+    # sum all incoming values into destination country
+    outbreak_status <- outbreak_status %>%
+      select(1:31) %>% # NOTE THIS MANUAL SELECTION
+      lazy_dt() %>%
+      select(-gc_dist, -country_origin, -year) %>%
+      group_by(country_destination, disease, month, outbreak_start) %>%
+      summarize_all(~sum(., na.rm = TRUE)) %>%  #TODO DEAL WITH NAS in human movement
+      ungroup() %>%
+      as_tibble()
+  }
 
   # finishing touches
   outbreak_status <- outbreak_status %>%
-    mutate(outbreak_start = outbreak_start>0) %>%
-    mutate(shared_border = shared_border>0) %>%
-    select(country_iso3c, disease, month, outbreak_start,
+    select(-suppressWarnings(one_of("gc_dist")), -suppressWarnings(one_of("year"))) %>%
+    mutate(outbreak_start = outbreak_start > 0) %>%
+    mutate(shared_border = shared_border > 0) %>%
+    select(country_iso3c = country_destination, suppressWarnings(one_of("country_origin")),
+           disease, month, outbreak_start,
            shared_borders_from_outbreaks = shared_border,
            ots_trade_dollars_from_outbreaks = ots_trade_dollars,
            fao_livestock_heads_from_outbreaks = fao_livestock_heads,
            everything(), -trade_animals_live_nes)
 
   names(outbreak_status)[str_starts(names(outbreak_status), "trade_")] <- paste0("fao_",
-                                                                                   names(outbreak_status)[str_starts(names(outbreak_status), "trade_")],
-                                                                                   "_from_outbreaks")
+                                                                                 names(outbreak_status)[str_starts(names(outbreak_status), "trade_")],
+                                                                                 "_from_outbreaks")
 
   augmented_newdata <- left_join(newdata, outbreak_status, by = c("country_iso3c", "disease", "month"))
 
