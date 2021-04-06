@@ -249,12 +249,12 @@ repel_fit.network_lme <- function(model_object,
     arrange(disease, desc(count), country_iso3c)
 
   wgts <- augmented_data_compressed$count
-  vars <- names(augmented_data_select)[str_starts(names(augmented_data_select), "fao_|ots_")]
+  #vars <- names(augmented_data_select)[str_starts(names(augmented_data_select), "fao_|ots_|shared")]
 
   frm <- as.formula(paste0("outbreak_start ~
                          0 + (1 | country_iso3c:disease) + ", # baseline intercept for disease in country
-                           '(1 + dummy(shared_borders_from_outbreaks, "TRUE") | disease) + ',
-                           paste0("(0 + ", vars, "|disease)", collapse = " + "))) #  “variance of trade by disease”
+                         #  '(1 + dummy(shared_borders_from_outbreaks, "TRUE") | disease) + ',
+                           paste0("(0 + ", predictor_vars, "|disease)", collapse = " + "))) #  “variance of trade by disease”
 
   RhpcBLASctl::blas_set_num_threads(16)
   tic("16 blas threads")
