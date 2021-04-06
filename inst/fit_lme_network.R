@@ -8,6 +8,9 @@ library(tictoc)
 conn <- repeldata::repel_local_conn()
 model_object <- network_lme_model()
 
+forecasted_repeldat2 <- read_rds("tmp_forecasted_data.rds")
+
+
 # Augment  ----------------------------------------------------------------
 # repel_init(model_object, conn)
 # repel_split(model_object, conn)

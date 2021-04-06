@@ -417,7 +417,7 @@ repel_augment.network_lme <- function(model_object, conn, newdata, sum_country_i
     as_tibble() %>%
     pivot_wider(names_from = source, values_from = value)
 
-  x <- left_join(outbreak_status, trade_vars_groups_total, by = c("country_destination", "year", "country_origin"))
+  outbreak_status <- left_join(outbreak_status, trade_vars_groups_total, by = c("country_destination", "year", "country_origin"))
 
   # do a pca on ots trade groups
   pca_dat <- trade_vars_groups_summed %>%
