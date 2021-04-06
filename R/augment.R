@@ -460,8 +460,8 @@ repel_augment.network_lme <- function(model_object, conn, newdata, sum_country_i
     janitor::clean_names()
 
   outbreak_status <- left_join(outbreak_status, trade_vars_groups_summed,  by = c("country_destination", "year", "country_origin"))
-  vroom::vroom_write(outbreak_status, here::here("tmp/network_augment_expanded.csv"))
-  outbreak_status <- vroom(here::here("tmp/network_augment_expanded.csv"))
+  # vroom::vroom_write(outbreak_status, here::here("tmp/network_augment_expanded.csv"))
+  # outbreak_status <- vroom(here::here("tmp/network_augment_expanded.csv"))
 
   if(sum_country_imports){
     # sum all incoming values into destination country
