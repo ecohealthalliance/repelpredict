@@ -108,13 +108,13 @@ repel_forecast.network_lme <- function(model_object, conn, newdata, use_cache = 
   }
 
   # use cache if available
-  #TODO need to add cache
   if(use_cache){
 
-    cached_data <- DBI::dbReadTable(conn, "nowcast_boost_augment_predict")
+    cached_data <- DBI::dbReadTable(conn, "network_lme_augment_predict") %>%
+      mutate(month = as.Date(month))
 
     # check if any data is not covered in the cache, if it's all in cache, return cache, otherwise run predictions
-    cache_check <- anti_join(newdata, cached_data,  by = c("report_year", "report_semester", "disease", "country_iso3c", "disease_population", "taxa"))
+    cache_check <- anti_join(newdata, cached_data,  by = c("disease", "country_iso3c", "month"))
 
     if(nrow(cache_check)==0){
       augmented_data_all <- left_join(newdata, cached_data,  by = c("report_year", "report_semester", "disease", "country_iso3c", "disease_population", "taxa"))
