@@ -66,9 +66,7 @@ lme_mod <- model_object$network_model
 randef <- ranef(lme_mod)
 randef_disease <- randef$disease %>%
   tibble::rownames_to_column(var = "disease") %>%
-  as_tibble() %>% 
-  select(-`(Intercept)`) %>% 
-  rename(shared_borders_from_outbreaks = "dummy(shared_borders_from_outbreaks, \"TRUE\")")
+  as_tibble() 
 
 randef_disease_long <- randef_disease %>%
   pivot_longer(-disease, names_to = "variable", values_to = "coef") 
@@ -233,10 +231,38 @@ for (i in 1:length(vp_plots)){
 </details>
 
 
-```{r}
+```{r lme-country-predictions}
 
 # which countries contribute to prediction 0 disaggregate
 # will need to include this in augment - ranking of values
+
+conn <- repeldata::repel_local_conn()
+
+# look at countries with hpai outbreak in 2018
+hpai_var_importance <- var_importance_by_country %>% 
+  filter(outbreak_start, disease == disease_select)  %>% 
+  filter(month >= "2018-01-01") %>% 
+  group_by(country_iso3c) %>% 
+  slice(1:3) %>% 
+  ungroup() %>% 
+  arrange(-outbreak_start_predicted)
+
+augment_disaggregated <- DBI::dbReadTable(conn, "network_lme_augment_disaggregated") %>% 
+  as_tibble() %>% 
+  filter(outbreak_start == "t") %>% 
+  filter(disease == disease_select)  %>% 
+  filter(month >= "2018-01-01") %>% 
+  filter(country_origin != "NA") %>% 
+  filter(country_iso3c == "DEU", month == "2018-01-01")
+
+augment_disaggregated %>% 
+  select(country_origin, fao_livestock_heads_from_outbreaks) %>% 
+  mutate(fao_livestock_heads_from_outbreaks = as.numeric(fao_livestock_heads_from_outbreaks)) %>% 
+  arrange(-fao_livestock_heads_from_outbreaks)
+
+# figure - for country/disease/month
+# b(x1 + x2)
+# beta * value for each contributor, colored by variable (bar chart?)
 
 ```
 
