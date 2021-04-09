@@ -117,12 +117,14 @@ repel_forecast.network_lme <- function(model_object, conn, newdata, use_cache = 
     cache_check <- anti_join(newdata, cached_data,  by = c("disease", "country_iso3c", "month"))
 
     if(nrow(cache_check)==0){
-      augmented_data_all <- left_join(newdata, cached_data,  by = c("report_year", "report_semester", "disease", "country_iso3c", "disease_population", "taxa"))
+      augmented_data_all <- left_join(newdata, cached_data, by = c("disease", "country_iso3c", "month"))
       augmented_data <- augmented_data_all %>%
-        select(-ends_with("etag"), -predicted_cases)
-      predictions <- augmented_data_all$predicted_cases
+        select(-ends_with("etag"), -predicted_outbreak_probability) %>%
+        mutate(outbreak_start = outbreak_start == "t") %>%
+        mutate_at(vars(-country_iso3c, -disease, -month, -outbreak_start), as.numeric)
+      predictions <- as.numeric(augmented_data_all$predicted_outbreak_probability)
       assertthat::assert_that(!any(is.na(predictions)))
-      return(list(augmented_data = augmented_data, predicted_cases = predictions))
+      return(list(augmented_data = augmented_data, predicted_probablity = predictions))
     }
   }
 
