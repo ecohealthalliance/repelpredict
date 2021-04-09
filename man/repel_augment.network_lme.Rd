@@ -4,7 +4,7 @@
 \alias{repel_augment.network_lme}
 \title{Augment nowcast baseline model object}
 \usage{
-\method{repel_augment}{network_lme}(model_object, conn, newdata)
+\method{repel_augment}{network_lme}(model_object, conn, newdata, sum_country_imports = TRUE)
 }
 \description{
 Augment nowcast baseline model object

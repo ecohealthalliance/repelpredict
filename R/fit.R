@@ -237,11 +237,19 @@ repel_fit.network_lme <- function(model_object,
                                   output_directory,
                                   verbose = interactive()) {
 
+  # mean/sd for scaling predictions
+  scaling_values <- augmented_data %>%
+    select(all_of(predictor_vars)) %>%
+    drop_na() %>%
+    gather() %>%
+    group_by(key) %>%
+    summarize(mean = mean(value), sd = sd(value)) %>%
+    ungroup()
 
-  augmented_data_select <- network_recipe(augmented_data, predictor_vars)
+  augmented_data_select <- network_recipe(augmented_data, predictor_vars, scaling_values)
 
   augmented_data_compressed <- augmented_data_select %>%
-    select(-month) %>%
+    drop_na() %>%
     group_by_all() %>%
     count() %>%
     ungroup() %>%
@@ -268,5 +276,9 @@ repel_fit.network_lme <- function(model_object,
 
   write_rds(mod, here::here(paste0(output_directory, "/lme_mod_network.rds")))
   aws.s3::s3saveRDS(mod, bucket = "repeldb/models", object = "lme_mod_network.rds")
+
+  write_csv(scaling_values, here::here(paste0(output_directory, "/network_scaling_values.csv")))
+  aws.s3::s3saveRDS(scaling_values, bucket = "repeldb/models", object = "network_scaling_values.rds")
+
 }
 

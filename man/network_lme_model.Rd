@@ -4,7 +4,7 @@
 \alias{network_lme_model}
 \title{Produces network lme model object}
 \usage{
-network_lme_model(network_model = NULL)
+network_lme_model(network_model = NULL, network_scaling_values = NULL)
 }
 \value{
 a list with description and classes

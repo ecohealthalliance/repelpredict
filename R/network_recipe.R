@@ -2,14 +2,27 @@
 
 #'@noRd
 network_recipe <- function(augmented_data,
-                           predictor_vars) {
+                           predictor_vars,
+                           scaling_values) {
 
-  augmented_data %>%
-    select(country_iso3c, disease, month, outbreak_start,
+  assert_that(all(sort(scaling_values$key) == sort(predictor_vars)))
+
+  prescale_augmented_data <- augmented_data %>%
+    select(country_iso3c, disease,
+           suppressWarnings(one_of("outbreak_start")), # needed for model fitting but not prediction
            !!predictor_vars) %>%
-    drop_na() %>%
     mutate(country_iso3c = as.factor(country_iso3c)) %>%
-    mutate(disease = as.factor(disease)) %>%
-    mutate_if(is.numeric, scale2)
+    mutate(disease = as.factor(disease))
+
+  scaled_augmented_data <- prescale_augmented_data %>%
+    mutate(unique_id = row_number()) %>% # in case there are duplicates (e.g., in bootstrap validation)
+    pivot_longer(cols = all_of(predictor_vars)) %>%
+    left_join(scaling_values, by = c("name" = "key")) %>%
+    mutate(value = (value - `mean`) / `sd`) %>%
+    select(-mean, -sd) %>%
+    pivot_wider(names_from = "name", values_from = "value") %>%
+    select(-unique_id)
+
+  return(scaled_augmented_data)
 
 }

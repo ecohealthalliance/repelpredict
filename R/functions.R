@@ -26,6 +26,3 @@ na_interp <- function(df, var){
   }
   return(out)
 }
-
-#' @noRd
-scale2 <- function(x, na.rm = FALSE) (x - mean(x, na.rm = na.rm)) / sd(x, na.rm)
