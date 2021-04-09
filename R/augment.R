@@ -479,7 +479,7 @@ repel_augment.network_lme <- function(model_object, conn, newdata, sum_country_i
   outbreak_status <- outbreak_status %>%
     select(-suppressWarnings(one_of("gc_dist")), -suppressWarnings(one_of("year"))) %>%
     mutate(outbreak_start = outbreak_start > 0) %>%
-   # mutate(shared_border = shared_border > 0) %>%
+    mutate(shared_border = as.integer(shared_border)) %>%
     select(country_iso3c = country_destination, suppressWarnings(one_of("country_origin")),
            disease, month, outbreak_start,
            shared_borders_from_outbreaks = shared_border,
