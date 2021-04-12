@@ -246,7 +246,10 @@ repel_fit.network_lme <- function(model_object,
     summarize(mean = mean(value), sd = sd(value)) %>%
     ungroup()
 
-  augmented_data_select <- network_recipe(augmented_data, predictor_vars, scaling_values)
+  augmented_data_select <- augmented_data %>%
+    filter(!endemic) %>%
+    filter(!outbreak_subsequent_month) %>%
+    network_recipe(., predictor_vars, scaling_values)
 
   augmented_data_compressed <- augmented_data_select %>%
     drop_na() %>%

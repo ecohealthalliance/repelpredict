@@ -41,7 +41,7 @@ repel_init.nowcast_model <- function(model_object, conn){
 #' @importFrom tidyr expand
 #' @importFrom lubridate floor_date ceiling_date
 #' @export
-repel_init.network_model <- function(model_object, conn, remove_non_outbreak_events = TRUE){
+repel_init.network_model <- function(model_object, conn){
 
   # read in immediate outbreaks
   events <- tbl(conn, "outbreak_reports_events") %>%
@@ -99,7 +99,7 @@ repel_init.network_model <- function(model_object, conn, remove_non_outbreak_eve
             from = floor_date(min(events$date_of_start_of_the_event, na.rm = TRUE), unit = "months"),
             to = Sys.Date(),
             by = "months")
-        ), by = c("country_iso3c", "disease")) %>%
+        ), by = c("country_iso3c", "disease")) %>% # adds all months for countries where disease has occurred
     group_by(immediate_report) %>%
     mutate(outbreak_subsequent_month = month > outbreak_start_month & month <= outbreak_end_month) %>%
     mutate(outbreak_start = month == outbreak_start_month) %>%
@@ -145,11 +145,11 @@ repel_init.network_model <- function(model_object, conn, remove_non_outbreak_eve
   # on the other hand, there are outbreaks that are reported when it really is already endemic, eg rabies, so commenting out for now
   # events %>% filter(outbreak_start, endemic) %>% View
 
-  if(remove_non_outbreak_events){
-    events <- events %>%
-      filter(!endemic, !outbreak_subsequent_month) %>%
-      select(-endemic, -outbreak_subsequent_month)
-  }
+  # if(remove_non_outbreak_events){
+  #   events <- events %>%
+  #     filter(!endemic, !outbreak_subsequent_month) %>%
+  #     select(-endemic, -outbreak_subsequent_month)
+  # }
   return(events)
 
 }

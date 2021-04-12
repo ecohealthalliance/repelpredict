@@ -319,17 +319,19 @@ repel_augment.network_lme <- function(model_object, conn, newdata, sum_country_i
     select(country_iso3c, disease, month)
 
   # start lookup table for augmenting
-  outbreak_status <- repel_split(model_object, conn, remove_non_outbreak_events = TRUE) %>%
-    mutate(month = as.Date(month), outbreak_start = as.integer(outbreak_start)) %>%
-    select(-validation_set)
+  outbreak_status <- repel_split(model_object, conn) #%>%
+    # mutate(month = as.Date(month), outbreak_start = as.integer(outbreak_start)) %>%
+    # select(-validation_set)
 
   # which countries have disease outbreak in a given month
-  disease_status_present <- repel_split(model_object, conn, remove_non_outbreak_events = FALSE) %>%
+  disease_status_present <- outbreak_status %>%
     filter(outbreak_start | outbreak_subsequent_month | endemic) %>%
     select(country_origin = country_iso3c, month, disease)
 
   # filter dataset to min/max year from endemic #TODO revisit
   outbreak_status <- outbreak_status %>%
+    mutate(month = as.Date(month), outbreak_start = as.integer(outbreak_start)) %>%
+    select(-validation_set) %>%
     filter(month >= min(disease_status_present$month), month <= max(disease_status_present$month))
 
   # set up country origin/destination combinations - origin is countries that have the disease present in the given month
@@ -466,7 +468,7 @@ repel_augment.network_lme <- function(model_object, conn, newdata, sum_country_i
   if(sum_country_imports){
     # sum all incoming values into destination country
     outbreak_status <- outbreak_status %>%
-      select(1:31) %>% # NOTE THIS MANUAL SELECTION
+      select(1:33) %>% # NOTE THIS MANUAL SELECTION
       lazy_dt() %>%
       select(-gc_dist, -country_origin, -year) %>%
       group_by(country_destination, disease, month, outbreak_start) %>%
@@ -479,9 +481,12 @@ repel_augment.network_lme <- function(model_object, conn, newdata, sum_country_i
   outbreak_status <- outbreak_status %>%
     select(-suppressWarnings(one_of("gc_dist")), -suppressWarnings(one_of("year"))) %>%
     mutate(outbreak_start = outbreak_start > 0) %>%
+    mutate(endemic = endemic > 0) %>%
+    mutate(outbreak_subsequent_month = outbreak_subsequent_month > 0) %>%
     mutate(shared_border = as.integer(shared_border)) %>%
     select(country_iso3c = country_destination, suppressWarnings(one_of("country_origin")),
            disease, month, outbreak_start,
+           outbreak_subsequent_month, endemic,
            shared_borders_from_outbreaks = shared_border,
            ots_trade_dollars_from_outbreaks = ots_trade_dollars,
            fao_livestock_heads_from_outbreaks = fao_livestock_heads,

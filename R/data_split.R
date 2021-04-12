@@ -55,7 +55,7 @@ repel_split.nowcast_model <- function(model_object, conn, clean_disease_names = 
 #' @importFrom vroom vroom
 #' @importFrom here here
 #' @export
-repel_split.network_model <- function(model_object, conn, clean_disease_names = TRUE, remove_non_outbreak_events = TRUE){
+repel_split.network_model <- function(model_object, conn, clean_disease_names = TRUE){
 
   # read in static file from inst/network_generate_data_split_lookup.R
   validation_split <- vroom::vroom(system.file("lookup", "network_validation_split_lookup.csv.gz", package = "repelpredict"),
@@ -66,7 +66,7 @@ repel_split.network_model <- function(model_object, conn, clean_disease_names = 
                                  validation_set = col_logical()
                                ))
 
-  all_dat <- repel_init(model_object, conn, remove_non_outbreak_events = remove_non_outbreak_events) %>%
+  all_dat <- repel_init(model_object, conn) %>%
     arrange(country_iso3c, disease, month) %>%
     left_join(validation_split,  by = c("country_iso3c", "disease", "month"))
 
