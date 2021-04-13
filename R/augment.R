@@ -319,9 +319,7 @@ repel_augment.network_lme <- function(model_object, conn, newdata, sum_country_i
     select(country_iso3c, disease, month)
 
   # start lookup table for augmenting
-  outbreak_status <- repel_split(model_object, conn) #%>%
-    # mutate(month = as.Date(month), outbreak_start = as.integer(outbreak_start)) %>%
-    # select(-validation_set)
+  outbreak_status <- repel_split(model_object, conn)
 
   # which countries have disease outbreak in a given month
   disease_status_present <- outbreak_status %>%
@@ -422,36 +420,36 @@ repel_augment.network_lme <- function(model_object, conn, newdata, sum_country_i
   outbreak_status <- left_join(outbreak_status, trade_vars_groups_total, by = c("country_destination", "year", "country_origin"))
 
   # do a pca on ots trade groups
-  pca_dat <- trade_vars_groups_summed %>%
-    filter(source == "ots_trade_dollars" ) %>%
-    select(-source) %>%
-    pivot_wider(names_from = group_name, values_from = value) %>%
-    janitor::clean_names()
-
-  pca <- prcomp(pca_dat %>% select(-country_origin, -country_destination, -year), )
-  # summary(pca)
-
-  pca_vals <- pca$rotation %>%
-    as_tibble() %>%
-    mutate(var = rownames(pca$rotation))
-
-  # PC1 interp: high soy and corn
-  pc1 <- pca_vals %>%
-    select(var, PC1) %>%
-    arrange(-abs(PC1))
-
-  # PC2 interp: high trunks, fish, leather
-  pc2 <- pca_vals %>%
-    select(var, PC2) %>%
-    arrange(-abs(PC2))
-
-  pcout <- pca$x %>%
-    as_tibble() %>%
-    select(PC1, PC2) %>%
-    bind_cols(pca_dat %>% select(country_origin, country_destination, year), .) %>%
-    rename(ots_trade_pc1_soy_corn = PC1, ots_trade_pc2_trunks_fish_leather = PC2)
-
-  outbreak_status <- left_join(outbreak_status, pcout, by = c("country_destination", "year", "country_origin"))
+  # pca_dat <- trade_vars_groups_summed %>%
+  #   filter(source == "ots_trade_dollars" ) %>%
+  #   select(-source) %>%
+  #   pivot_wider(names_from = group_name, values_from = value) %>%
+  #   janitor::clean_names()
+  #
+  # pca <- prcomp(pca_dat %>% select(-country_origin, -country_destination, -year), )
+  # # summary(pca)
+  #
+  # pca_vals <- pca$rotation %>%
+  #   as_tibble() %>%
+  #   mutate(var = rownames(pca$rotation))
+  #
+  # # PC1 interp: high soy and corn
+  # pc1 <- pca_vals %>%
+  #   select(var, PC1) %>%
+  #   arrange(-abs(PC1))
+  #
+  # # PC2 interp: high trunks, fish, leather
+  # pc2 <- pca_vals %>%
+  #   select(var, PC2) %>%
+  #   arrange(-abs(PC2))
+  #
+  # pcout <- pca$x %>%
+  #   as_tibble() %>%
+  #   select(PC1, PC2) %>%
+  #   bind_cols(pca_dat %>% select(country_origin, country_destination, year), .) %>%
+  #   rename(ots_trade_pc1_soy_corn = PC1, ots_trade_pc2_trunks_fish_leather = PC2)
+  #
+  # outbreak_status <- left_join(outbreak_status, pcout, by = c("country_destination", "year", "country_origin"))
 
   # add in all the grouped summed trade values
   trade_vars_groups_summed <- trade_vars_groups_summed %>%
