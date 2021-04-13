@@ -482,6 +482,7 @@ repel_augment.network_lme <- function(model_object, conn, newdata, sum_country_i
     select(-suppressWarnings(one_of("gc_dist")), -suppressWarnings(one_of("year"))) %>%
     mutate(outbreak_start = outbreak_start > 0) %>%
     mutate(endemic = endemic > 0) %>%
+    mutate(disease_country_combo_unreported = disease_country_combo_unreported > 0) %>%
     mutate(outbreak_subsequent_month = outbreak_subsequent_month > 0) %>%
     mutate(shared_border = as.integer(shared_border)) %>%
     select(country_iso3c = country_destination, suppressWarnings(one_of("country_origin")),
