@@ -14,6 +14,7 @@ model_object <- network_lme_model()
 # valdat <- repel_validation(model_object, conn)
 
 traindat <- repel_training(model_object, conn) %>%
+  filter(!disease_country_combo_unreported) %>%
   select(country_iso3c, disease, month)
 
 tic()
@@ -30,17 +31,18 @@ repel_fit(model_object =  model_object,
           predictor_vars = c("shared_borders_from_outbreaks", "ots_trade_dollars_from_outbreaks", "fao_livestock_heads_from_outbreaks"),
           output_directory = "models")
 
-
 # Forecast on training ----------------------------------------------------
 model_object <-  network_lme_model(
-  network_model = aws.s3::s3readRDS(bucket = "repeldb/models", object = "lme_mod_network.rds")
+  network_model = aws.s3::s3readRDS(bucket = "repeldb/models", object = "lme_mod_network.rds"),
+  network_scaling_values = aws.s3::s3readRDS(bucket = "repeldb/models", object = "network_scaling_values.rds")
   )
 
 tic()
+
 forecasted_data <- repel_forecast(model_object = model_object,
                                   conn = conn,
                                   newdata = traindat,
-                                  use_cache = FALSE)
+                                  use_cache = TRUE)
 toc()
 
 repel_local_disconnect()
