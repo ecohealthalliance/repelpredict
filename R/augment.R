@@ -452,21 +452,21 @@ repel_augment.network_lme <- function(model_object, conn, newdata, sum_country_i
   # outbreak_status <- left_join(outbreak_status, pcout, by = c("country_destination", "year", "country_origin"))
 
   # add in all the grouped summed trade values
-  trade_vars_groups_summed <- trade_vars_groups_summed %>%
-    mutate(group_name = paste0("trade_", group_name)) %>%
-    select(-source) %>%
-    as_tibble() %>%
-    pivot_wider(names_from = group_name, values_from = value) %>%
-    janitor::clean_names()
-
-  outbreak_status <- left_join(outbreak_status, trade_vars_groups_summed,  by = c("country_destination", "year", "country_origin"))
+  # trade_vars_groups_summed <- trade_vars_groups_summed %>%
+  #   mutate(group_name = paste0("trade_", group_name)) %>%
+  #   select(-source) %>%
+  #   as_tibble() %>%
+  #   pivot_wider(names_from = group_name, values_from = value) %>%
+  #   janitor::clean_names()
+  #
+  # outbreak_status <- left_join(outbreak_status, trade_vars_groups_summed,  by = c("country_destination", "year", "country_origin"))
   # vroom::vroom_write(outbreak_status, here::here("tmp/network_augment_expanded.csv"))
   # outbreak_status <- vroom(here::here("tmp/network_augment_expanded.csv"))
 
   if(sum_country_imports){
     # sum all incoming values into destination country
     outbreak_status <- outbreak_status %>%
-      select(1:33) %>% # NOTE THIS MANUAL SELECTION
+      select(1:15) %>% # NOTE THIS MANUAL SELECTION
       lazy_dt() %>%
       select(-gc_dist, -country_origin, -year) %>%
       group_by(country_destination, disease, month, outbreak_start) %>%
@@ -489,7 +489,7 @@ repel_augment.network_lme <- function(model_object, conn, newdata, sum_country_i
            shared_borders_from_outbreaks = shared_border,
            ots_trade_dollars_from_outbreaks = ots_trade_dollars,
            fao_livestock_heads_from_outbreaks = fao_livestock_heads,
-           everything(), -trade_animals_live_nes)
+           everything())
 
   names(outbreak_status)[str_starts(names(outbreak_status), "trade_")] <- paste0("fao_",
                                                                                  names(outbreak_status)[str_starts(names(outbreak_status), "trade_")],
