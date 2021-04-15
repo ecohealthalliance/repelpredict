@@ -237,22 +237,22 @@ repel_fit.network_lme <- function(model_object,
                                   output_directory,
                                   verbose = interactive()) {
 
-  # mean/sd for scaling predictions
-  scaling_values <- augmented_data %>%
-    select(all_of(predictor_vars)) %>%
+  augmented_data_select <- augmented_data %>%
     drop_na() %>%
+    filter(!endemic) %>%
+    filter(!outbreak_subsequent_month)  %>%
+    filter(!disease_country_combo_unreported)
+
+  # mean/sd for scaling predictions
+  scaling_values <- augmented_data_select %>%
+    select(all_of(predictor_vars)) %>%
     gather() %>%
     group_by(key) %>%
     summarize(mean = mean(value), sd = sd(value)) %>%
     ungroup()
 
-  augmented_data_select <- augmented_data %>%
-    filter(!endemic) %>%
-    filter(!outbreak_subsequent_month) %>%
-    network_recipe(., predictor_vars, scaling_values)
-
   augmented_data_compressed <- augmented_data_select %>%
-    drop_na() %>%
+    network_recipe(., predictor_vars, scaling_values) %>%
     group_by_all() %>%
     count() %>%
     ungroup() %>%
