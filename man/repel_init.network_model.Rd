@@ -4,7 +4,7 @@
 \alias{repel_init.network_model}
 \title{Preprocess nowcast data}
 \usage{
-\method{repel_init}{network_model}(model_object, conn, remove_non_outbreak_events = TRUE)
+\method{repel_init}{network_model}(model_object, conn)
 }
 \description{
 Preprocess nowcast data

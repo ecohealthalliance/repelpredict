@@ -4,7 +4,7 @@
 \alias{repel_predict.network_lme}
 \title{Predict from network lme model object}
 \usage{
-\method{repel_predict}{network_lme}(model_object, newdata, use_cache = TRUE)
+\method{repel_predict}{network_lme}(model_object, newdata)
 }
 \value{
 vector containing predicted probability of an outbreak
