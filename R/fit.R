@@ -241,7 +241,7 @@ repel_fit.network_lme <- function(model_object,
     drop_na() %>%
     filter(!endemic) %>%
     filter(!outbreak_subsequent_month)  %>%
-    filter(!disease_country_combo_unreported)
+    filter(!disease_country_combo_unreported) # fails to fit if all these zeros are left in
 
   # mean/sd for scaling predictions
   scaling_values <- augmented_data_select %>%
@@ -284,4 +284,67 @@ repel_fit.network_lme <- function(model_object,
   aws.s3::s3saveRDS(scaling_values, bucket = "repeldb/models", object = "network_scaling_values.rds")
 
 }
+
+
+#' Fit network BRMS model object
+#' @return list containing predicted count and whether disease is expected or not (T/F)
+#' @import dplyr tidyr brms tictoc
+#' @importFrom here here
+#' @importFrom RhpcBLASctl blas_set_num_threads
+#' @export
+repel_fit.network_brms <- function(model_object,
+                                  augmented_data,
+                                  predictor_vars,
+                                  output_directory,
+                                  verbose = interactive()) {
+
+  augmented_data_select <- augmented_data %>%
+    drop_na() %>%
+    filter(!endemic) %>%
+    filter(!outbreak_subsequent_month) # %>%
+   # filter(!disease_country_combo_unreported)
+
+  # mean/sd for scaling predictions
+  scaling_values <- augmented_data_select %>%
+    select(all_of(predictor_vars)) %>%
+    gather() %>%
+    group_by(key) %>%
+    summarize(mean = mean(value), sd = sd(value)) %>%
+    ungroup()
+
+  augmented_data_compressed <- augmented_data_select %>%
+    network_recipe(., predictor_vars, scaling_values) %>%
+    group_by_all() %>%
+    count() %>%
+    ungroup() %>%
+    select(country_iso3c, disease, count = n, outbreak_start, everything()) %>%
+    arrange(disease, desc(count), country_iso3c)
+
+  frm <- bf(paste0("outbreak_start|weights(count)  ~
+                         0 + (1 | country_iso3c:disease) + ", # baseline intercept for disease in country
+                   paste0("(0 + ", predictor_vars, "|disease)", collapse = " + "))) #  “variance of trade by disease”
+
+
+  tic()
+  mod <- brms::brm(
+    formula = frm,
+    data = augmented_data_compressed,
+    family = 'bernoulli',
+    iter = 2000,
+    chains = 4,
+    cores = 4#,
+    # backend = "cmdstanr",
+    # threads = threading(30)
+  )
+  toc()
+
+  write_rds(mod, here::here(paste0(output_directory, "/brms_mod_network.rds")))
+  aws.s3::s3saveRDS(mod, bucket = "repeldb/models", object = "brms_mod_network.rds")
+
+  write_csv(scaling_values, here::here(paste0(output_directory, "/network_scaling_values.csv")))
+  aws.s3::s3saveRDS(scaling_values, bucket = "repeldb/models", object = "network_scaling_values.rds")
+
+}
+
+
 

@@ -39,3 +39,14 @@ network_lme_model <- function(network_model = NULL, network_scaling_values = NUL
                  network_scaling_values = network_scaling_values),
             class = c("network_lme", "network_model", "repel_model"))
 }
+
+#' Produces network brms model object
+#' @import repeldata dplyr tidyr
+#' @return a list with description and classes
+#' @export
+network_brms_model <- function(network_model = NULL, network_scaling_values = NULL){
+  structure(list(description = "Network BRMS model",
+                 network_model = network_model,
+                 network_scaling_values = network_scaling_values),
+            class = c("network_brms", "network_model", "repel_model"))
+}
