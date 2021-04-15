@@ -77,7 +77,7 @@ repel_predict.nowcast_boost <- function(model_object, newdata, use_cache = TRUE)
 #' @import tidyr dplyr stringr lme4
 #' @export
 #'
-repel_predict.network_lme <- function(model_object, newdata, use_cache = TRUE) {
+repel_predict.network_lme <- function(model_object, newdata) {
 
   # load model
   lme_mod <- model_object$network_model
