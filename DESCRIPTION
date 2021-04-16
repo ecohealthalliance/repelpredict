@@ -42,7 +42,8 @@ Imports:
     lme4,
     countrycode,
     vroom,
-    RhpcBLASctl
+    RhpcBLASctl,
+    brms
 Suggests:
     spelling, 
     testthat,
