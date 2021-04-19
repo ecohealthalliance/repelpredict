@@ -311,7 +311,7 @@ repel_augment.nowcast_gam <- function(model_object, conn, newdata, rare = 1000) 
 #' @importFrom lubridate ymd
 #' @importFrom purrr map_dfr
 #' @export
-repel_augment.network_lme <- function(model_object, conn, newdata, sum_country_imports = TRUE) {
+repel_augment.network_model <- function(model_object, conn, newdata, sum_country_imports = TRUE) {
 
   # check newdata has correct input vars
   assertthat::has_name(newdata, c("country_iso3c", "disease", "month"))
@@ -321,6 +321,44 @@ repel_augment.network_lme <- function(model_object, conn, newdata, sum_country_i
   # start lookup table for augmenting
   outbreak_status <- repel_split(model_object, conn)
 
+  # add year column to support joins
+  outbreak_status <- outbreak_status %>%
+    mutate(year = year(month))
+
+  # World Bank indicators
+  wbi <-  tbl(conn, "worldbank_indicators") %>%
+    collect() %>%
+    right_join(expand(outbreak_status, country_iso3c, year),  by = c("country_iso3c", "year")) %>%
+    arrange(country_iso3c, year) %>%
+    group_split(country_iso3c) %>%
+    map_dfr(~na_interp(., "gdp_dollars") %>%
+              na_interp(., "human_population")) %>%
+    select(-gdp_dollars,
+           -human_population) %>%
+    rename(gdp_dollars = gdp_dollars_imputed,
+           human_population = human_population_imputed)
+
+  outbreak_status <- left_join(outbreak_status, wbi,  by = c("country_iso3c", "year"))
+
+  # Taxa population
+  disease_taxa_lookup <- vroom::vroom(system.file("lookup", "disease_taxa_lookup.csv", package = "repelpredict"))
+
+  taxa_population <- tbl(conn, "country_taxa_population") %>%
+    collect() %>%
+    rename(taxa_population = population) %>%
+    right_join(expand(outbreak_status, country_iso3c, year),  by = c("country_iso3c", "year")) %>%
+    arrange(country_iso3c, taxa, year) %>%
+    group_split(country_iso3c, taxa) %>%
+    map_dfr(~na_interp(., "taxa_population")) %>%
+    select(-taxa_population) %>%
+    rename(taxa_population = taxa_population_imputed) %>%
+    left_join(disease_taxa_lookup) %>%
+    group_by(country_iso3c, year, disease) %>%
+    summarize(target_taxa_population = sum(taxa_population, na.rm = TRUE)) %>%
+    ungroup()
+
+  outbreak_status <- left_join(outbreak_status, taxa_population,  by = c("country_iso3c", "year", "disease"))
+
   # which countries have disease outbreak in a given month
   disease_status_present <- outbreak_status %>%
     filter(outbreak_start | outbreak_subsequent_month | endemic) %>%
@@ -328,7 +366,7 @@ repel_augment.network_lme <- function(model_object, conn, newdata, sum_country_i
 
   # filter dataset to min/max year from endemic #TODO revisit
   outbreak_status <- outbreak_status %>%
-    mutate(month = as.Date(month), outbreak_start = as.integer(outbreak_start)) %>%
+    mutate(outbreak_start = as.integer(outbreak_start)) %>%
     select(-validation_set) %>%
     filter(month >= min(disease_status_present$month), month <= max(disease_status_present$month))
 
@@ -353,9 +391,6 @@ repel_augment.network_lme <- function(model_object, conn, newdata, sum_country_i
   connect_yearly <- DBI::dbReadTable(conn, "connect_yearly_vars") %>%
     collect() %>%
     mutate(year = as.integer(year))
-
-  outbreak_status <-  outbreak_status %>%
-    mutate(year = lubridate::year(month))
 
   # human movement vars
   human_movement <- connect_yearly %>%
@@ -466,10 +501,9 @@ repel_augment.network_lme <- function(model_object, conn, newdata, sum_country_i
   if(sum_country_imports){
     # sum all incoming values into destination country
     outbreak_status <- outbreak_status %>%
-      select(1:15) %>% # NOTE THIS MANUAL SELECTION
       lazy_dt() %>%
       select(-gc_dist, -country_origin, -year) %>%
-      group_by(country_destination, disease, month, outbreak_start) %>%
+      group_by(country_destination, disease, month, outbreak_start, gdp_dollars, human_population, target_taxa_population) %>%
       summarize_all(~sum(., na.rm = TRUE)) %>%  #TODO DEAL WITH NAS in human movement
       ungroup() %>%
       as_tibble()
@@ -483,8 +517,9 @@ repel_augment.network_lme <- function(model_object, conn, newdata, sum_country_i
     mutate(disease_country_combo_unreported = disease_country_combo_unreported > 0) %>%
     mutate(outbreak_subsequent_month = outbreak_subsequent_month > 0) %>%
     mutate(shared_border = as.integer(shared_border)) %>%
-    select(country_iso3c = country_destination, suppressWarnings(one_of("country_origin")),
-           disease, month, outbreak_start,
+    mutate(continent = countrycode::countrycode(country_destination,  origin = "iso3c", destination = "continent")) %>%
+    select(country_iso3c = country_destination, continent, suppressWarnings(one_of("country_origin")),
+           disease, month, gdp_dollars, human_population, target_taxa_population, outbreak_start,
            outbreak_subsequent_month, endemic, disease_country_combo_unreported,
            shared_borders_from_outbreaks = shared_border,
            ots_trade_dollars_from_outbreaks = ots_trade_dollars,

@@ -8,7 +8,9 @@ network_recipe <- function(augmented_data,
   assert_that(all(sort(scaling_values$key) == sort(predictor_vars)))
 
   prescale_augmented_data <- augmented_data %>%
-    select(country_iso3c, disease,
+    select(country_iso3c,
+           suppressWarnings(one_of("continent")),
+           disease,
            suppressWarnings(one_of("outbreak_start")), # needed for model fitting but not prediction
            !!predictor_vars) %>%
     mutate(country_iso3c = as.factor(country_iso3c)) %>%
