@@ -331,8 +331,8 @@ repel_fit.network_brms <- function(model_object,
     data = augmented_data_compressed,
     family = 'bernoulli',
     iter = 2000,
-    chains = 4,
-    cores = 4#,
+    chains = 16,
+    cores = 16#,
     # backend = "cmdstanr",
     # threads = threading(30)
   )

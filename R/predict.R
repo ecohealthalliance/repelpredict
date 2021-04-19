@@ -86,11 +86,7 @@ repel_predict.network_lme <- function(model_object, newdata) {
   network_scaling_values <- model_object$network_scaling_values
 
   # get predictor_vars
-  predictor_vars <- slot(lme_mod, "frame") %>%
-    select(-outbreak_start, -country_iso3c, -disease, -`(weights)`) %>%
-    colnames() %>%
-    str_remove_all(.,"dummy\\(") %>%
-    str_remove('\\s*,.*')
+  predictor_vars <- network_scaling_values$key
 
   newdata2 <- network_recipe(augmented_data = newdata, predictor_vars = predictor_vars, scaling_values = network_scaling_values)
 
