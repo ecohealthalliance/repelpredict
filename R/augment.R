@@ -404,7 +404,8 @@ repel_augment.network_model <- function(model_object, conn, newdata, sum_country
   connect_static <- tbl(conn, "connect_static_vars")  %>%
     collect() %>%
     select(-n_migratory_birds, -gc_dist) %>%
-    mutate(shared_border = as.logical(shared_border))
+    mutate(shared_border = as.logical(shared_border)) %>%
+    mutate(n_migratory_wildlife = as.integer(n_migratory_wildlife))
 
   outbreak_status <- left_join(outbreak_status, connect_static,  by = c("country_destination", "country_origin"))
 
@@ -532,7 +533,7 @@ repel_augment.network_model <- function(model_object, conn, newdata, sum_country
       group_by(country_destination, disease, month, outbreak_start,
                gdp_dollars, human_population, target_taxa_population, veterinarian_count ## non-bilaterial values
                ) %>%
-      summarize_all(~sum(., na.rm = TRUE)) %>%  #TODO DEAL WITH NAS in human movement
+      summarize_all(~sum(as.numeric(.), na.rm = TRUE)) %>%  #TODO DEAL WITH NAS in human movement
       ungroup() %>%
       as_tibble()
   }
