@@ -240,12 +240,11 @@ repel_fit.network_lme <- function(model_object,
   augmented_data_select <- augmented_data %>%
     drop_na() %>%
     filter(!endemic) %>%
-    filter(!outbreak_subsequent_month)  %>%
-    filter(!disease_country_combo_unreported) # fails to fit if all these zeros are left in
+    filter(!outbreak_subsequent_month)
 
   # mean/sd for scaling predictions
   scaling_values <- augmented_data_select %>%
-    select(all_of(predictor_vars)) %>%
+    select(all_of(predictor_vars), -continent) %>%
     gather() %>%
     group_by(key) %>%
     summarize(mean = mean(value), sd = sd(value)) %>%
@@ -260,12 +259,12 @@ repel_fit.network_lme <- function(model_object,
     arrange(disease, desc(count), country_iso3c)
 
   wgts <- augmented_data_compressed$count
-  #vars <- names(augmented_data_select)[str_starts(names(augmented_data_select), "fao_|ots_|shared")]
 
-  frm <- as.formula(paste0("outbreak_start ~
-                         0 + (1 | country_iso3c:disease) + ", # baseline intercept for disease in country
-                         #  '(1 + dummy(shared_borders_from_outbreaks, "TRUE") | disease) + ',
+  frm <- as.formula(paste0("outbreak_start ~ ",
                            paste0("(0 + ", predictor_vars, "|disease)", collapse = " + "))) #  “variance of trade by disease”
+  # syntax notes: (https://stats.stackexchange.com/questions/13166/rs-lmer-cheat-sheet)
+  # (0 + var | disease) = The effect of var within each level of disease (more specifically, the degree to which the var effect within a given level deviates from the global effect of var), while enforcing a zero correlation between the intercept deviations and var effect deviations across levels of disease
+
 
   RhpcBLASctl::blas_set_num_threads(16)
   tic("16 blas threads")
@@ -293,20 +292,19 @@ repel_fit.network_lme <- function(model_object,
 #' @importFrom RhpcBLASctl blas_set_num_threads
 #' @export
 repel_fit.network_brms <- function(model_object,
-                                  augmented_data,
-                                  predictor_vars,
-                                  output_directory,
-                                  verbose = interactive()) {
+                                   augmented_data,
+                                   predictor_vars,
+                                   output_directory,
+                                   verbose = interactive()) {
 
   augmented_data_select <- augmented_data %>%
     drop_na() %>%
     filter(!endemic) %>%
-    filter(!outbreak_subsequent_month) # %>%
-   # filter(!disease_country_combo_unreported)
+    filter(!outbreak_subsequent_month)
 
   # mean/sd for scaling predictions
   scaling_values <- augmented_data_select %>%
-    select(all_of(predictor_vars)) %>%
+    select(all_of(predictor_vars), -continent) %>%
     gather() %>%
     group_by(key) %>%
     summarize(mean = mean(value), sd = sd(value)) %>%
@@ -320,10 +318,10 @@ repel_fit.network_brms <- function(model_object,
     select(country_iso3c, disease, count = n, outbreak_start, everything()) %>%
     arrange(disease, desc(count), country_iso3c)
 
-  frm <- bf(paste0("outbreak_start|weights(count)  ~
-                         0 + (1 | country_iso3c:disease) + ", # baseline intercept for disease in country
-                   paste0("(0 + ", predictor_vars, "|disease)", collapse = " + "))) #  “variance of trade by disease”
+  wgts <- augmented_data_compressed$count
 
+  frm <- bf(paste0("outbreak_start|weights(count)  ~ ", # baseline intercept for disease in country
+                   paste0("(0 + ", predictor_vars, "|disease)", collapse = " + "))) #  “variance of trade by disease”
 
   tic()
   mod <- brms::brm(
@@ -331,10 +329,10 @@ repel_fit.network_brms <- function(model_object,
     data = augmented_data_compressed,
     family = 'bernoulli',
     iter = 2000,
-    chains = 16,
-    cores = 16#,
-    # backend = "cmdstanr",
-    # threads = threading(30)
+    chains = 4,
+    cores = 4,
+    backend = "cmdstanr",
+    threads = threading(30)
   )
   toc()
 

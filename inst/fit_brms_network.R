@@ -1,7 +1,7 @@
 devtools::load_all()
 library(tictoc)
 #cmdstanr::install_cmdstan()
-#cmdstanr::set_cmdstan_path(path = NULL)
+cmdstanr::set_cmdstan_path(path = NULL)
 
 # Connection and create model object  -------------------------------------------------------------------
 #conn <- repeldata::repel_local_conn()
@@ -30,7 +30,9 @@ augmented_data <- vroom::vroom(here::here("tmp/network_augmented_data.csv.gz"))
 tic()
 repel_fit(model_object =  model_object,
           augmented_data = augmented_data,
-          predictor_vars = c("shared_borders_from_outbreaks", "ots_trade_dollars_from_outbreaks", "fao_livestock_heads_from_outbreaks"),
+          predictor_vars = c("continent", "shared_borders_from_outbreaks",
+                             "ots_trade_dollars_from_outbreaks","fao_livestock_heads_from_outbreaks",
+                             "gdp_dollars", "human_population", "target_taxa_population", "veterinarian_count"),
           output_directory = "models")
 toc()
 # Forecast on training ----------------------------------------------------
