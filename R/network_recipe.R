@@ -5,6 +5,8 @@ network_recipe <- function(augmented_data,
                            predictor_vars,
                            scaling_values) {
 
+  predictor_vars <- predictor_vars[!predictor_vars %in% "continent"] # remove continent (factor) for scaling purposes
+
   assert_that(all(sort(scaling_values$key) == sort(predictor_vars)))
 
   prescale_augmented_data <- augmented_data %>%
