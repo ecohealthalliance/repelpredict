@@ -332,7 +332,7 @@ repel_fit.network_brms <- function(model_object,
     chains = 4,
     cores = 4,
     backend = "cmdstanr",
-    threads = threading(30)
+    threads = threading(8)
   )
   toc()
 
