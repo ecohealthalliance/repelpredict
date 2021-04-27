@@ -23,8 +23,10 @@ library(tidybayes) #extract and visualize tidy data frames of draws from posteri
 
 cbp1 <- c("#999999", "#E69F00", "#56B4E9", "#009E73",
           "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
-predictor_vars = c("shared_borders_from_outbreaks", "ots_trade_dollars_from_outbreaks", "fao_livestock_heads_from_outbreaks")
-
+predictor_vars <- c("continent", "shared_borders_from_outbreaks",
+                    "ots_trade_dollars_from_outbreaks","fao_livestock_heads_from_outbreaks",
+                    "n_migratory_wildlife_from_outbreaks",
+                    "gdp_dollars", "human_population", "target_taxa_population", "veterinarian_count")
 # training data
 augmented_data_training <- vroom::vroom(here::here("tmp/network_augmented_data.csv.gz"))  %>%
   select(country_iso3c, disease, month, outbreak_start, !!predictor_vars)
@@ -34,8 +36,8 @@ augmented_data_training <- vroom::vroom(here::here("tmp/network_augmented_data.c
 # conn <- repeldata::repel_local_conn()
 # valdat <- repel_validation(model_object, conn) %>%
 #   select(country_iso3c, disease, month)
-
-# augmented_data_val <- repel_augment(model_object, conn, newdata = valdat) 
+# 
+# augmented_data_val <- repel_augment(model_object, conn, newdata = valdat)
 # vroom::vroom_write(augmented_data_val, gzfile("tmp/network_augmented_data_val.csv.gz"))
 augmented_data_val <- vroom::vroom(here::here("tmp/network_augmented_data_val.csv.gz"))  %>%
   select(country_iso3c, disease, month, outbreak_start, !!predictor_vars)
@@ -76,6 +78,7 @@ randef_disease_long_formatted <- randef_disease_long %>%
          variable = str_replace(variable, "fao_trade_", ""),
          variable = str_replace(variable, "_other", " (other)"),
          variable = str_replace_all(variable, "_", " "),
+         variable = str_remove(variable, "continent"),
          variable = str_replace(variable, "shared borders from countries with existing outbreak", "shared borders with country with existing outbreak"))
 
 lme_coeffs <- purrr::map(unique(randef_disease_long_formatted$variable), function(var){
@@ -126,162 +129,61 @@ src_lme <- map_chr(seq_along(lme_coeffs), ~ {
 
 `r knit_child(text = src_lme)`
 
-
-<details>
-<summary>example: 2019 asf outbreaks variable importance</summary>
 ```{r lme-country-predictors}
 # for each country and disease, get relative importance
-var_importance_by_country <- augmented_data_training %>%
-  mutate(outbreak_start_predicted = repel_predict(model_object, .)) %>% 
-  pivot_longer(cols = c("shared_borders_from_outbreaks", "ots_trade_dollars_from_outbreaks", "fao_livestock_heads_from_outbreaks"), names_to = "variable", values_to = "x") %>% 
-  left_join(randef_disease_long) %>% 
-  mutate(variable_importance = x * coef) %>%
-  mutate(pos = variable_importance > 0)
-
-# look at countries with ASK outbreak in 2019
-disease_select <-  "african_swine_fever" 
-
-asf_var_importance <- var_importance_by_country %>% 
-  filter(outbreak_start, disease == disease_select)  %>% 
-  filter(month >= "2019-01-01") %>% 
-  select(-month) %>% 
-  distinct()  %>% 
-  arrange(-outbreak_start_predicted)
-
-vp_plots <- map(unique(asf_var_importance$country_iso3c), function(iso3c){
-  
-  tmp <- asf_var_importance %>% 
-    filter(country_iso3c == iso3c)
-  
-  country_name <- countrycode::countrycode(iso3c, origin = "iso3c", destination = "country.name")
-  outbreak_prob <- signif(unique(tmp$outbreak_start_predicted), 2)
-  
-  ggplot(tmp) +
-    geom_vline(aes(xintercept = 0), color = "gray50") +
-    geom_point(aes(x = variable_importance, y = variable, color = pos), size = 2) +
-    geom_segment(aes(x = variable_importance, xend = 0, y = variable, yend = variable, color = pos)) +
-    scale_color_manual(values = c("TRUE" = "#0072B2", "FALSE" = "#D55E00")) +
-    labs(y = "", x = "Variable importance", title = glue::glue("2019 ASF Outbreak in {country_name} Variable Importance ({outbreak_prob} probability outbreak)")) +
-    theme_minimal() +
-    theme(legend.position = "none", 
-          axis.text = element_text(size = 10), 
-          title = element_text(size = 10),
-          plot.title.position = "plot") +
-    NULL
-})
-
-for (i in 1:length(vp_plots)){
-  print(vp_plots[[i]])
-}
-
-# to compare across countries?
-# randef$`country_iso3c:disease` %>% 
-#   head()
-
-```
-</details>
-
-<details>
-<summary>example: 2018 h.p. avian influenza outbreaks variable importance</summary>
-```{r lme-country-predictors2}
-# look at countries with hpai outbreak in 2018
-disease_select <-  "highly_pathogenic_avian_influenza" 
-
-hpai_var_importance <- var_importance_by_country %>% 
-  filter(outbreak_start, disease == disease_select)  %>% 
-  filter(month >= "2018-01-01") %>% 
-  select(-month) %>% 
-  distinct()  %>% 
-  group_by(country_iso3c) %>% 
-  slice(1:3) %>% 
-  arrange(-outbreak_start_predicted)
-
-vp_plots <- map(unique(hpai_var_importance$country_iso3c), function(iso3c){
-  
-  tmp <- hpai_var_importance %>% 
-    filter(country_iso3c == iso3c)
-  
-  country_name <- countrycode::countrycode(iso3c, origin = "iso3c", destination = "country.name")
-  outbreak_prob <- signif(unique(tmp$outbreak_start_predicted), 2)
-  
-  ggplot(tmp) +
-    geom_vline(aes(xintercept = 0), color = "gray50") +
-    geom_point(aes(x = variable_importance, y = variable, color = pos), size = 2) +
-    geom_segment(aes(x = variable_importance, xend = 0, y = variable, yend = variable, color = pos)) +
-    scale_color_manual(values = c("TRUE" = "#0072B2", "FALSE" = "#D55E00")) +
-    labs(y = "", x = "Variable importance", title = glue::glue("Variable Importance\n2018 Highly Pathogenic Avian Influenza Outbreak in {country_name} ({outbreak_prob} probability outbreak)")) +
-    theme_minimal() +
-    theme(legend.position = "none", 
-          axis.text = element_text(size = 10), 
-          title = element_text(size = 10),
-          plot.title.position = "plot") +
-    NULL
-})
-
-for (i in 1:length(vp_plots)){
-  print(vp_plots[[i]])
-}
-
-# to compare across countries?
-# randef$`country_iso3c:disease` %>% 
-#   head()
-
-```
-</details>
-
-
-```{r lme-country-predictions}
-
-# which countries contribute to prediction 0 disaggregate
-# will need to include this in augment - ranking of values
-
-# conn <- repeldata::repel_local_conn()
+# var_importance_by_country <- augmented_data_training %>%
+#   mutate(outbreak_start_predicted = repel_predict(model_object, .)) %>%
+#   pivot_wider(names_from = continent, values_from = continent, names_prefix = "continent") %>% 
+#   mutate_at(vars(starts_with("continent")), ~ifelse(!is.na(.), 1, NA)) %>% 
+#   pivot_longer(cols = -c("country_iso3c", "disease", "month", "outbreak_start", "outbreak_start_predicted"), names_to = "variable", values_to = "x") %>%
+#   drop_na(x) %>% 
+#   left_join(randef_disease_long) %>%
+#   mutate(variable_importance = x * coef) %>%
+#   mutate(pos = variable_importance > 0)
 # 
-# # look at countries with hpai outbreak in 2018
-# hpai_var_importance <- var_importance_by_country %>% 
-#   filter(outbreak_start, disease == disease_select)  %>% 
-#   filter(month >= "2018-01-01") %>% 
-#   group_by(country_iso3c) %>% 
-#   slice(1:3) %>% 
-#   ungroup() %>% 
+# # look at countries with ASK outbreak in 2019
+# disease_select <-  "african_swine_fever"
+# 
+# asf_var_importance <- var_importance_by_country %>%
+#   filter(outbreak_start, disease == disease_select)  %>%
+#   filter(month >= "2019-01-01") %>%
+#   select(-month) %>%
+#   distinct()  %>%
 #   arrange(-outbreak_start_predicted)
 # 
-# augment_disaggregated <- DBI::dbReadTable(conn, "network_lme_augment_disaggregated") %>% 
-#   as_tibble() %>% 
-#   mutate(month = as.Date(month)) %>% 
-#   mutate(shared_borders_from_outbreaks = shared_borders_from_outbreaks == "t") %>% #temp
-#   mutate_at(.vars = c("shared_borders_from_outbreaks", "ots_trade_dollars_from_outbreaks", "fao_livestock_heads_from_outbreaks"), as.numeric) %>% 
-#   pivot_longer(cols = c("shared_borders_from_outbreaks", "ots_trade_dollars_from_outbreaks", "fao_livestock_heads_from_outbreaks"), names_to = "variable", values_to = "x_disagg") %>% 
-#   filter(country_origin != "NA") %>% 
-#   select(-outbreak_start) 
+# vp_plots <- map(unique(asf_var_importance$country_iso3c), function(iso3c){
 # 
+#   tmp <- asf_var_importance %>%
+#     filter(country_iso3c == iso3c)
 # 
-# hpai_var_importance2 <- hpai_var_importance %>% 
-#   left_join(augment_disaggregated) %>% 
-#   filter(variable != "shared_borders_from_outbreaks") %>% 
-#   mutate(x_disagg = as.numeric(x_disagg)) %>% 
-#   filter(x_disagg != 0)
+#   country_name <- countrycode::countrycode(iso3c, origin = "iso3c", destination = "country.name")
+#   outbreak_prob <- signif(unique(tmp$outbreak_start_predicted), 2)
 # 
-# hpai_var_importance2 %>% 
-#   filter(country_iso3c == "DEU") %>% 
-#   arrange(-x_disagg) %>% 
-#   ggplot(aes(x = country_origin, y = x_disagg, fill = variable)) + 
-#   geom_col() +
-#   scale_y_log10()
-
-
-# figure - for country/disease/month
-# b(x1 + x2)
-# beta * value for each contributor, colored by variable (bar chart?)
+#   ggplot(tmp) +
+#     geom_vline(aes(xintercept = 0), color = "gray50") +
+#     geom_point(aes(x = variable_importance, y = variable, color = pos), size = 2) +
+#     geom_segment(aes(x = variable_importance, xend = 0, y = variable, yend = variable, color = pos)) +
+#     scale_color_manual(values = c("TRUE" = "#0072B2", "FALSE" = "#D55E00")) +
+#     labs(y = "", x = "Variable importance", title = glue::glue("2019 ASF Outbreak in {country_name} Variable Importance ({outbreak_prob} probability outbreak)")) +
+#     theme_minimal() +
+#     theme(legend.position = "none",
+#           axis.text = element_text(size = 10),
+#           title = element_text(size = 10),
+#           plot.title.position = "plot") +
+#     NULL
+# })
+# 
+# for (i in 1:length(vp_plots)){
+#   print(vp_plots[[i]])
+# }
 
 ```
-
 
 <details>
 <summary>validation</summary>
 ```{r lme-validation}
 lme_predict <-  augmented_data_val_bootstrap %>%
-  select(-month, -outbreak_start) %>% 
+  select(-month, -outbreak_start) %>%
   mutate(outbreak_start_predicted = repel_predict(model_object, .))
 
 # simple prediction versus actual
@@ -292,27 +194,27 @@ lme_predict <-  augmented_data_val_bootstrap %>%
 
 # get predicted outbreak start probability by condition - break into groups by forecasted probability
 lme_predict_compressed <- lme_predict %>%
-  distinct() %>% 
-  rename(outbreak_start_predict_prob = outbreak_start_predicted) %>% 
-  mutate(outbreak_start_predict_prob_grp = cut_number(outbreak_start_predict_prob, n = 30)) %>% 
-  group_by(outbreak_start_predict_prob_grp) %>% 
-  mutate(outbreak_start_predict_prob_grp_median = median(outbreak_start_predict_prob)) %>% 
+  distinct() %>%
+  rename(outbreak_start_predict_prob = outbreak_start_predicted) %>%
+  mutate(outbreak_start_predict_prob_grp = cut_number(outbreak_start_predict_prob, n = 30)) %>%
+  group_by(outbreak_start_predict_prob_grp) %>%
+  mutate(outbreak_start_predict_prob_grp_median = median(outbreak_start_predict_prob)) %>%
   ungroup()
 
 # confirm we get the same prediction when conditions are the same
-lme_predict_compressed %>% 
+lme_predict_compressed %>%
   group_by_at(vars(-outbreak_start_predict_prob)) %>%
-  count() %>% 
-  ungroup()  %>% 
-  nrow() %>% 
+  count() %>%
+  ungroup()  %>%
+  nrow() %>%
   assertthat::are_equal(. , nrow(lme_predict_compressed))
 
 # to get actual probability, bring in data from full dataset that applies to the given conditions
 lme_binoms <- augmented_data_training %>%
-  bind_rows(augmented_data_val) %>% 
+  bind_rows(augmented_data_val) %>%
   right_join(lme_predict_compressed) %>% # joins by condition - gets every actual instance of this condition from which to calculate actual probability
   drop_na() %>%  # dont include unknowns
-  group_by(outbreak_start_predict_prob_grp) %>% 
+  group_by(outbreak_start_predict_prob_grp) %>%
   group_split() %>%
   purrr::map_dfr(., function(tw){
     binom <-  binom.confint(x = sum(tw$outbreak_start), n=nrow(tw), methods = "wilson")
@@ -327,11 +229,11 @@ ggplot(lme_binoms, aes(x = outbreak_start_predict_prob_grp_median, y  = outbreak
   geom_point(pch = 21,fill = "white") +
   scale_x_continuous(limits = c(0, max(lme_binoms$outbreak_start_actual_upper))) +
   scale_y_continuous(limits = c(0, max(lme_binoms$outbreak_start_actual_upper))) +
-  labs(x = "Forecasted probability", y = "Actual probabilty", 
+  labs(x = "Forecasted probability", y = "Actual probabilty",
        caption = paste("Forecasted probilities are binned into", n_distinct(lme_binoms$outbreak_start_predict_prob_grp_median), "groups by distribution density.\nActual probabilities are  binomial probabilities and confidence intervals for actual outbreaks occurring within the forecasted interval")) +
   theme_minimal() +
-  theme(legend.position = "none", 
-        axis.text = element_text(size = 12), 
+  theme(legend.position = "none",
+        axis.text = element_text(size = 12),
         title = element_text(size = 12),
         plot.title.position = "plot",
         plot.caption = element_text(hjust = 0)) +
