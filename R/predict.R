@@ -74,7 +74,7 @@ repel_predict.nowcast_boost <- function(model_object, newdata, use_cache = TRUE)
 
 #' Predict from network lme model object
 #' @return vector containing predicted probability of an outbreak
-#' @import tidyr dplyr lme stringr
+#' @import tidyr dplyr lme4 stringr
 #' @export
 #'
 repel_predict.network_lme <- function(model_object, newdata) {
