@@ -133,7 +133,10 @@ events <- events %>%
 # on the other hand, there are outbreaks that are reported when it really is already endemic, eg rabies, so commenting out for now
 # events %>% filter(outbreak_start, endemic) %>% View
 
-# add all combos of disease/country
+# remove diseases that do not affect primary taxa
+disease_taxa_lookup <- vroom::vroom(system.file("lookup", "disease_taxa_lookup.csv", package = "repelpredict"))
+events <- events %>%
+  filter(disease %in% unique(disease_taxa_lookup$disease_pre_clean))
 
 return(events)
 

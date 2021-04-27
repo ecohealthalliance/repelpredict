@@ -20,10 +20,10 @@ disease_taxa_list <- tbl(conn, "outbreak_reports_events") %>%
   distinct(id, disease) %>%
   collect() %>%
   left_join(diseases_recode, by = "disease") %>%
-  select(-disease, id, disease = disease_recode) %>%
+  rename(disease_pre_clean = disease, disease = disease_recode) %>%
   drop_na() %>%
   inner_join(outbreak_reports_outbreaks) %>%
-  group_by(disease, taxa) %>%
+  group_by(disease, disease_pre_clean, taxa) %>%
   count() %>%
   ungroup() %>%
   arrange(disease, -n) %>%
