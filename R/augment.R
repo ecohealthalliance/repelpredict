@@ -340,12 +340,15 @@ repel_augment.network_model <- function(model_object, conn, newdata, sum_country
   outbreak_status <- left_join(outbreak_status, wbi,  by = c("country_iso3c", "year"))
 
   # taxa population
-  disease_taxa_lookup <- vroom::vroom(system.file("lookup", "disease_taxa_lookup.csv", package = "repelpredict"))
+  disease_taxa_lookup <- vroom::vroom(system.file("lookup", "disease_taxa_lookup.csv", package = "repelpredict")) %>%
+    select(-disease_pre_clean)
 
   taxa_population <- tbl(conn, "country_taxa_population") %>%
     collect() %>%
     rename(taxa_population = population) %>%
-    right_join(tidyr::expand(outbreak_status, country_iso3c, year),  by = c("country_iso3c", "year")) %>%
+    right_join(tidyr::crossing(country_iso3c = unique(.$country_iso3c),
+                            year = seq(min(.$year), max(outbreak_status$year)),
+                            taxa = unique(.$taxa))) %>%
     arrange(country_iso3c, taxa, year) %>%
     group_split(country_iso3c, taxa) %>%
     map_dfr(~na_interp(., "taxa_population")) %>%
@@ -391,8 +394,8 @@ repel_augment.network_model <- function(model_object, conn, newdata, sum_country
   # filter dataset to min/max year from endemic #TODO revisit
   outbreak_status <- outbreak_status %>%
     mutate(outbreak_start = as.integer(outbreak_start)) %>%
-    select(-validation_set) %>%
-    filter(month >= min(disease_status_present$month), month <= max(disease_status_present$month))
+    select(-validation_set) #%>%
+   # filter(month >= min(disease_status_present$month), month <= max(disease_status_present$month))
 
   # set up country origin/destination combinations - origin is countries that have the disease present in the given month
   outbreak_status <- outbreak_status %>%
