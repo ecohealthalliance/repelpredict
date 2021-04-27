@@ -74,7 +74,7 @@ repel_predict.nowcast_boost <- function(model_object, newdata, use_cache = TRUE)
 
 #' Predict from network lme model object
 #' @return vector containing predicted probability of an outbreak
-#' @import tidyr dplyr stringr lme4
+#' @import tidyr dplyr lme stringr
 #' @export
 #'
 repel_predict.network_lme <- function(model_object, newdata) {
@@ -102,7 +102,41 @@ repel_predict.network_lme <- function(model_object, newdata) {
 
   if(any(!newdata2$complete_case)) warning("NAs returned for augmented data containing NAs")
 
-   return(out$prediction)
+  return(out$prediction)
 
 }
 
+#' Predict from network brms model object
+#' @return vector containing predicted probability of an outbreak
+#' @import tidyr dplyr brms
+#' @importFrom purrr map_dfr
+#' @export
+#'
+repel_predict.network_brms <- function(model_object, newdata) {
+
+  # load model
+  brm_mod <- model_object$network_model
+
+  # load scaling values
+  network_scaling_values <- model_object$network_scaling_values
+
+  # get predictor_vars
+  predictor_vars <- network_scaling_values$key
+
+  # transform with scaling values
+  newdata2 <- network_recipe(augmented_data = newdata, predictor_vars = predictor_vars, scaling_values = network_scaling_values)
+  newdata2 <- newdata2 %>%
+    mutate(complete_case = complete.cases(newdata2))
+
+  out <- purrr::map_dfr(seq(1, nrow(newdata2), by = 10000), function(i){
+    j <- i + 9999
+    if(j > nrow(newdata2)) j <- nrow(newdata2)
+    print(i)
+    pred <- predict(brm_mod, newdata2[i:j,], type = "response", allow_new_levels = TRUE)
+    pred <- as_tibble(pred)
+  })
+
+  if(any(!newdata2$complete_case)) warning("NAs returned for augmented data containing NAs")
+
+  return(out)
+}
