@@ -37,7 +37,13 @@ Imports:
     parallel,
     purrr,
     recipes,
-    rsample
+    rsample,
+    R.utils,
+    lme4,
+    countrycode,
+    vroom,
+    RhpcBLASctl,
+    brms
 Suggests:
     spelling, 
     testthat,
