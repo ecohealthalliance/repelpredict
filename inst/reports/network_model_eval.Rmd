@@ -21,6 +21,8 @@ library(brms)
 library(bayestestR)
 library(tidybayes) #extract and visualize tidy data frames of draws from posterior distributions of model variables, fits, and predictions from brms::brm
 
+set.seed(990)
+
 cbp1 <- c("#999999", "#E69F00", "#56B4E9", "#009E73",
           "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
 predictor_vars <- c("continent", "shared_borders_from_outbreaks",
@@ -195,6 +197,7 @@ lme_predict <-  augmented_data_val_bootstrap %>%
 # get predicted outbreak start probability by condition - break into groups by forecasted probability
 lme_predict_compressed <- lme_predict %>%
   distinct() %>%
+  drop_na(outbreak_start_predicted) %>% 
   rename(outbreak_start_predict_prob = outbreak_start_predicted) %>%
   mutate(outbreak_start_predict_prob_grp = cut_number(outbreak_start_predict_prob, n = 30)) %>%
   group_by(outbreak_start_predict_prob_grp) %>%
@@ -306,18 +309,29 @@ src_brm <- map_chr(seq_along(brms_coefs), ~ {
 <summary>validation</summary>
 ```{r brm-validation}
 
-# brms_predict <- repel_predict(model_object, augmented_data_val_bootstrap)
-# vroom::vroom_write(brms_predict, here::here("tmp/network_validation_brms_predict.csv.gz"))
+brms_predict <- repel_predict(model_object, augmented_data_val_bootstrap)
+vroom::vroom_write(brms_predict, here::here("tmp/network_validation_brms_predict.csv.gz"))
 
-brms_predict <- vroom::vroom(here::here("tmp/network_validation_brms_predict.csv.gz"))  %>% 
+brms_predict_compressed <- vroom::vroom(here::here("tmp/network_validation_brms_predict.csv.gz"))  %>% 
   janitor::clean_names() %>% 
-  drop_na() %>% 
+  bind_cols(augmented_data_val_bootstrap) %>% 
+  distinct() %>%
+  drop_na(estimate) %>% 
   rename(outbreak_start_predict_prob = estimate) %>% 
-  mutate(outbreak_start_predict_prob_grp = cut_number(outbreak_start_predict_prob, n = 20)) %>% 
+  mutate(outbreak_start_predict_prob_grp = cut_number(outbreak_start_predict_prob, n = 30)) %>% 
   group_by(outbreak_start_predict_prob_grp) %>% 
   mutate(outbreak_start_predict_prob_grp_median = median(outbreak_start_predict_prob)) %>% 
-  ungroup()
-brms_binoms <- brms_predict %>%
+  ungroup() %>% 
+  select(-month, -outbreak_start)
+
+options(scipen = 999)
+
+# to get actual probability, bring in data from full dataset that applies to the given conditions
+brms_binoms <- augmented_data_training %>%
+  bind_rows(augmented_data_val) %>%
+  right_join(brms_predict_compressed) %>% # joins by condition - gets every actual instance of this condition from which to calculate actual probability
+  drop_na() %>%  # dont include unknowns
+  distinct() %>% 
   group_by(outbreak_start_predict_prob_grp) %>%
   group_split() %>%
   purrr::map_dfr(., function(tw){
@@ -326,13 +340,12 @@ brms_binoms <- brms_predict %>%
       distinct(outbreak_start_predict_prob_grp, outbreak_start_predict_prob_grp_median) %>%
       mutate(outbreak_start_actual_prob = binom$mean, outbreak_start_actual_low = binom$lower, outbreak_start_actual_upper = binom$upper)})
 
-options(scipen = 999)
 ggplot(brms_binoms, aes(x = outbreak_start_predict_prob_grp_median, y  = outbreak_start_actual_prob)) +
   geom_abline(color = "gray50") +
   geom_errorbar(aes(ymin = outbreak_start_actual_low, ymax = outbreak_start_actual_upper), width = 0) +
   geom_point(pch = 21,fill = "white") +
-   scale_x_continuous(limits = c(0, max(brms_binoms$outbreak_start_actual_upper))) +
-   scale_y_continuous(limits = c(0, max(brms_binoms$outbreak_start_actual_upper))) +
+  scale_x_continuous(limits = c(0, max(brms_binoms$outbreak_start_actual_upper))) +
+  scale_y_continuous(limits = c(0, max(brms_binoms$outbreak_start_actual_upper))) +
   labs(x = "Forecasted probability", y = "Actual probabilty",
        caption = paste("Forecasted probilities are binned into", n_distinct(brms_binoms$outbreak_start_predict_prob_grp_median), "groups by distribution density.\nActual probabilities are  binomial probabilities and confidence intervals for actual outbreaks occurring within the forecasted interval")) +
   theme_minimal() +
