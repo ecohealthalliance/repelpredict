@@ -305,6 +305,7 @@ src_brm <- map_chr(seq_along(brms_coefs), ~ {
 <details>
 <summary>validation</summary>
 ```{r brm-validation}
+
 # brms_predict <- repel_predict(model_object, augmented_data_val_bootstrap)
 # vroom::vroom_write(brms_predict, here::here("tmp/network_validation_brms_predict.csv.gz"))
 
