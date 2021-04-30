@@ -305,23 +305,10 @@ src_brm <- map_chr(seq_along(brms_coefs), ~ {
 <details>
 <summary>validation</summary>
 ```{r brm-validation}
-# tic()
-# brms_predict <- split(augmented_data_val_bootstrap, (as.numeric(rownames(augmented_data_val_bootstrap))-1) %/% 5000) %>%   purrr::map_dfr(function(x){
-#     fitted_draws(model = brms_mod, newdata = x, n = 100, allow_new_levels = TRUE) %>%
-#     summarize(estimate = mean(.value)) %>%
-#     ungroup()
-# })
-# #vroom::vroom_write(brms_predict, here::here("tmp/network_validation_brms_predict.csv.gz"))
-# toc()
 
-# tic()
-# brms_predict <- repel_predict(model_object, augmented_data_val_bootstrap)
-# vroom::vroom_write(brms_predict, here::here("tmp/network_validation_brms_predict.csv.gz"))
-# toc()
-# predictions have randomness, multiple predicitons per condition, in separate groups. 
-# get actual by condition, assign to multiple groups?
-# or just get actual from validation set?
-# going with latter option for now (ie not including training data in actual prob)
+brms_predict <- repel_predict(model_object, augmented_data_val_bootstrap)
+vroom::vroom_write(brms_predict, here::here("tmp/network_validation_brms_predict.csv.gz"))
+
 brms_predict <- vroom::vroom(here::here("tmp/network_validation_brms_predict2.csv.gz"))  %>% 
   drop_na() %>% 
   rename(outbreak_start_predict_prob = estimate) %>% 

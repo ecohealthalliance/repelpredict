@@ -109,7 +109,7 @@ repel_predict.network_lme <- function(model_object, newdata) {
 #' Predict from network brms model object
 #' @return vector containing predicted probability of an outbreak
 #' @import tidyr dplyr brms
-#' @importFrom purrr map_dfr
+#' @importFrom purrr imap_dfr
 #' @export
 #'
 repel_predict.network_brms <- function(model_object, newdata) {
@@ -128,15 +128,12 @@ repel_predict.network_brms <- function(model_object, newdata) {
   newdata2 <- newdata2 %>%
     mutate(complete_case = complete.cases(newdata2))
 
-  out <- purrr::map_dfr(seq(1, nrow(newdata2), by = 10000), function(i){
-    j <- i + 9999
-    if(j > nrow(newdata2)) j <- nrow(newdata2)
-    print(i)
-    pred <- predict(brm_mod, newdata2[i:j,], type = "response", allow_new_levels = TRUE)
-    pred <- as_tibble(pred)
-  })
-
-  if(any(!newdata2$complete_case)) warning("NAs returned for augmented data containing NAs")
+  out <- split(newdata2, (as.numeric(rownames(newdata2))-1) %/% 10000) %>%
+    purrr::imap_dfr(function(x, i){
+      print(i)
+      fitted(brm_mod, x, type = "response", allow_new_levels = TRUE) %>%
+        as_tibble()
+    })
 
   return(out)
 }
