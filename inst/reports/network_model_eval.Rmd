@@ -306,13 +306,14 @@ src_brm <- map_chr(seq_along(brms_coefs), ~ {
 <summary>validation</summary>
 ```{r brm-validation}
 
-brms_predict <- repel_predict(model_object, augmented_data_val_bootstrap)
-vroom::vroom_write(brms_predict, here::here("tmp/network_validation_brms_predict.csv.gz"))
+# brms_predict <- repel_predict(model_object, augmented_data_val_bootstrap)
+# vroom::vroom_write(brms_predict, here::here("tmp/network_validation_brms_predict.csv.gz"))
 
-brms_predict <- vroom::vroom(here::here("tmp/network_validation_brms_predict2.csv.gz"))  %>% 
+brms_predict <- vroom::vroom(here::here("tmp/network_validation_brms_predict.csv.gz"))  %>% 
+  janitor::clean_names() %>% 
   drop_na() %>% 
   rename(outbreak_start_predict_prob = estimate) %>% 
-  mutate(outbreak_start_predict_prob_grp = cut_interval(outbreak_start_predict_prob, n = 15)) %>% 
+  mutate(outbreak_start_predict_prob_grp = cut_number(outbreak_start_predict_prob, n = 20)) %>% 
   group_by(outbreak_start_predict_prob_grp) %>% 
   mutate(outbreak_start_predict_prob_grp_median = median(outbreak_start_predict_prob)) %>% 
   ungroup()
@@ -324,13 +325,14 @@ brms_binoms <- brms_predict %>%
     tw %>%
       distinct(outbreak_start_predict_prob_grp, outbreak_start_predict_prob_grp_median) %>%
       mutate(outbreak_start_actual_prob = binom$mean, outbreak_start_actual_low = binom$lower, outbreak_start_actual_upper = binom$upper)})
+
 options(scipen = 999)
 ggplot(brms_binoms, aes(x = outbreak_start_predict_prob_grp_median, y  = outbreak_start_actual_prob)) +
   geom_abline(color = "gray50") +
   geom_errorbar(aes(ymin = outbreak_start_actual_low, ymax = outbreak_start_actual_upper), width = 0) +
   geom_point(pch = 21,fill = "white") +
-  # scale_x_continuous(limits = c(0, max(brms_binoms$outbreak_start_actual_upper))) +
-  # scale_y_continuous(limits = c(0, max(brms_binoms$outbreak_start_actual_upper))) +
+   scale_x_continuous(limits = c(0, max(brms_binoms$outbreak_start_actual_upper))) +
+   scale_y_continuous(limits = c(0, max(brms_binoms$outbreak_start_actual_upper))) +
   labs(x = "Forecasted probability", y = "Actual probabilty",
        caption = paste("Forecasted probilities are binned into", n_distinct(brms_binoms$outbreak_start_predict_prob_grp_median), "groups by distribution density.\nActual probabilities are  binomial probabilities and confidence intervals for actual outbreaks occurring within the forecasted interval")) +
   theme_minimal() +
