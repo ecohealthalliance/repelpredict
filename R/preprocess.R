@@ -38,7 +38,6 @@ repel_init.nowcast_model <- function(model_object, conn){
 
 #' Preprocess nowcast data
 #' @import repeldata dplyr tidyr stringr
-#' @importFrom tidyr expand
 #' @importFrom lubridate floor_date ceiling_date
 #' @export
 repel_init.network_model <- function(model_object, conn){
@@ -139,5 +138,36 @@ events <- events %>%
   filter(disease %in% unique(disease_taxa_lookup$disease_pre_clean))
 
 return(events)
+
+}
+
+#' Preprocess impact data
+#' @import repeldata dplyr tidyr stringr
+#' @export
+repel_init.impact_model <- function(model_object, conn){
+
+events <- read_rds(here::here("wahis_transformed_outbreak_reports_testing.rds"))$outbreak_reports_events %>%
+  filter(!is.na(country_iso3c), country_iso3c != "NA") %>%
+  mutate_at(vars(contains("date")), as.Date)
+
+events_lookup <- events %>%
+  select(report_id, url_report_id, outbreak_thread_id, report_type, event_status, is_final_report, country, country_iso3c, disease, report_date)
+
+outbreaks <- read_rds(here::here("wahis_transformed_outbreak_reports_testing.rds"))$outbreak_reports_outbreaks %>%
+  rename(outbreak_location_id = oie_reference,
+         taxa = species_name) %>%
+  inner_join(events_lookup, .) %>%
+  select(ends_with("_id"), ends_with("_date"), everything())
+
+outbreaks %>%
+  group_by(outbreak_thread_id, country, country_iso3c, disease, taxa) %>%
+  summarize(total_cases = sum(cases, na.rm = TRUE),
+            total_deaths = sum(deaths, na.rm = TRUE),
+            total_killed_and_disposed = sum(killed_and_disposed, na.rm = TRUE),
+            total_slaughtered_for_commercial_use = sum(slaughtered_for_commercial_use, na.rm = TRUE),
+            outbreak_start_date = min(outbreak_start_date, na.rm = TRUE),
+            outbreak_end_date = max(outbreak_start_date, na.rm = TRUE),
+            # geodist lat long combos
+  )
 
 }
