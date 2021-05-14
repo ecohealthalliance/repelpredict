@@ -43,10 +43,15 @@ repel_init.nowcast_model <- function(model_object, conn){
 repel_init.network_model <- function(model_object, conn){
 
   # read in immediate outbreaks
-  events <- tbl(conn, "outbreak_reports_events") %>%
-    collect() %>%
-    filter(!is.na(country_iso3c), country_iso3c != "NA") %>% # TODO: fix these events to be assigned to a current country
-    mutate_at(vars(contains("date")), as.Date) #%>%
+
+  events <- read_rds(here::here("wahis_transformed_outbreak_reports_testing.rds"))$outbreak_reports_events %>%
+    filter(!is.na(country_iso3c), country_iso3c != "NA") %>%
+    mutate_at(vars(contains("date")), as.Date)
+
+  # events <- tbl(conn, "outbreak_reports_events") %>%
+  #   collect() %>%
+  #   filter(!is.na(country_iso3c), country_iso3c != "NA") %>% # TODO: fix these events to be assigned to a current country
+  #   mutate_at(vars(contains("date")), as.Date) #%>%
   #filter(str_detect(report_type, "immediate notification"))
 
   # Remove disease that have have reports in only one country_iso3c
@@ -66,8 +71,8 @@ repel_init.network_model <- function(model_object, conn){
     mutate(report_month = floor_date(report_date, unit = "months")) %>%
     mutate(date_of_start_of_the_event = floor_date(date_of_start_of_the_event, "month")) %>%
     mutate(date_event_resolved = ceiling_date(date_event_resolved, "month")) %>%
-    select(country_iso3c, disease, immediate_report, report_type, report_month, date_of_start_of_the_event, date_event_resolved)  %>%
-    group_by(immediate_report) %>%
+    select(country_iso3c, disease, outbreak_thread_id, report_type, report_month, date_of_start_of_the_event, date_event_resolved)  %>%
+    group_by(outbreak_thread_id) %>%
     mutate(outbreak_start_month = min(c(report_month, date_of_start_of_the_event))) %>%
     mutate(outbreak_end_month = coalesce(date_event_resolved, report_month)) %>%  # this isnt exactly right because some events are not marked as resolved. here we assume last report is when it's resolved.
     ungroup()
@@ -88,7 +93,11 @@ repel_init.network_model <- function(model_object, conn){
   events <- events %>%
     mutate(outbreak_subsequent_month = month > outbreak_start_month & month <= outbreak_end_month) %>%
     mutate(outbreak_start = month == outbreak_start_month)  %>%
+<<<<<<< HEAD
     mutate(disease_country_combo_unreported = is.na(immediate_report)) %>%
+=======
+    mutate(disease_country_combo_unreported = is.na(outbreak_thread_id)) %>%
+>>>>>>> edits to preprocess to work with new wahis outbreak data (needs to be updated when database is updated)
     mutate_at(.vars = c("outbreak_subsequent_month", "outbreak_start"), ~replace_na(., FALSE))
 
   # identify endemic events
@@ -138,6 +147,7 @@ repel_init.network_model <- function(model_object, conn){
     filter(disease %in% unique(disease_taxa_lookup$disease_pre_clean))
 
   return(events)
+<<<<<<< HEAD
 
 }
 
@@ -190,6 +200,8 @@ lonlat2UTM <- function(longitude, latitude) {
     utm + 32700
   }
 }
+=======
+>>>>>>> edits to preprocess to work with new wahis outbreak data (needs to be updated when database is updated)
 
 #' Gets bounding radius of lat/long points
 #' @import  dplyr sf spatstat.geom
