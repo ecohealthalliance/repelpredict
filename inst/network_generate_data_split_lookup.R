@@ -8,7 +8,7 @@ model_object <-  network_lme_model()
 conn <- repeldata::repel_local_conn()
 #repeldata::repel_local_download()
 
-all_dat <- repel_init(model_object, conn, remove_non_outbreak_events = TRUE) %>%
+all_dat <- repel_init(model_object, conn) %>%
   distinct(country_iso3c, disease, month) %>%
   arrange()
 
