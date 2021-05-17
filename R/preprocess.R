@@ -44,15 +44,10 @@ repel_init.network_model <- function(model_object, conn){
 
   # read in immediate outbreaks
 
-  events <- read_rds(here::here("wahis_transformed_outbreak_reports_testing.rds"))$outbreak_reports_events %>%
+  events <- tbl(conn, "outbreak_reports_events") %>%
+    collect() %>%
     filter(!is.na(country_iso3c), country_iso3c != "NA") %>%
     mutate_at(vars(contains("date")), as.Date)
-
-  # events <- tbl(conn, "outbreak_reports_events") %>%
-  #   collect() %>%
-  #   filter(!is.na(country_iso3c), country_iso3c != "NA") %>% # TODO: fix these events to be assigned to a current country
-  #   mutate_at(vars(contains("date")), as.Date) #%>%
-  #filter(str_detect(report_type, "immediate notification"))
 
   # Remove disease that have have reports in only one country_iso3c
   diseases_keep <- events %>%
@@ -161,7 +156,7 @@ repel_init.impact_model <- function(model_object, conn){
   outbreaks <-  tbl(conn, "outbreak_reports_outbreaks") %>%
     collect() %>%
     rename(taxa = species_name) %>%
-    inner_join(events_lookup, .) %>%
+    inner_join(events_lookup, .,  by = "report_id") %>%
     select(ends_with("_id"), ends_with("_date"), everything())
 
   outbreaks_summary <- outbreaks %>%
