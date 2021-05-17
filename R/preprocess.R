@@ -160,54 +160,6 @@ repel_init.impact_model <- function(model_object, conn){
     inner_join(events_lookup, .) %>%
     select(ends_with("_id"), ends_with("_date"), everything())
 
-  # functions to get outbreak distance
-  lonlat2UTM <- function(longitude, latitude) { # adapted from https://bookdown.org/robinlovelace/geocompr/reproj-geo-data.html
-
-    utm <- (floor((longitude + 180) / 6) %% 60) + 1
-
-    if(latitude > 0) {
-      utm + 32600
-    }else{
-      utm + 32700
-    }
-  }
-
-  get_bounding_radius <- function(latitude, longitude){
-
-    latlong <- tibble(latitude, longitude) %>%
-      distinct()
-
-    # use mean lat/long to get utm
-    mean_long <- mean(latlong$longitude, na.rm = TRUE)
-    mean_lat <- mean(latlong$latitude, na.rm = TRUE)
-    epsg_utm <- lonlat2UTM(longitude = mean_long, latitude = mean_lat)
-
-    # convert from latlon to utm
-    out <- latlong %>%
-      st_as_sf(coords = c("longitude", "latitude"),  crs = "+proj=latlon") %>%
-      st_transform(epsg_utm) %>%
-      st_coordinates() %>%
-      as_tibble() %>%
-      distinct()
-
-    # generate bounding circle
-    if(nrow(out)==1){
-      return(0)
-    }
-    if(nrow(out)==2){
-      a2 <- diff(out$X)^2
-      b2 <- diff(out$Y)^2
-      dist  <- sqrt(a2 + b2)
-      radius <- dist/2
-      return(radius)
-    }
-    if(nrow(out)>2){
-      points <- ppp(out$X, out$Y, xrange = range(out$X), yrange = range(out$Y))
-      radius <- boundingradius(points)
-      return(radius)
-    }
-  }
-
   outbreaks_summary <- outbreaks %>%
     group_by(outbreak_thread_id, country, country_iso3c, disease, taxa) %>%
     summarize(total_cases = sum(cases, na.rm = TRUE),
@@ -221,4 +173,59 @@ repel_init.impact_model <- function(model_object, conn){
     ungroup()
 
   return(outbreaks_summary)
+}
+
+#### functions to get outbreak distance for impact model
+
+#' Gets UTM from lat/long
+#' adapted from https://bookdown.org/robinlovelace/geocompr/reproj-geo-data.html
+#' @noRd
+lonlat2UTM <- function(longitude, latitude) {
+
+  utm <- (floor((longitude + 180) / 6) %% 60) + 1
+
+  if(latitude > 0) {
+    utm + 32600
+  }else{
+    utm + 32700
+  }
+}
+
+#' Gets bounding radius of lat/long points
+#' @import  dplyr sf spatstat.geom
+#' @noRd
+get_bounding_radius <- function(latitude, longitude){
+
+  latlong <- tibble(latitude, longitude) %>%
+    distinct()
+
+  # use mean lat/long to get utm
+  mean_long <- mean(latlong$longitude, na.rm = TRUE)
+  mean_lat <- mean(latlong$latitude, na.rm = TRUE)
+  epsg_utm <- lonlat2UTM(longitude = mean_long, latitude = mean_lat)
+
+  # convert from latlon to utm
+  out <- latlong %>%
+    st_as_sf(coords = c("longitude", "latitude"),  crs = "+proj=latlon") %>%
+    st_transform(epsg_utm) %>%
+    st_coordinates() %>%
+    as_tibble() %>%
+    distinct()
+
+  # generate bounding circle
+  if(nrow(out)==1){
+    return(0)
+  }
+  if(nrow(out)==2){
+    a2 <- diff(out$X)^2
+    b2 <- diff(out$Y)^2
+    dist  <- sqrt(a2 + b2)
+    radius <- dist/2
+    return(radius)
+  }
+  if(nrow(out)>2){
+    points <- ppp(out$X, out$Y, xrange = range(out$X), yrange = range(out$Y))
+    radius <- boundingradius(points)
+    return(radius)
+  }
 }
