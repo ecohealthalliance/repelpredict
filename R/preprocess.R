@@ -146,16 +146,17 @@ repel_init.network_model <- function(model_object, conn){
 #' @export
 repel_init.impact_model <- function(model_object, conn){
 
-  events <- read_rds(here::here("wahis_transformed_outbreak_reports_testing.rds"))$outbreak_reports_events %>%
+  events <-  tbl(conn, "outbreak_reports_events") %>%
+    collect() %>%
     filter(!is.na(country_iso3c), country_iso3c != "NA") %>%
     mutate_at(vars(contains("date")), as.Date)
 
   events_lookup <- events %>%
     select(report_id, url_report_id, outbreak_thread_id, report_type, event_status, is_final_report, country, country_iso3c, disease, report_date)
 
-  outbreaks <- read_rds(here::here("wahis_transformed_outbreak_reports_testing.rds"))$outbreak_reports_outbreaks %>%
-    rename(outbreak_location_id = oie_reference,
-           taxa = species_name) %>%
+  outbreaks <-  tbl(conn, "outbreak_reports_outbreaks") %>%
+    collect() %>%
+    rename(taxa = species_name) %>%
     inner_join(events_lookup, .) %>%
     select(ends_with("_id"), ends_with("_date"), everything())
 
