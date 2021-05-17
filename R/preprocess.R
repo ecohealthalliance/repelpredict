@@ -93,11 +93,7 @@ repel_init.network_model <- function(model_object, conn){
   events <- events %>%
     mutate(outbreak_subsequent_month = month > outbreak_start_month & month <= outbreak_end_month) %>%
     mutate(outbreak_start = month == outbreak_start_month)  %>%
-<<<<<<< HEAD
-    mutate(disease_country_combo_unreported = is.na(immediate_report)) %>%
-=======
     mutate(disease_country_combo_unreported = is.na(outbreak_thread_id)) %>%
->>>>>>> edits to preprocess to work with new wahis outbreak data (needs to be updated when database is updated)
     mutate_at(.vars = c("outbreak_subsequent_month", "outbreak_start"), ~replace_na(., FALSE))
 
   # identify endemic events
@@ -147,8 +143,6 @@ repel_init.network_model <- function(model_object, conn){
     filter(disease %in% unique(disease_taxa_lookup$disease_pre_clean))
 
   return(events)
-<<<<<<< HEAD
-
 }
 
 #' Preprocess impact data
@@ -200,8 +194,6 @@ lonlat2UTM <- function(longitude, latitude) {
     utm + 32700
   }
 }
-=======
->>>>>>> edits to preprocess to work with new wahis outbreak data (needs to be updated when database is updated)
 
 #' Gets bounding radius of lat/long points
 #' @import  dplyr sf spatstat.geom
