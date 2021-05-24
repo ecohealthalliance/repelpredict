@@ -1,5 +1,4 @@
 disease,disease_pre_clean,taxa
-abortion_in_ewes,abortion in ewes,sheep/goats
 african_horse_sickness,african horse sickness,equidae
 african_swine_fever,african swine fever,swine
 anthrax,anthrax,cattle
@@ -7,8 +6,8 @@ anthrax,anthrax,sheep/goats
 anthrax,anthrax,equidae
 anthrax,anthrax,swine
 anthrax,anthrax,cervidae
-anthrax,anthrax,camelidae
 anthrax,anthrax,dogs
+anthrax,anthrax,camelidae
 aujeszkys_disease,aujeszkys disease,swine
 aujeszkys_disease,aujeszkys disease,dogs
 avian_chlamydiosis,avian chlamydiosis,birds
@@ -22,6 +21,7 @@ bovine_leukosis,bovine leukosis,cattle
 bovine_spongiform_encephalopathy,bovine spongiform encephalopathy,cattle
 bovine_spongiform_encephalopathy,bovine spongiform encephalopathy,buffaloes
 bovine_spongiform_encephalopathy,bovine spongiform encephalopathy,sheep/goats
+bovine_viral_diarrhea,bovine viral diarrhea,cattle
 brucella_abortus,brucella abortus,cattle
 brucella_abortus,brucella abortus,sheep/goats
 brucella_melitensis,brucella melitensis,sheep/goats
@@ -31,21 +31,15 @@ brucella_melitensis,brucella melitensis,equidae
 brucella_melitensis,brucella melitensis,swine
 brucella_suis,brucella suis,swine
 brucella_suis,brucella suis,cattle
-brucellosis_sheep_goat,"brucellosis (sheep, goat)",sheep/goats
 caprine_arthritis_and_encephalitis,caprine arthritis and encephalitis,sheep/goats
 classical_swine_fever,classical swine fever,swine
 contagious_agalactia,contagious agalactia,sheep/goats
 dourine,dourine,equidae
-duck_viral_hepatitis,duck viral hepatitis,birds
-eastern_equine_encephalitis,eastern equine encephalitis,equidae
-epizootic_haemorrhagic_disease,epizootic haemorrhagic disease,cattle
-epizootic_haemorrhagic_disease,epizootic haemorrhagic disease,birds
 equine_encephalitis,equine encephalitis,equidae
 equine_herpes_virus,equine herpes virus,equidae
 equine_infectious_anaemia,equine infectious anaemia,equidae
 equine_influenza,equine influenza,equidae
 equine_piroplasmosis,equine piroplasmosis,equidae
-equine_viral_arthritis,equine viral arthritis,equidae
 equine_viral_rhinopneumonitis,equine viral rhinopneumonitis,equidae
 foot_and_mouth_disease,foot-and-mouth disease,cattle
 foot_and_mouth_disease,foot-and-mouth disease,sheep/goats
@@ -64,22 +58,23 @@ hemorrhagic_septicemia,hemorrhagic septicemia,sheep/goats
 highly_pathogenic_avian_influenza,highly pathogenic avian influenza,birds
 highly_pathogenic_avian_influenza,highly pathogenic avian influenza,cats
 infectious_bovine_rhinotracheitis,infectious bovine rhinotracheitis,cattle
+infectious_bursal_disease,infectious bursal disease,birds
 leishmaniosis,leishmaniosis,dogs
 low_pathogenic_avian_influenza,low pathogenic avian influenza,birds
 lumpy_skin_disease,lumpy skin disease,cattle
-lumpy_skin_disease,lumpy skin disease,buffaloes
 maedi_visna,maedi visna,sheep/goats
 malignant_catarrhal_fever,malignant catarrhal fever,cattle
 mycobacterium_tuberculosis,mycobacterium tuberculosis,cattle
 mycobacterium_tuberculosis,mycobacterium tuberculosis,sheep/goats
+mycoplasma_infection,mycoplasma infection,cattle
 mycoplasma_infection,mycoplasma infection,birds
 newcastle_disease,newcastle disease,birds
-ovine_bluetongue_disease,ovine bluetongue disease,cattle
 ovine_bluetongue_disease,ovine bluetongue disease,sheep/goats
-ovine_bluetongue_disease,ovine bluetongue disease,buffaloes
+ovine_bluetongue_disease,ovine bluetongue disease,cattle
 ovine_bluetongue_disease,ovine bluetongue disease,camelidae
-ovine_bluetongue_disease,ovine bluetongue disease,cervidae
+ovine_bluetongue_disease,ovine bluetongue disease,buffaloes
 ovine_bluetongue_disease,ovine bluetongue disease,swine
+ovine_bluetongue_disease,ovine bluetongue disease,cervidae
 ovine_contagious_epididymitis,ovine contagious epididymitis,sheep/goats
 ovine_pox_disease,ovine pox disease,sheep/goats
 parasitic_gastroenteritis,parasitic gastroenteritis,swine
@@ -88,15 +83,14 @@ paratuberculosis,paratuberculosis,sheep/goats
 peste_des_petits_ruminants,peste des petits ruminants,sheep/goats
 peste_des_petits_ruminants,peste des petits ruminants,camelidae
 peste_des_petits_ruminants,peste des petits ruminants,cattle
-pleuropneumonia,pleuropneumonia,cattle
 pleuropneumonia,pleuropneumonia,sheep/goats
 porcine_reproductive_and_respiratory_syndrome,porcine reproductive and respiratory syndrome,swine
 poxvirus,poxvirus,camelidae
-primary_screwworm_new_world_screwworm,"primary screwworm, new world screwworm",cattle
 primary_screwworm_new_world_screwworm,"primary screwworm, new world screwworm",dogs
-primary_screwworm_new_world_screwworm,"primary screwworm, new world screwworm",sheep/goats
 primary_screwworm_new_world_screwworm,"primary screwworm, new world screwworm",swine
 primary_screwworm_new_world_screwworm,"primary screwworm, new world screwworm",cats
+primary_screwworm_new_world_screwworm,"primary screwworm, new world screwworm",cattle
+primary_screwworm_new_world_screwworm,"primary screwworm, new world screwworm",sheep/goats
 primary_screwworm_new_world_screwworm,"primary screwworm, new world screwworm",equidae
 pullorum_disease,pullorum disease,birds
 q_fever,q fever,sheep/goats
@@ -106,8 +100,8 @@ rabies,rabies,cats
 rabies,rabies,cattle
 rabies,rabies,equidae
 rabies,rabies,sheep/goats
-rabies,rabies,swine
 rabies,rabies,birds
+rabies,rabies,swine
 rabies,rabies,camelidae
 rift_valley_fever,rift valley fever,sheep/goats
 rift_valley_fever,rift valley fever,cattle
@@ -125,6 +119,6 @@ vesicular_stomatitis,vesicular stomatitis,cattle
 vesicular_stomatitis,vesicular stomatitis,sheep/goats
 vesicular_stomatitis,vesicular stomatitis,swine
 west_nile_encephalitis,west nile encephalitis,equidae
-west_nile_encephalitis,west nile encephalitis,birds
 west_nile_encephalitis,west nile encephalitis,camelidae
-western_equine_encephalitis,western equine encephalitis,equidae
+west_nile_encephalitis,west nile encephalitis,birds
+west_nile_encephalitis,west nile encephalitis,dogs

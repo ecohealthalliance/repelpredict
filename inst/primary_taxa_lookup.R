@@ -10,14 +10,14 @@ diseases_recode <- vroom::vroom(system.file("lookup", "nowcast_diseases_recode.c
 ))
 
 outbreak_reports_outbreaks <- tbl(conn, "outbreak_reports_outbreaks") %>%
-  select(taxa = species, id) %>%
+  select(taxa = species_name, "report_id") %>%
   collect() %>%
   mutate(taxa = ifelse(str_detect(taxa, "goats|sheep"), "sheep/goats", taxa))  %>%
   distinct() %>%
   filter(taxa %in% taxa_list)
 
 disease_taxa_list <- tbl(conn, "outbreak_reports_events") %>%
-  distinct(id, disease) %>%
+  distinct(report_id, disease) %>%
   collect() %>%
   left_join(diseases_recode, by = "disease") %>%
   rename(disease_pre_clean = disease, disease = disease_recode) %>%

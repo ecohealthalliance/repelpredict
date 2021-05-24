@@ -6,6 +6,7 @@ model_object <-  network_lme_model()
 conn <- repeldata::repel_local_conn()
 
 diseases <- repel_init(model_object, conn) %>%
+  filter(!disease_country_combo_unreported) %>%
   group_by(disease) %>%
   count() %>%
   ungroup() %>%
