@@ -146,20 +146,16 @@ repel_init.network_model <- function(model_object, conn){
 #' @export
 repel_init.impact_model <- function(model_object, conn){
 
-  events <-  tbl(conn, "outbreak_reports_events") %>%
+  events_lookup <-  tbl(conn, "outbreak_reports_events") %>%
     filter(!is.na(country_iso3c), country_iso3c != "NA", event_status == "resolved") %>%
-    collect() %>%
-    mutate_at(vars(contains("date")), as.Date)
-
-
-  events_lookup <- events %>%
-    select(report_id, url_report_id, outbreak_thread_id, report_type, event_status, is_final_report, country, country_iso3c, disease, report_date)
+    select(report_id, url_report_id, outbreak_thread_id, report_type, is_final_report, country, country_iso3c, disease, report_date)
 
   outbreaks <-  tbl(conn, "outbreak_reports_outbreaks") %>%
+    inner_join(events_lookup, ., by = "report_id") %>%
+    select(ends_with("_id"), ends_with("_date"), everything()) %>%
     collect() %>%
     rename(taxa = species_name) %>%
-    inner_join(events_lookup, .) %>%
-    select(ends_with("_id"), ends_with("_date"), everything())
+    mutate_at(vars(contains("date")), as.Date)
 
   outbreaks_summary <- outbreaks %>%
     group_by(outbreak_thread_id, country, country_iso3c, disease, taxa) %>%
@@ -174,7 +170,8 @@ repel_init.impact_model <- function(model_object, conn){
               outbreak_radius = get_bounding_radius(latitude = latitude, longitude = longitude)
 
     ) %>%
-    ungroup()
+    ungroup() %>%
+    mutate(outbreak_duration_days = as.numeric(outbreak_end_date - outbreak_start_date, "days"))
 
   return(outbreaks_summary)
 }

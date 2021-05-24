@@ -347,8 +347,8 @@ repel_augment.network_model <- function(model_object, conn, newdata, sum_country
     collect() %>%
     rename(taxa_population = population) %>%
     right_join(tidyr::crossing(country_iso3c = unique(.$country_iso3c),
-                            year = seq(min(.$year), max(outbreak_status$year)),
-                            taxa = unique(.$taxa))) %>%
+                               year = seq(min(.$year), max(outbreak_status$year)),
+                               taxa = unique(.$taxa))) %>%
     arrange(country_iso3c, taxa, year) %>%
     group_split(country_iso3c, taxa) %>%
     map_dfr(~na_interp(., "taxa_population")) %>%
@@ -395,7 +395,7 @@ repel_augment.network_model <- function(model_object, conn, newdata, sum_country
   outbreak_status <- outbreak_status %>%
     mutate(outbreak_start = as.integer(outbreak_start)) %>%
     select(-validation_set) #%>%
-   # filter(month >= min(disease_status_present$month), month <= max(disease_status_present$month))
+  # filter(month >= min(disease_status_present$month), month <= max(disease_status_present$month))
 
   # set up country origin/destination combinations - origin is countries that have the disease present in the given month
   outbreak_status <- outbreak_status %>%
@@ -535,7 +535,7 @@ repel_augment.network_model <- function(model_object, conn, newdata, sum_country
       select(-country_origin, -year) %>%
       group_by(country_destination, disease, month, outbreak_start,
                gdp_dollars, human_population, target_taxa_population, veterinarian_count ## non-bilaterial values
-               ) %>%
+      ) %>%
       summarize_all(~sum(as.numeric(.), na.rm = TRUE)) %>%  #TODO DEAL WITH NAS in human movement
       ungroup() %>%
       as_tibble()
@@ -569,3 +569,23 @@ repel_augment.network_model <- function(model_object, conn, newdata, sum_country
   return(augmented_newdata)
 }
 
+#' Augment nowcast baseline model object
+#' @import repeldata dplyr tidyr dtplyr data.table
+#' @importFrom lubridate year
+#' @importFrom purrr map_dfc
+#' @export
+repel_augment.impact_model <- function(model_object, conn, newdata) {
+  wb <- tbl(conn, "worldbank_indicators") %>% collect()
+  dat <- newdata %>%
+    mutate(year = year(outbreak_start_date)) %>%
+    left_join(wb, by = c("country_iso3c", "year"))
+  raster_vals <- purrr::map_dfc(
+    c("raster_accessibility", "raster_gdp", "raster_worldpop"),
+      function(x) {
+        repeldata::get_raster_vals(conn, x, lon = dat$initial_longitude, lat = dat$initial_latitude)
+      }) %>%
+    rename(initial_latitude = lat...2, initial_longitude = lon...1) %>%
+    select(-contains("...")) %>%
+    distinct()
+  left_join(dat, raster_vals, by = c("initial_latitude", "initial_longitude"))
+}

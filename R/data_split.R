@@ -88,6 +88,15 @@ repel_split.network_model <- function(model_object, conn, clean_disease_names = 
   return(all_dat)
 }
 
+#' @import repeldata dplyr tidyr readr
+#' @importFrom DBI dbDisconnect
+#' @importFrom vroom vroom
+#' @importFrom here here
+#' @export
+repel_split.impact_model <- function(model_object, conn){
+  NULL
+}
+
 #' @export
 repel_training <- function(x, ...){
   UseMethod("repel_training")

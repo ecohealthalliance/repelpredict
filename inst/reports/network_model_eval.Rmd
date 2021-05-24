@@ -99,12 +99,14 @@ lme_coeffs <- purrr::map(unique(randef_disease_long_formatted$variable), functio
     geom_segment(aes(x = disease, xend = disease, y = coef, yend = 0, color = pos)) +
     #    scale_y_continuous(limits = c(xmin,  xmax)) +
     scale_color_manual(values = c("TRUE" = "#0072B2", "FALSE" = "#D55E00")) +
-    labs(y = "Coefficient", x = "", title = title) +
+    labs(y = "Relative Influence", x = "", title = title) +
     coord_flip() +
     theme_minimal() +
-    theme(legend.position = "none", 
-          axis.text = element_text(size = 12), 
-          title = element_text(size = 12),
+    theme(text = element_text(family = "Avenir"),
+          legend.position = "none", 
+          plot.margin = margin(10,30,10,10),
+          axis.text = element_text(size = 18), 
+          title = element_text(size = 18),
           plot.title.position = "plot") +
     NULL
   
@@ -196,12 +198,22 @@ lme_predict <-  augmented_data_val_bootstrap %>%
 
 # get predicted outbreak start probability by condition - break into groups by forecasted probability
 lme_predict_compressed <- lme_predict %>%
+<<<<<<< Updated upstream
   distinct() %>%
   drop_na(outbreak_start_predicted) %>% 
   rename(outbreak_start_predict_prob = outbreak_start_predicted) %>%
   mutate(outbreak_start_predict_prob_grp = cut_number(outbreak_start_predict_prob, n = 30)) %>%
   group_by(outbreak_start_predict_prob_grp) %>%
   mutate(outbreak_start_predict_prob_grp_median = median(outbreak_start_predict_prob)) %>%
+=======
+  # select(country_iso3c, disease, shared_borders_from_outbreaks, ots_trade_pc1_soy_corn,
+  #        ots_trade_pc2_trunks_fish_leather, starts_with("fao"), outbreak_start_predicted) %>%
+  distinct() %>% 
+  rename(outbreak_start_predict_prob = outbreak_start_predicted) %>% 
+  mutate(outbreak_start_predict_prob_grp = cut_number(outbreak_start_predict_prob, n = 25)) %>% 
+  group_by(outbreak_start_predict_prob_grp) %>% 
+  mutate(outbreak_start_predict_prob_grp_median = median(outbreak_start_predict_prob)) %>% 
+>>>>>>> Stashed changes
   ungroup()
 
 # confirm we get the same prediction when conditions are the same
@@ -223,10 +235,11 @@ lme_binoms <- augmented_data_training %>%
     binom <-  binom.confint(x = sum(tw$outbreak_start), n=nrow(tw), methods = "wilson")
     tw %>%
       distinct(outbreak_start_predict_prob_grp, outbreak_start_predict_prob_grp_median) %>%
-      mutate(outbreak_start_actual_prob = binom$mean, outbreak_start_actual_low = binom$lower, outbreak_start_actual_upper = binom$upper)})
+      mutate(outbreak_start_actual_prob = binom$mean, outbreak_start_actual_low = binom$lower, outbreak_start_actual_upper = binom$upper, count = nrow(tw))})
 
 options(scipen = 999)
 ggplot(lme_binoms, aes(x = outbreak_start_predict_prob_grp_median, y  = outbreak_start_actual_prob)) +
+<<<<<<< Updated upstream
   geom_abline(color = "gray50") +
   geom_errorbar(aes(ymin = outbreak_start_actual_low, ymax = outbreak_start_actual_upper)) +
   geom_point(pch = 21,fill = "white") +
@@ -238,6 +251,22 @@ ggplot(lme_binoms, aes(x = outbreak_start_predict_prob_grp_median, y  = outbreak
   theme(legend.position = "none",
         axis.text = element_text(size = 12),
         title = element_text(size = 12),
+=======
+  geom_abline(color = "pink") +
+  geom_errorbar(aes(ymin = outbreak_start_actual_low, ymax = outbreak_start_actual_upper), width = 0.005, lwd = 0.75, alpha = 0.75) +
+  geom_point(pch = 21,fill = "white", size = 3, stroke = 1) +
+  coord_equal() +
+  scale_x_sqrt(limits = c(0, max(lme_binoms$outbreak_start_actual_upper)), breaks = c(.001, 0.005, 0.01, 0.02, 0.035, 0.06, 0.08), labels = scales::label_percent(accuracy = 0.1)) +
+  scale_y_sqrt(limits = c(0, max(lme_binoms$outbreak_start_actual_upper)), breaks = c(.001, 0.005, 0.01, 0.02, 0.035, 0.06, 0.08), labels = scales::label_percent(accuracy = 0.1)) +
+  labs(x = "Forecasted probability", y = "Actual probability"
+      # caption = paste("Forecasted probilities are binned into", n_distinct(lme_binoms$outbreak_start_predict_prob_grp_median), "groups by distribution density.\nActual probabilities are  binomial probabilities and confidence intervals for actual outbreaks occurring within the forecasted interval")
+      ) +
+  theme_minimal() +
+  theme(text = element_text(family = "Avenir Medium"),
+        legend.position = "none", 
+        axis.text = element_text(size = 22), 
+        axis.title = element_text(size = 22),
+>>>>>>> Stashed changes
         plot.title.position = "plot",
         plot.caption = element_text(hjust = 0)) +
   NULL
@@ -245,6 +274,7 @@ ggplot(lme_binoms, aes(x = outbreak_start_predict_prob_grp_median, y  = outbreak
 ```
 </details>
 
+<<<<<<< Updated upstream
 
 ### brms
 ```{r brms-mods}
@@ -357,3 +387,21 @@ ggplot(brms_binoms, aes(x = outbreak_start_predict_prob_grp_median, y  = outbrea
   NULL
 ```
 </details>
+=======
+```{r}
+alldat <- lme_binoms <- augmented_data_training %>%
+  bind_rows(augmented_data_val)
+
+filter(alldat, country_iso3c == "NLD", disease=="low_pathogenic_avian_influenza", month == as.Date("2016-06-01"))
+
+co <- rnaturalearth::ne_countries(returnclass = "sf") %>% 
+  filter(!continent %in% c("Antarctica", "Seven seas (open ocean)")) %>% 
+  sf::st_transform("+proj=eqearth")
+ggplot(co, aes(fill = name == "Germany")) +
+  scale_fill_viridis_d(option = "inferno", end = 0.85, begin = 0.2) +
+  geom_sf(color = "white", lwd = 0.25) +
+  theme_void() +
+  theme(legend.position = "none", plot.background = element_rect(fill = "black"))
+```
+
+>>>>>>> Stashed changes
