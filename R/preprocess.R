@@ -147,9 +147,10 @@ repel_init.network_model <- function(model_object, conn){
 repel_init.impact_model <- function(model_object, conn){
 
   events <-  tbl(conn, "outbreak_reports_events") %>%
+    filter(!is.na(country_iso3c), country_iso3c != "NA", event_status == "resolved") %>%
     collect() %>%
-    filter(!is.na(country_iso3c), country_iso3c != "NA") %>%
     mutate_at(vars(contains("date")), as.Date)
+
 
   events_lookup <- events %>%
     select(report_id, url_report_id, outbreak_thread_id, report_type, event_status, is_final_report, country, country_iso3c, disease, report_date)
@@ -166,9 +167,12 @@ repel_init.impact_model <- function(model_object, conn){
               total_deaths = sum(deaths, na.rm = TRUE),
               total_killed_and_disposed = sum(killed_and_disposed, na.rm = TRUE),
               total_slaughtered_for_commercial_use = sum(slaughtered_for_commercial_use, na.rm = TRUE),
+              initial_latitude = latitude[outbreak_start_date == min(outbreak_start_date, na.rm = TRUE)][1],
+              initial_longitude = longitude[outbreak_start_date == min(outbreak_start_date, na.rm = TRUE)][1],
               outbreak_start_date = min(outbreak_start_date, na.rm = TRUE),
               outbreak_end_date = max(outbreak_start_date, na.rm = TRUE),
               outbreak_radius = get_bounding_radius(latitude = latitude, longitude = longitude)
+
     ) %>%
     ungroup()
 
