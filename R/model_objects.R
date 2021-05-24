@@ -55,8 +55,8 @@ network_brms_model <- function(network_model = NULL, network_scaling_values = NU
 #' @import repeldata dplyr tidyr
 #' @return a list with description and classes
 #' @export
-network_impact_model <- function(impact_model = NULL){
+impact_gam_model <- function(impact_model = NULL){
   structure(list(description = "Impact model",
                  impact_model = impact_model),
-            class = c("impact_model", "repel_model"))
+            class = c("impact_gam", "impact_model", "repel_model"))
 }
