@@ -39,6 +39,7 @@ Imports:
     recipes,
     rsample,
     R.utils,
+    spatstat.geom,
     lme4,
     countrycode,
     vroom,
