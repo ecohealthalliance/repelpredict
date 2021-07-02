@@ -19,7 +19,7 @@ get_network_variable_importance <- function(network_lme_augment_predict, randef,
     filter(month == !!month) %>%
     pivot_wider(names_from = continent, values_from = continent, names_prefix = "continent") %>%
     mutate_at(vars(starts_with("continent")), ~ifelse(!is.na(.), 1, NA)) %>%
-    pivot_longer(cols = -c("country_iso3c", "country", "disease", "month", "outbreak_start","endemic", "outbreak_ongoing", "predicted_outbreak_probability"), names_to = "variable", values_to = "x") %>%
+    pivot_longer(cols = -c("country_iso3c", "country", "disease", "disease_clean", "month", "outbreak_start","endemic", "outbreak_ongoing", "predicted_outbreak_probability"), names_to = "variable", values_to = "x") %>%
     drop_na(x) %>%
     left_join(randef) %>%
     mutate(variable_importance = x * coef) %>%

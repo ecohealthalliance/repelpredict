@@ -1,7 +1,7 @@
 #' Get cached network model augmented data and model predictions
 #' @param conn repeldata connection
 #' @return dataframe containing full dataset and predictions
-#' @import dplyr tidyr repeldata DBI
+#' @import dplyr tidyr repeldata DBI stringr
 #' @importFrom countrycode countrycode
 #' @export
 get_cached_network_predictions <- function(conn){
@@ -12,7 +12,13 @@ get_cached_network_predictions <- function(conn){
 
   country_lookup <- tibble(country_iso3c = unique(network_lme_augment_predict$country_iso3c)) %>%
     mutate(country = countrycode::countrycode(country_iso3c, origin = "iso3c", destination = "country.name"))
-  network_lme_augment_predict <- left_join(network_lme_augment_predict, country_lookup)
+
+  disease_lookup <- tibble(disease = unique(network_lme_augment_predict$disease)) %>%
+    mutate(disease_clean = str_to_title(str_replace_all(disease, "_", " ")))
+
+  network_lme_augment_predict <- left_join(network_lme_augment_predict, country_lookup) %>%
+    left_join(disease_lookup) %>%
+    as_tibble()
 
   return(network_lme_augment_predict)
 }
