@@ -10,20 +10,22 @@ repel_init <- function(x, ...){
 #' @export
 repel_init.nowcast_model <- function(model_object, conn){
 
-  annual_reports_animal_hosts <- tbl(conn, "annual_reports_animal_hosts") %>%
+  annual_reports_animal_hosts <- read_rds(here::here("transformed_six_month_quantitative_reports_summary.rds")) %>%
+    mutate(taxa = str_remove(taxa, " \\(mixed herd\\)")) %>%
+    mutate(taxa = str_remove(taxa, " \\(mixed group\\)")) %>%
     mutate(taxa = ifelse(taxa %in% c("goats", "sheep"), "sheep/goats", taxa)) %>%
+    mutate(taxa = ifelse(taxa %in% c("rabbits", "hares"), "hares/rabbits", taxa)) %>%
     filter(taxa %in% taxa_list) %>%
-    filter(report_semester != "0") %>%
     select(all_of(grouping_vars), control_measures, disease_status, cases) %>%
-    collect() %>%
-    group_by_at(grouping_vars) %>%
+   # collect() %>%
+    group_by_at(grouping_vars) %>% # summarize over serotype
     summarize(
       cases = as.integer(sum_na(suppressWarnings(as.integer(cases)))),
       disease_status = str_flatten(sort(na.omit(unique(disease_status))), collapse = ","),
-      control_measures = paste(na.omit(control_measures), collapse = "; ")
-    ) %>%
+      control_measures = unique(str_split(control_measures, pattern = "; "))
+      ) %>%
     ungroup() %>%
-    mutate(control_measures = map_chr(str_split(control_measures, pattern = "; "), ~paste(sort(unique(.)), collapse = "; "))) %>%
+    mutate(control_measures = map_chr(control_measures, ~str_c(sort(.), collapse = "; "))) %>%
     mutate(control_measures = ifelse(control_measures == "", "none", control_measures)) %>%
     mutate(disease_status = recode(disease_status,
                                    "absent,present"  = "present",
