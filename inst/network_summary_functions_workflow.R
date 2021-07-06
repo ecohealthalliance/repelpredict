@@ -11,12 +11,14 @@ breaks_by <- function(k) {
 conn <- repeldata::repel_remote_conn()
 
 network_lme_augment_predict <- get_cached_network_predictions(conn)
+disagg_network_predict <- get_cached_disagg_network_predictions(conn)
+vroom::vroom_write(disagg_network_predict, gzfile("tmp/disagg_network_predict.csv.gz"))
 randef <- get_cached_network_random_effects()
 
-network_boost_augment_predict <- get_cached_nowcast_predictions(conn)
+nowcast_boost_augment_predict <- get_cached_nowcast_predictions(conn)
 
 # Disease status summary --------------------------------------------------
-disease_status <- get_disease_status_predict(network_boost_augment_predict,
+disease_status <- get_disease_status_predict(nowcast_boost_augment_predict,
                                              network_lme_augment_predict,
                                              country_iso3c = "USA",
                                              diseases = get_oie_high_importance_diseases())
@@ -53,7 +55,7 @@ presence_plots <-  disease_status %>%
       theme(axis.title.x = element_blank(), panel.grid = element_blank(), axis.title.y = element_blank(), axis.text.x = element_text(angle = 45, vjust = 0.5, hjust=1))
   })
 
-# absent/endemic/ooutbreak/import (instead of presence_plots?)
+# absent/endemic/outbreak/import (instead of presence_plots?)
 import_prob_plots <-  disease_status %>%
   group_split(disease) %>%
   map(., function(presence_df){
@@ -70,8 +72,35 @@ import_prob_plots <-  disease_status %>%
             axis.text.x = element_text(angle = 45, vjust = 0.5, hjust=1))
   })
 
+# Variable importance by disease-----------------------------------------------
+plots <- randef %>%
+  filter(str_detect(variable, "from_outbreaks")) %>%
+  filter(disease %in% get_oie_high_importance_diseases()) %>%
+  mutate(pos = coef > 0) %>%
+  group_split(disease) %>%
+  map(., function(x){
+    title <- unique(x$disease_clean)
+    x %>%
+      mutate(variable_clean = forcats::fct_reorder(variable_clean, coef)) %>%
+      ggplot() +
+      geom_hline(aes(yintercept = 0), color = "gray50") +
+      geom_point(aes(x = variable_clean, y = coef, color = pos), size = 2) +
+      geom_segment(aes(x = variable_clean, xend = variable_clean, y = coef, yend = 0, color = pos)) +
+      #    scale_y_continuous(limits = c(xmin,  xmax)) +
+      scale_color_manual(values = c("TRUE" = "#0072B2", "FALSE" = "#D55E00")) +
+      labs(y = "Coefficient", x = "", title = title) +
+      coord_flip() +
+      theme_minimal() +
+      theme(legend.position = "none",
+            axis.text = element_text(size = 12),
+            title = element_text(size = 12),
+            plot.title.position = "plot") +
+      NULL
 
-# Variable importance -----------------------------------------------
+  })
+
+
+# Variable importance by disease and country-----------------------------------------------
 vi <- get_network_variable_importance(network_lme_augment_predict, randef,
                                       country_iso3c = "USA",
                                       diseases = get_oie_high_importance_diseases())
@@ -87,8 +116,8 @@ plots <- vi %>%
 
     ggplot(x) +
       geom_vline(aes(xintercept = 0), color = "gray50") +
-      geom_point(aes(x = variable_importance, y = variable, color = pos), size = 2) +
-      geom_segment(aes(x = variable_importance, xend = 0, y = variable, yend = variable, color = pos)) +
+      geom_point(aes(x = variable_importance, y = variable_clean, color = pos), size = 2) +
+      geom_segment(aes(x = variable_importance, xend = 0, y = variable_clean, yend = variable_clean, color = pos)) +
       scale_color_manual(values = c("TRUE" = "#0072B2", "FALSE" = "#D55E00")) +
       labs(y = "", x = "Variable importance", title = glue::glue("{year} {disease_name} Outbreak in {country_name} Variable Importance ({outbreak_prob} probability outbreak)")) +
       theme_minimal() +
@@ -99,6 +128,4 @@ plots <- vi %>%
       NULL
   })
 
-#TODO
-# 1. disagg by which countries are contributing to risk
-
+#TODO Dissagg above results by country
