@@ -44,6 +44,10 @@ repel_init.network_model <- function(model_object, conn){
 
   # read in immediate outbreaks
 
+  current_month <- floor_date(Sys.Date(), unit = "month")
+  prev_year <- current_month - 365
+  next_century <- current_month + 36500
+
   events <- tbl(conn, "outbreak_reports_events") %>%
     collect() %>%
     filter(!is.na(country_iso3c), country_iso3c != "NA") %>%
@@ -65,11 +69,18 @@ repel_init.network_model <- function(model_object, conn){
     arrange(country, disease, report_date) %>%
     mutate(report_month = floor_date(report_date, unit = "months")) %>%
     mutate(date_of_start_of_the_event = floor_date(date_of_start_of_the_event, "month")) %>%
-    mutate(date_event_resolved = ceiling_date(date_event_resolved, "month")) %>%
+    mutate(date_event_resolved = floor_date(date_event_resolved, "month")) %>%
     select(country_iso3c, disease, outbreak_thread_id, report_type, report_month, date_of_start_of_the_event, date_event_resolved)  %>%
     group_by(outbreak_thread_id) %>%
     mutate(outbreak_start_month = min(c(report_month, date_of_start_of_the_event))) %>%
-    mutate(outbreak_end_month = coalesce(date_event_resolved, report_month)) %>%  # this isnt exactly right because some events are not marked as resolved. here we assume last report is when it's resolved.
+    mutate(outbreak_end_month = max(coalesce(date_event_resolved, report_month))) %>%  # outbreak end is date event resolved, if avail, or report month. the max accounts for instances where the resolved date is farther in the past than more recent reports in the same thread. see outbreak_thread_id == 10954
+    # ^ this assumes that if thread is not marked as resolved, use the last report date as the end month
+    # if it's been less than a year, however, keep the event as ongoing (use end date in the future)
+    mutate(outbreak_end_month = if_else(
+      outbreak_end_month >= prev_year & all(is.na(date_event_resolved)),
+      as.Date(next_century),
+      as.Date(outbreak_end_month)
+    )) %>%
     ungroup()
 
   # add in all combos of disease-country-month
@@ -81,12 +92,12 @@ repel_init.network_model <- function(model_object, conn){
           disease,
           month = seq.Date(
             from = floor_date(min(events$date_of_start_of_the_event, na.rm = TRUE), unit = "months"),
-            to = Sys.Date(),
+            to = current_month,
             by = "months")), by = c("country_iso3c", "disease"))
 
   # identify subsequent continuous outbreaks
   events <- events %>%
-    mutate(outbreak_subsequent_month = month > outbreak_start_month & month <= outbreak_end_month) %>%
+    mutate(outbreak_subsequent_month = month > outbreak_start_month & month <= outbreak_end_month) %>% # within bounds
     mutate(outbreak_start = month == outbreak_start_month)  %>%
     mutate(disease_country_combo_unreported = is.na(outbreak_thread_id)) %>%
     mutate_at(.vars = c("outbreak_subsequent_month", "outbreak_start"), ~replace_na(., FALSE))
@@ -126,7 +137,8 @@ repel_init.network_model <- function(model_object, conn){
               outbreak_subsequent_month = any(outbreak_subsequent_month),
               endemic = any(endemic),
               disease_country_combo_unreported = all(disease_country_combo_unreported)) %>%
-    ungroup() #%>%
+    ungroup() %>%
+    mutate(outbreak_ongoing = outbreak_start|outbreak_subsequent_month)
   #mutate(endemic = ifelse(outbreak_start, FALSE, endemic))
   # ^ this last mutate covers cases where the outbreak makes it into the semester report. the first month of the outbreak should still count.
   # on the other hand, there are outbreaks that are reported when it really is already endemic, eg rabies, so commenting out for now
