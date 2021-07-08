@@ -5,17 +5,14 @@
 \title{Get variable importance for given disease and month, by country}
 \usage{
 get_network_variable_importance_with_origins(
-  disagg_network_augment_predict,
-  randef,
+  conn,
   country_iso3c,
   diseases = get_oie_high_importance_diseases(),
   month = NULL
 )
 }
 \arguments{
-\item{disagg_network_augment_predict}{output of \code{get_cached_disagg_network_predictions()}}
-
-\item{randef}{output of \code{get_cached_network_random_effects()}}
+\item{conn}{repeldata connection}
 
 \item{country_iso3c}{iso3c(s) of countries}
 

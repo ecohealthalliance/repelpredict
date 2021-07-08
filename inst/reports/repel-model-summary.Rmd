@@ -21,16 +21,8 @@ breaks_by <- function(k) {
   function(y) seq(floor(min(y)), ceiling(max(y)), by = step)
 }
 
-# Get data ----------------------------------------------------------------
 conn <- repeldata::repel_remote_conn()
 
-# network_augment_predict <- get_cached_network_predictions(conn)
-# #disagg_network_augment_predict <- get_cached_disagg_network_predictions(conn)
-# disagg_network_augment_predict <- vroom::vroom(here("tmp/disagg_network_predict.csv.gz"))
-# randef <- get_cached_network_random_effects()
-# 
-# nowcast_boost_augment_predict <- get_cached_nowcast_predictions(conn)
-# repeldata::repel_local_disconnect()
 ```
 
 ### Variable importance by disease
@@ -125,7 +117,7 @@ viplot_by_disease_usa <- map_chr(seq_along(vi_by_disease_plots_usa), ~ {
 
 ### Variable importance by disease and country (USA), with country origins
 ```{r gen-vi-by-disease-country-origins-plots}
-vi_usa_co <- get_network_variable_importance_with_origins(disagg_network_augment_predict, randef,
+vi_usa_co <- get_network_variable_importance_with_origins(conn,
                                                           country_iso3c = "USA",
                                                           diseases = get_oie_high_importance_diseases(),
                                                           month = "2018-12-01")
@@ -237,5 +229,9 @@ import_prob_plots <-  disease_status %>%
             axis.text.y = element_blank(),
             axis.text.x = element_text(angle = 45, vjust = 0.5, hjust=1))
   })
+```
+
+```{r disconnect}
+repeldata::repel_remote_disconnect()
 ```
 
