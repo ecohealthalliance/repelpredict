@@ -24,13 +24,13 @@ breaks_by <- function(k) {
 # Get data ----------------------------------------------------------------
 conn <- repeldata::repel_remote_conn()
 
-network_augment_predict <- get_cached_network_predictions(conn)
-#disagg_network_augment_predict <- get_cached_disagg_network_predictions(conn)
-disagg_network_augment_predict <- vroom::vroom(here("tmp/disagg_network_predict.csv.gz"))
-randef <- get_cached_network_random_effects()
-
+# network_augment_predict <- get_cached_network_predictions(conn)
+# #disagg_network_augment_predict <- get_cached_disagg_network_predictions(conn)
+# disagg_network_augment_predict <- vroom::vroom(here("tmp/disagg_network_predict.csv.gz"))
+# randef <- get_cached_network_random_effects()
+# 
 # nowcast_boost_augment_predict <- get_cached_nowcast_predictions(conn)
-repeldata::repel_local_disconnect()
+# repeldata::repel_local_disconnect()
 ```
 
 ### Variable importance by disease
@@ -79,7 +79,7 @@ viplot_by_disease <- map_chr(seq_along(vi_by_disease_plots), ~ {
 
 ### Variable importance by disease and country (USA)
 ```{r gen-vi-by-disease-country-plots}
-vi_usa <- get_network_variable_importance(network_augment_predict, randef,
+vi_usa <- get_network_variable_importance(conn,
                                           country_iso3c = "USA",
                                           diseases = get_oie_high_importance_diseases(),
                                           month = "2018-12-01")
@@ -126,9 +126,9 @@ viplot_by_disease_usa <- map_chr(seq_along(vi_by_disease_plots_usa), ~ {
 ### Variable importance by disease and country (USA), with country origins
 ```{r gen-vi-by-disease-country-origins-plots}
 vi_usa_co <- get_network_variable_importance_with_origins(disagg_network_augment_predict, randef,
-                                          country_iso3c = "USA",
-                                          diseases = get_oie_high_importance_diseases(),
-                                          month = "2018-12-01")
+                                                          country_iso3c = "USA",
+                                                          diseases = get_oie_high_importance_diseases(),
+                                                          month = "2018-12-01")
 
 
 vi_by_disease_co_plots_usa <- vi_usa_co %>%
@@ -184,57 +184,58 @@ viplot_by_disease_co_usa <- map_chr(seq_along(vi_by_disease_co_plots_usa), ~ {
 
 ### Disease status summary
 ```{r disease_status, include = FALSE}
-# disease_status <- get_disease_status_predict(nowcast_boost_augment_predict,
-#                                              network_augment_predict,
-#                                              country_iso3c = "USA",
-#                                              diseases = get_oie_high_importance_diseases())
-# 
-# cases_plots <- disease_status %>%
-#   group_split(disease) %>%
-#   map(., function(cases_df){
-#     ggplot(cases_df, aes(x = yr, y = cases_coalesced, fill = status_coalesced, color = status_coalesced)) +
-#       geom_point_interactive(mapping = aes(tooltip = label, fill = status_coalesced, color = status_coalesced), pch = 21, size = 4) +
-#       scale_color_manual(values = c("reported present" = "#E31A1C", "unreported, predicted present" = "#FB9A99",
-#                                     "reported absent" = "#1F78B4", "unreported, predicted absent" = "#A6CEE3")) +
-#       scale_fill_manual(values = c("reported present" = "#E31A1C", "unreported, predicted present" = "#FB9A99",
-#                                    "reported absent" = "#1F78B4", "unreported, predicted absent" = "#A6CEE3")) +
-#       labs(title = paste(unique(cases_df$country), unique(cases_df$disease_clean), sep = ": "),
-#            y = "Cases", fill = "", color = "") +
-#       theme_minimal() +
-#       theme(axis.text.x = element_blank(), axis.title.x = element_blank())
-#   })
-# 
-# 
-# presence_plots <-  disease_status %>%
-#   rename(Predicted = predicted_status, Reported = actual_status) %>%
-#   pivot_longer(cols = c("Predicted", "Reported"), names_to = "type") %>%
-#   mutate(missing = factor(if_else(value, "Present", "Absent", "Missing"), levels = c("Missing", "Present", "Absent"))) %>%
-#   select(-value) %>%
-#   group_split(disease) %>%
-#   map(., function(presence_df){
-#     ggplot(presence_df, aes(x = yr, y = type, fill = missing)) +
-#       geom_tile(color = "white") +
-#       scale_x_continuous(breaks = breaks_by(1)) +
-#       scale_fill_manual(values = c(Present = "#E31A1C", Absent = "#1F78B4", Missing = "#FFFFFF")) +
-#       labs(fill = "", color = "") +
-#       theme_minimal() +
-#       theme(axis.title.x = element_blank(), panel.grid = element_blank(), axis.title.y = element_blank(), axis.text.x = element_text(angle = 45, vjust = 0.5, hjust=1))
-#   })
-# 
-# # absent/endemic/outbreak/import (instead of presence_plots?)
-# import_prob_plots <-  disease_status %>%
-#   group_split(disease) %>%
-#   map(., function(presence_df){
-#     ggplot(presence_df, aes(x = yr, y = 1, fill = predicted_semester_outbreak_probability)) +
-#       geom_tile(color = "white") +
-#       scale_x_continuous(breaks = breaks_by(1)) +
-#       viridis::scale_fill_viridis() +
-#       labs(fill = "", color = "") +
-#       theme_minimal() +
-#       theme(axis.title.x = element_blank(),
-#             panel.grid = element_blank(),
-#             axis.title.y = element_blank(),
-#             axis.text.y = element_blank(),
-#             axis.text.x = element_text(angle = 45, vjust = 0.5, hjust=1))
-#   })
+disease_status <- get_disease_status_predict(nowcast_boost_augment_predict,
+                                             network_augment_predict,
+                                             country_iso3c = "USA",
+                                             diseases = get_oie_high_importance_diseases())
+
+cases_plots <- disease_status %>%
+  group_split(disease) %>%
+  map(., function(cases_df){
+    ggplot(cases_df, aes(x = yr, y = cases_coalesced, fill = status_coalesced, color = status_coalesced)) +
+      geom_point_interactive(mapping = aes(tooltip = label, fill = status_coalesced, color = status_coalesced), pch = 21, size = 4) +
+      scale_color_manual(values = c("reported present" = "#E31A1C", "unreported, predicted present" = "#FB9A99",
+                                    "reported absent" = "#1F78B4", "unreported, predicted absent" = "#A6CEE3")) +
+      scale_fill_manual(values = c("reported present" = "#E31A1C", "unreported, predicted present" = "#FB9A99",
+                                   "reported absent" = "#1F78B4", "unreported, predicted absent" = "#A6CEE3")) +
+      labs(title = paste(unique(cases_df$country), unique(cases_df$disease_clean), sep = ": "),
+           y = "Cases", fill = "", color = "") +
+      theme_minimal() +
+      theme(axis.text.x = element_blank(), axis.title.x = element_blank())
+  })
+
+
+presence_plots <-  disease_status %>%
+  rename(Predicted = predicted_status, Reported = actual_status) %>%
+  pivot_longer(cols = c("Predicted", "Reported"), names_to = "type") %>%
+  mutate(missing = factor(if_else(value, "Present", "Absent", "Missing"), levels = c("Missing", "Present", "Absent"))) %>%
+  select(-value) %>%
+  group_split(disease) %>%
+  map(., function(presence_df){
+    ggplot(presence_df, aes(x = yr, y = type, fill = missing)) +
+      geom_tile(color = "white") +
+      scale_x_continuous(breaks = breaks_by(1)) +
+      scale_fill_manual(values = c(Present = "#E31A1C", Absent = "#1F78B4", Missing = "#FFFFFF")) +
+      labs(fill = "", color = "") +
+      theme_minimal() +
+      theme(axis.title.x = element_blank(), panel.grid = element_blank(), axis.title.y = element_blank(), axis.text.x = element_text(angle = 45, vjust = 0.5, hjust=1))
+  })
+
+# absent/endemic/outbreak/import (instead of presence_plots?)
+import_prob_plots <-  disease_status %>%
+  group_split(disease) %>%
+  map(., function(presence_df){
+    ggplot(presence_df, aes(x = yr, y = 1, fill = predicted_semester_outbreak_probability)) +
+      geom_tile(color = "white") +
+      scale_x_continuous(breaks = breaks_by(1)) +
+      viridis::scale_fill_viridis() +
+      labs(fill = "", color = "") +
+      theme_minimal() +
+      theme(axis.title.x = element_blank(),
+            panel.grid = element_blank(),
+            axis.title.y = element_blank(),
+            axis.text.y = element_blank(),
+            axis.text.x = element_text(angle = 45, vjust = 0.5, hjust=1))
+  })
 ```
+

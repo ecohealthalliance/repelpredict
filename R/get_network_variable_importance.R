@@ -7,13 +7,17 @@
 #' @return dataframe containing actual values ('x'), coefficients ('coef') and variable importance
 #' @import dplyr tidyr
 #' @export
-get_network_variable_importance <- function(network_augment_predict, randef,
-                                            country_iso3c, diseases = get_oie_high_importance_diseases(),
+get_network_variable_importance <- function(conn,
+                                            country_iso3c,
+                                            diseases = get_oie_high_importance_diseases(),
                                             month = NULL){
 
   if(is.null(month)) month <- max(network_augment_predict$month)
 
-  network_augment_predict %>%
+  # do all filtering etc in db
+  network_augment_predict <- dbReadTable(conn, name = "network_lme_augment_predict") %>%
+    select(-db_network_etag) %>%
+    rename(outbreak_ongoing = outbreak_subsequent_month) %>%
     filter(disease %in% !!diseases)  %>%
     filter(country_iso3c %in% !!country_iso3c) %>%
     filter(month == !!month) %>%
@@ -24,6 +28,21 @@ get_network_variable_importance <- function(network_augment_predict, randef,
     left_join(randef) %>%
     mutate(variable_importance = x * coef) %>%
     mutate(pos = variable_importance > 0)
+
+  # get randef from db and merge in db
+
+  # read in and do lookups before returning
+  country_lookup <- readr::read_csv(system.file("lookup", "countrycode_lookup.csv", package = "repelpredict"),  col_types = cols(
+    country.name.en = col_character(),
+    iso3c = col_character()
+  ))
+
+  disease_lookup <- tibble(disease = unique(network_augment_predict$disease)) %>%
+    mutate(disease_clean = str_to_title(str_replace_all(disease, "_", " ")))
+
+  network_lme_augment_predict <- left_join(network_lme_augment_predict, country_lookup) %>%
+    left_join(disease_lookup) %>%
+    as_tibble()
 
 }
 
