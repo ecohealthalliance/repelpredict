@@ -105,7 +105,7 @@ repel_init.network_model <- function(model_object, conn){
     mutate_at(.vars = c("outbreak_subsequent_month", "outbreak_start"), ~replace_na(., FALSE))
 
   # identify endemic events
-  endemic_status_present <- tbl(conn, "nowcast_boost_augment_predict")  %>%
+  endemic_status_present <- tbl(conn, "nowcast_boost_augment_predict")  %>% # this should have even coverage by country/disease up to latest reporting period
     collect() %>%
     mutate(cases = as.integer(predicted_cases)) %>%
     mutate(cases = coalesce(cases, predicted_cases)) %>%
