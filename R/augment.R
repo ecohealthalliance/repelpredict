@@ -360,6 +360,7 @@ repel_augment.network_model <- function(model_object, conn, newdata, sum_country
     ungroup()
 
   outbreak_status <- left_join(outbreak_status, taxa_population,  by = c("country_iso3c", "year", "disease"))
+  # ^ may not be most reliable source
 
   # vet capacity
   vets <- tbl(conn, "annual_reports_veterinarians") %>%
@@ -558,9 +559,18 @@ repel_augment.network_model <- function(model_object, conn, newdata, sum_country
     mutate(outbreak_subsequent_month = outbreak_subsequent_month > 0) %>%
     mutate(outbreak_ongoing = outbreak_ongoing > 0) %>%
     mutate(shared_border = as.integer(shared_border)) %>%
+    mutate(log_human_population = prepvar(human_population, trans_fn = log10)) %>%
+    select(-human_population) %>%
+    mutate(log_gdp_dollars = prepvar(gdp_dollars, trans_fn = log10)) %>%
+    select(-gdp_dollars) %>%
+    mutate(log_target_taxa_population = prepvar((target_taxa_population+1), trans_fn = log10)) %>%
+    select(-target_taxa_population) %>%
+    mutate(log_veterinarians = prepvar((veterinarian_count+1), trans_fn = log10)) %>%
+    select(-veterinarian_count) %>%
     mutate(continent = as.factor(countrycode::countrycode(country_destination,  origin = "iso3c", destination = "continent"))) %>%
     select(country_iso3c = country_destination, continent, suppressWarnings(one_of("country_origin")),
-           disease, month, gdp_dollars, human_population, target_taxa_population, veterinarian_count,
+           disease, month, log_gdp_dollars, log_human_population, log_target_taxa_population,
+           log_veterinarians,
            outbreak_start,
            outbreak_subsequent_month, outbreak_ongoing, endemic, disease_country_combo_unreported,
            n_migratory_wildlife_from_outbreaks = n_migratory_wildlife,
