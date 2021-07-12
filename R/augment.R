@@ -307,7 +307,7 @@ repel_augment.nowcast_gam <- function(model_object, conn, newdata, rare = 1000) 
 #' @import repeldata dplyr tidyr dtplyr data.table
 #' @importFrom assertthat has_name assert_that
 #' @importFrom janitor make_clean_names
-#' @importFrom lubridate ymd
+#' @importFrom lubridate ymd year
 #' @importFrom purrr map_dfr
 #' @export
 repel_augment.network_model <- function(model_object, conn, newdata, sum_country_imports = TRUE) {
@@ -320,14 +320,14 @@ repel_augment.network_model <- function(model_object, conn, newdata, sum_country
   # start lookup table for augmenting
   outbreak_status <- repel_split(model_object, conn)
 
-  # add year column to support joins
+   # add year column to support joins
   outbreak_status <- outbreak_status %>%
     mutate(year = year(month))
 
   # World Bank indicators
   wbi <-  tbl(conn, "worldbank_indicators") %>%
     collect() %>%
-    right_join(tidyr:: expand(outbreak_status, country_iso3c, year),  by = c("country_iso3c", "year")) %>%
+    right_join(tidyr::expand(outbreak_status, country_iso3c, year),  by = c("country_iso3c", "year")) %>%
     arrange(country_iso3c, year) %>%
     group_split(country_iso3c) %>%
     map_dfr(~na_interp(., "gdp_dollars") %>%
@@ -391,11 +391,9 @@ repel_augment.network_model <- function(model_object, conn, newdata, sum_country
     filter(outbreak_start | outbreak_subsequent_month | endemic) %>%
     select(country_origin = country_iso3c, month, disease)
 
-  # filter dataset to min/max year from endemic #TODO revisit
   outbreak_status <- outbreak_status %>%
     mutate(outbreak_start = as.integer(outbreak_start)) %>%
-    select(-validation_set) #%>%
-   # filter(month >= min(disease_status_present$month), month <= max(disease_status_present$month))
+    select(-validation_set)
 
   # set up country origin/destination combinations - origin is countries that have the disease present in the given month
   outbreak_status <- outbreak_status %>%
@@ -438,6 +436,17 @@ repel_augment.network_model <- function(model_object, conn, newdata, sum_country
     select(-starts_with("n_")) %>%
     pivot_longer(cols = -c("country_origin" , "country_destination",  "year" ))
 
+  current_year <- lubridate::year(Sys.Date())
+  years_to_add = seq(from = max(trade_vars$year)+1, to = current_year)
+  trade_vars_latest <- trade_vars %>%
+    filter(year == max(year))
+
+  for(yr in years_to_add){
+    trade_vars_latest_add <- trade_vars_latest %>%
+      mutate(year = yr)
+    trade_vars <- bind_rows(trade_vars, trade_vars_latest_add)
+  }
+
   ots_lookup <- DBI::dbReadTable(conn, "connect_ots_lookup") %>%
     collect() %>%
     mutate(source = "ots_trade_dollars") %>%
@@ -468,9 +477,8 @@ repel_augment.network_model <- function(model_object, conn, newdata, sum_country
     left_join(trade_vars_lookup, by = "name") %>%
     lazy_dt() %>%
     mutate(value = as.numeric(value)) %>%
-    mutate(value = replace_na(value, 0)) %>%
     group_by(country_origin, country_destination, year, source, group_name) %>% # sum over groups
-    summarize(value = sum(value, na.rm = TRUE)) %>% # will turn all NAs in 0
+    summarize(value = sum(value, na.rm = TRUE)) %>% # will turn all NAs into 0
     ungroup() %>%
     as_tibble()
 
@@ -548,12 +556,13 @@ repel_augment.network_model <- function(model_object, conn, newdata, sum_country
     mutate(endemic = endemic > 0) %>%
     mutate(disease_country_combo_unreported = disease_country_combo_unreported > 0) %>%
     mutate(outbreak_subsequent_month = outbreak_subsequent_month > 0) %>%
+    mutate(outbreak_ongoing = outbreak_ongoing > 0) %>%
     mutate(shared_border = as.integer(shared_border)) %>%
     mutate(continent = as.factor(countrycode::countrycode(country_destination,  origin = "iso3c", destination = "continent"))) %>%
     select(country_iso3c = country_destination, continent, suppressWarnings(one_of("country_origin")),
            disease, month, gdp_dollars, human_population, target_taxa_population, veterinarian_count,
            outbreak_start,
-           outbreak_subsequent_month, endemic, disease_country_combo_unreported,
+           outbreak_subsequent_month, outbreak_ongoing, endemic, disease_country_combo_unreported,
            n_migratory_wildlife_from_outbreaks = n_migratory_wildlife,
            shared_borders_from_outbreaks = shared_border,
            ots_trade_dollars_from_outbreaks = ots_trade_dollars,

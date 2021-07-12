@@ -42,9 +42,11 @@ repel_init.nowcast_model <- function(model_object, conn){
 #' @export
 repel_init.network_model <- function(model_object, conn){
 
-  # read in immediate outbreaks
-
   current_month <- floor_date(Sys.Date(), unit = "month")
+  current_year <- year(current_month)
+  current_semester <- ifelse(current_month < "2021-07-01", 1, 2)
+  current_period <- as.numeric(paste(current_year, recode(current_semester, '1' = '0', '2' = '5'), sep = "."))
+
   prev_year <- current_month - 365
   next_century <- current_month + 36500
 
@@ -75,7 +77,7 @@ repel_init.network_model <- function(model_object, conn){
     mutate(outbreak_start_month = min(c(report_month, date_of_start_of_the_event))) %>%
     mutate(outbreak_end_month = max(coalesce(date_event_resolved, report_month))) %>%  # outbreak end is date event resolved, if avail, or report month. the max accounts for instances where the resolved date is farther in the past than more recent reports in the same thread. see outbreak_thread_id == 10954
     # ^ this assumes that if thread is not marked as resolved, use the last report date as the end month
-    # if it's been less than a year, however, keep the event as ongoing (use end date in the future)
+    # if it's been less than a year, however, keep the event as ongoing (use an end date in the future)
     mutate(outbreak_end_month = if_else(
       outbreak_end_month >= prev_year & all(is.na(date_event_resolved)),
       as.Date(next_century),
@@ -111,6 +113,21 @@ repel_init.network_model <- function(model_object, conn){
     select(country_iso3c, report_year, report_semester, disease) %>%
     mutate(report_year = as.integer(report_year)) %>%
     mutate(report_semester = as.integer(report_semester))
+
+  #assume last conditions are present conditions
+  endemic_status_present_latest <- endemic_status_present %>%
+    mutate(report_period = as.numeric(paste(report_year, recode(report_semester, '1' = '0', '2' = '5'), sep = "."))) %>%
+    filter(report_period == max(report_period)) %>%
+    tidyr::expand(.,
+                  country_iso3c,
+                  disease,
+                  report_period = as.character(format(seq(from = max(.$report_period), to = current_period, by = 0.5), nsmall = 1))) %>%
+    mutate(report_year = as.integer(str_sub(report_period, start = 1, end = 4))) %>%
+    mutate(report_semester = as.integer(recode(str_sub(report_period, -1), '5' = '2', '0' = '1'))) %>%
+    filter(report_period != min(report_period)) %>%
+    select(-report_period)
+
+  endemic_status_present <- bind_rows(endemic_status_present, endemic_status_present_latest)
 
   year_lookup <- endemic_status_present %>%
     distinct(report_semester, report_year) %>%
