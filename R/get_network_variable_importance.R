@@ -18,8 +18,7 @@ get_network_variable_importance <- function(conn,
     filter(disease %in% !!diseases)  %>%
     filter(country_iso3c %in% !!country_iso3c) %>%
     filter(month == !!month) %>%
-    select(-db_network_etag) %>%
-    rename(outbreak_ongoing = outbreak_subsequent_month) %>%
+    select(-db_network_etag, -outbreak_subsequent_month) %>%
     collect() %>%
     pivot_wider(names_from = continent, values_from = continent, names_prefix = "continent") %>%
     mutate_at(vars(starts_with("continent")), ~ifelse(!is.na(.), 1, NA)) %>%
@@ -84,7 +83,7 @@ get_network_variable_importance_with_origins <- function(conn,
     filter(disease %in% !!diseases)  %>%
     filter(country_iso3c %in% !!country_iso3c) %>%
     filter(month == !!month) %>%
-    rename(outbreak_ongoing = outbreak_subsequent_month) %>%
+    select(-outbreak_subsequent_month) %>%
     rename(country_origin_iso3c = country_origin) %>%
     collect() %>%
     pivot_wider(names_from = continent, values_from = continent, names_prefix = "continent") %>%
