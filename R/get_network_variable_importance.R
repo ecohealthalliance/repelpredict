@@ -13,6 +13,12 @@ get_network_variable_importance <- function(conn,
 
   #  if(is.null(month)) month <- max(network_augment_predict$month)
 
+  #####TODO apply scaling values!
+  model_object <-  network_lme_model(
+    network_model = aws.s3::s3readRDS(bucket = "repeldb/models", object = "lme_mod_network.rds"),
+    network_scaling_values = aws.s3::s3readRDS(bucket = "repeldb/models", object = "network_scaling_values.rds")
+  )
+
   # get augmented data
   network_augment_predict <- tbl(conn,  "network_lme_augment_predict") %>%
     filter(disease %in% !!diseases)  %>%
@@ -24,31 +30,15 @@ get_network_variable_importance <- function(conn,
     mutate_at(vars(starts_with("continent")), ~ifelse(!is.na(.), 1, NA)) %>%
     pivot_longer(cols = -c("country_iso3c", "disease", "month", "outbreak_start","endemic", "outbreak_ongoing", "predicted_outbreak_probability"), names_to = "variable", values_to = "x")
 
-  # get model coeffs (to be transferred to db)
-  model_object <-  network_lme_model(
-    network_model = aws.s3::s3readRDS(bucket = "repeldb/models", object = "lme_mod_network.rds"),
-    network_scaling_values = aws.s3::s3readRDS(bucket = "repeldb/models", object = "network_scaling_values.rds")
-  )
-
-  lme_mod <- model_object$network_model
-
-  randef <- ranef(lme_mod)
-  randef_disease <- randef$disease %>%
-    tibble::rownames_to_column(var = "disease") %>%
-    as_tibble()%>%
-    filter(disease %in% !!diseases)  %>%
-    pivot_longer(-disease, names_to = "variable", values_to = "coef") %>%
-    mutate(disease_clean = str_to_title(str_replace_all(disease, "_", " "))) %>%
-    mutate(variable_clean = str_replace(variable, "_from_outbreaks", " from countries with existing outbreak"),
-           variable_clean = str_replace(variable_clean, "fao_trade_", ""),
-           variable_clean = str_replace(variable_clean, "_other", " (other)"),
-           variable_clean = str_replace_all(variable_clean, "_", " "),
-           variable_clean = str_remove(variable_clean, "continent"),
-           variable_clean = str_replace(variable_clean, "shared borders from countries with existing outbreak", "shared borders with country with existing outbreak"))
+  # get model coeffs
+  randef_disease <- dbReadTable(conn, "network_lme_coefficients")
+  network_scaling_values <-  model_object$network_scaling_values %>% rename(variable = key)
 
   # join together augment and coeffs, calc variable importance
   network_augment_predict <- network_augment_predict %>%
     left_join(randef_disease, by = c("disease", "variable")) %>%
+    left_join(network_scaling_values, by = "variable") %>%
+    mutate(x = (x - `mean`) / `sd`) %>%
     mutate(variable_importance = x * coef) %>%
     mutate(pos = variable_importance > 0)
 
@@ -79,6 +69,13 @@ get_network_variable_importance_with_origins <- function(conn,
 
   #if(is.null(month)) month <- max(network_lme_augment_predict$month)
 
+
+  #####TODO apply scaling values!
+  model_object <-  network_lme_model(
+    network_model = aws.s3::s3readRDS(bucket = "repeldb/models", object = "lme_mod_network.rds"),
+    network_scaling_values = aws.s3::s3readRDS(bucket = "repeldb/models", object = "network_scaling_values.rds")
+  )
+
   disagg_network_augment_predict <- tbl(conn,  "network_lme_augment_disaggregated") %>%
     filter(disease %in% !!diseases)  %>%
     filter(country_iso3c %in% !!country_iso3c) %>%
@@ -92,31 +89,15 @@ get_network_variable_importance_with_origins <- function(conn,
                  names_to = "variable", values_to = "x")
 
 
-  # get model coeffs (to be transferred to db)
-  model_object <-  network_lme_model(
-    network_model = aws.s3::s3readRDS(bucket = "repeldb/models", object = "lme_mod_network.rds"),
-    network_scaling_values = aws.s3::s3readRDS(bucket = "repeldb/models", object = "network_scaling_values.rds")
-  )
-
-  lme_mod <- model_object$network_model
-
-  randef <- ranef(lme_mod)
-  randef_disease <- randef$disease %>%
-    tibble::rownames_to_column(var = "disease") %>%
-    as_tibble()%>%
-    filter(disease %in% !!diseases)  %>%
-    pivot_longer(-disease, names_to = "variable", values_to = "coef") %>%
-    mutate(disease_clean = str_to_title(str_replace_all(disease, "_", " "))) %>%
-    mutate(variable_clean = str_replace(variable, "_from_outbreaks", " from countries with existing outbreak"),
-           variable_clean = str_replace(variable_clean, "fao_trade_", ""),
-           variable_clean = str_replace(variable_clean, "_other", " (other)"),
-           variable_clean = str_replace_all(variable_clean, "_", " "),
-           variable_clean = str_remove(variable_clean, "continent"),
-           variable_clean = str_replace(variable_clean, "shared borders from countries with existing outbreak", "shared borders with country with existing outbreak"))
+  # get model coeffs
+  randef_disease <- dbReadTable(conn, "network_lme_coefficients")
+  network_scaling_values <-  model_object$network_scaling_values %>% rename(variable = key)
 
   # join together augment and coeffs, calc variable importance
   disagg_network_augment_predict <- disagg_network_augment_predict %>%
     left_join(randef_disease, by = c("disease", "variable")) %>%
+    left_join(network_scaling_values, by = "variable") %>%
+    mutate(x = (x - `mean`) / `sd`) %>%
     mutate(variable_importance = x * coef) %>%
     mutate(pos = variable_importance > 0)
 

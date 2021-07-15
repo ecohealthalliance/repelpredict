@@ -133,49 +133,56 @@ output:
 
 
 <details>
-<summary>African Swine Fever</summary>
+<summary>African Horse Sickness</summary>
 ![](repel-model-summary_files/figure-html/vi-by-disease-country-origin-plots-1-1.png)<!-- -->
 </details>
 <details>
-<summary>Classical Swine Fever</summary>
+<summary>African Swine Fever</summary>
 ![](repel-model-summary_files/figure-html/vi-by-disease-country-origin-plots-2-1.png)<!-- -->
 </details>
 <details>
-<summary>Foot And Mouth Disease</summary>
+<summary>Classical Swine Fever</summary>
 ![](repel-model-summary_files/figure-html/vi-by-disease-country-origin-plots-3-1.png)<!-- -->
 </details>
 <details>
-<summary>Highly Pathogenic Avian Influenza</summary>
+<summary>Foot And Mouth Disease</summary>
 ![](repel-model-summary_files/figure-html/vi-by-disease-country-origin-plots-4-1.png)<!-- -->
 </details>
 <details>
-<summary>Lumpy Skin Disease</summary>
+<summary>Highly Pathogenic Avian Influenza</summary>
 ![](repel-model-summary_files/figure-html/vi-by-disease-country-origin-plots-5-1.png)<!-- -->
 </details>
 <details>
-<summary>Newcastle Disease</summary>
+<summary>Lumpy Skin Disease</summary>
 ![](repel-model-summary_files/figure-html/vi-by-disease-country-origin-plots-6-1.png)<!-- -->
 </details>
 <details>
-<summary>Ovine Bluetongue Disease</summary>
+<summary>Newcastle Disease</summary>
 ![](repel-model-summary_files/figure-html/vi-by-disease-country-origin-plots-7-1.png)<!-- -->
 </details>
 <details>
-<summary>Ovine Pox Disease</summary>
+<summary>Ovine Bluetongue Disease</summary>
 ![](repel-model-summary_files/figure-html/vi-by-disease-country-origin-plots-8-1.png)<!-- -->
 </details>
 <details>
-<summary>Peste Des Petits Ruminants</summary>
+<summary>Ovine Pox Disease</summary>
 ![](repel-model-summary_files/figure-html/vi-by-disease-country-origin-plots-9-1.png)<!-- -->
 </details>
 <details>
-<summary>Pleuropneumonia</summary>
+<summary>Peste Des Petits Ruminants</summary>
 ![](repel-model-summary_files/figure-html/vi-by-disease-country-origin-plots-10-1.png)<!-- -->
 </details>
 <details>
-<summary>Rift Valley Fever</summary>
+<summary>Pleuropneumonia</summary>
 ![](repel-model-summary_files/figure-html/vi-by-disease-country-origin-plots-11-1.png)<!-- -->
+</details>
+<details>
+<summary>Rift Valley Fever</summary>
+![](repel-model-summary_files/figure-html/vi-by-disease-country-origin-plots-12-1.png)<!-- -->
 </details>
 
 ### Disease status summary
+
+
+
 
