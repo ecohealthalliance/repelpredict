@@ -2,16 +2,18 @@
 #' @param conn repeldata connection
 #' @param country_iso3c iso3c(s) of countries
 #' @param disease disease(s) name(s)
-#' @param month in format of "yyyy-mm-01". if NULL, uses latest month in dataset
+#' @param month in format of "yyyy-mm-01". if NULL, uses latest month
 #' @return dataframe containing actual values ('x'), coefficients ('coef') and variable importance
 #' @import dplyr tidyr
+#' @importFrom readr read_csv
+#' @importFrom lubridate floor_date
 #' @export
 get_network_variable_importance <- function(conn,
                                             country_iso3c,
                                             diseases = get_oie_high_importance_diseases(),
                                             month = NULL){
 
-  #  if(is.null(month)) month <- max(network_augment_predict$month)
+   if(is.null(month)) month <- floor_date(Sys.Date(), unit = "month")
 
   #####TODO apply scaling values!
   model_object <-  network_lme_model(
@@ -31,7 +33,7 @@ get_network_variable_importance <- function(conn,
     pivot_longer(cols = -c("country_iso3c", "disease", "month", "outbreak_start","endemic", "outbreak_ongoing", "predicted_outbreak_probability"), names_to = "variable", values_to = "x")
 
   # get model coeffs
-  randef_disease <- dbReadTable(conn, "network_lme_coefficients")
+  randef_disease <- tbl(conn, "network_lme_coefficients") %>% collect()
   network_scaling_values <-  model_object$network_scaling_values %>% rename(variable = key)
 
   # join together augment and coeffs, calc variable importance
@@ -54,12 +56,14 @@ get_network_variable_importance <- function(conn,
 
 }
 
-#' Get variable importance for given disease and month, by country
+#' Get variable importance for given disease and month, by country and country origin
 #' @param conn repeldata connection
 #' @param country_iso3c iso3c(s) of countries
 #' @param disease disease(s) name(s)
-#' @param month in format of "yyyy-mm-01". if NULL, uses latest month in dataset
-#' @return dataframe containing actual values ('x'), coefficients ('coef') and variable importance
+#' @param month in format of "yyyy-mm-01". if NULL, uses latest month
+#' @return dataframe containing actual values ('x'), coefficients ('coef') and variable importance by country origin
+#' @importFrom readr read_csv
+#' @importFrom lubridate floor_date
 #' @import dplyr tidyr
 #' @export
 get_network_variable_importance_with_origins <- function(conn,
@@ -67,8 +71,7 @@ get_network_variable_importance_with_origins <- function(conn,
                                                          diseases = get_oie_high_importance_diseases(),
                                                          month = NULL){
 
-  #if(is.null(month)) month <- max(network_lme_augment_predict$month)
-
+  if(is.null(month)) month <- floor_date(Sys.Date(), unit = "month")
 
   #####TODO apply scaling values!
   model_object <-  network_lme_model(
@@ -90,13 +93,14 @@ get_network_variable_importance_with_origins <- function(conn,
 
 
   # get model coeffs
-  randef_disease <- dbReadTable(conn, "network_lme_coefficients")
+  randef_disease <- tbl(conn, "network_lme_coefficients") %>% collect()
   network_scaling_values <-  model_object$network_scaling_values %>% rename(variable = key)
 
   # join together augment and coeffs, calc variable importance
   disagg_network_augment_predict <- disagg_network_augment_predict %>%
     left_join(randef_disease, by = c("disease", "variable")) %>%
     left_join(network_scaling_values, by = "variable") %>%
+    #TODO how to handle this for individual contributions - take mean and sd by group????
     mutate(x = (x - `mean`) / `sd`) %>%
     mutate(variable_importance = x * coef) %>%
     mutate(pos = variable_importance > 0)

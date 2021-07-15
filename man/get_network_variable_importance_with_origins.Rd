@@ -2,7 +2,7 @@
 % Please edit documentation in R/get_network_variable_importance.R
 \name{get_network_variable_importance_with_origins}
 \alias{get_network_variable_importance_with_origins}
-\title{Get variable importance for given disease and month, by country}
+\title{Get variable importance for given disease and month, by country and country origin}
 \usage{
 get_network_variable_importance_with_origins(
   conn,
@@ -16,13 +16,13 @@ get_network_variable_importance_with_origins(
 
 \item{country_iso3c}{iso3c(s) of countries}
 
-\item{month}{in format of "yyyy-mm-01". if NULL, uses latest month in dataset}
+\item{month}{in format of "yyyy-mm-01". if NULL, uses latest month}
 
 \item{disease}{disease(s) name(s)}
 }
 \value{
-dataframe containing actual values ('x'), coefficients ('coef') and variable importance
+dataframe containing actual values ('x'), coefficients ('coef') and variable importance by country origin
 }
 \description{
-Get variable importance for given disease and month, by country
+Get variable importance for given disease and month, by country and country origin
 }

@@ -16,7 +16,7 @@ get_network_variable_importance(
 
 \item{country_iso3c}{iso3c(s) of countries}
 
-\item{month}{in format of "yyyy-mm-01". if NULL, uses latest month in dataset}
+\item{month}{in format of "yyyy-mm-01". if NULL, uses latest month}
 
 \item{disease}{disease(s) name(s)}
 }
