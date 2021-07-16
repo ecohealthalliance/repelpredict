@@ -16,6 +16,8 @@ library(knitr)
 library(vroom)
 library(here)
 library(DBI)
+library(DT)
+library(purrr)
 
 breaks_by <- function(k) {
   step <- k
@@ -125,8 +127,38 @@ viplot_by_disease_usa <- map_chr(seq_along(vi_by_disease_plots_usa), ~ {
 ```{r gen-vi-by-disease-country-origins-plots}
 vi_usa_co <- get_network_variable_importance_with_origins(conn,
                                                           country_iso3c = "USA",
-                                                          diseases = oie_high_importance_diseases,
+                                                          diseases =  "highly_pathogenic_avian_influenza",
                                                           month = "2021-07-01")
+
+library(jsonlite)
+vi_usa <- get_network_variable_importance(conn,
+                                          country_iso3c = "USA",
+                                          diseases = "highly_pathogenic_avian_influenza",
+                                          month = "2021-07-01")
+
+usa_hpai_outbreak_prob <- signif(unique(vi_usa$predicted_outbreak_probability), 2)
+
+v1 = vi_usa_co %>% 
+  filter(str_detect(variable, "from_outbreaks")) %>% 
+  group_by(disease, country, country_origin) %>% 
+  summarize(contribution_to_import_risk = sum(variable_importance)) %>% 
+  ungroup() %>% 
+  mutate(predicted_outbreak_probability = usa_hpai_outbreak_prob) %>% 
+  arrange(-contribution_to_import_risk) %>% 
+  filter(contribution_to_import_risk > 0) #%>% 
+#mutate(contribution_to_import_risk = rank(-contribution_to_import_risk)) %>% 
+#toJSON(pretty = TRUE)
+
+v2 =  vi_usa_co %>% 
+  filter(str_detect(variable, "from_outbreaks")) %>% 
+  group_by(disease, country, country_origin, variable_clean) %>% 
+  summarize(contribution_to_import_risk = sum(variable_importance)) %>% 
+  ungroup() %>% 
+  mutate(predicted_outbreak_probability = usa_hpai_outbreak_prob)  %>% 
+  arrange(-contribution_to_import_risk)
+
+
+
 
 
 vi_by_disease_co_plots_usa <- vi_usa_co %>%
@@ -180,63 +212,37 @@ viplot_by_disease_co_usa <- map_chr(seq_along(vi_by_disease_co_plots_usa), ~ {
 ```
 `r knit_child(text = viplot_by_disease_co_usa)`
 
-### Disease status summary
+### Disease status summary (USA)
 ```{r disease_status, include = FALSE}
-# disease_status <- get_disease_status_predict(nowcast_boost_augment_predict,
-#                                              network_augment_predict,
-#                                              country_iso3c = "USA",
-#                                              diseases = get_oie_high_importance_diseases())
-# 
-# cases_plots <- disease_status %>%
-#   group_split(disease) %>%
-#   map(., function(cases_df){
-#     ggplot(cases_df, aes(x = yr, y = cases_coalesced, fill = status_coalesced, color = status_coalesced)) +
-#       geom_point_interactive(mapping = aes(tooltip = label, fill = status_coalesced, color = status_coalesced), pch = 21, size = 4) +
-#       scale_color_manual(values = c("reported present" = "#E31A1C", "unreported, predicted present" = "#FB9A99",
-#                                     "reported absent" = "#1F78B4", "unreported, predicted absent" = "#A6CEE3")) +
-#       scale_fill_manual(values = c("reported present" = "#E31A1C", "unreported, predicted present" = "#FB9A99",
-#                                    "reported absent" = "#1F78B4", "unreported, predicted absent" = "#A6CEE3")) +
-#       labs(title = paste(unique(cases_df$country), unique(cases_df$disease_clean), sep = ": "),
-#            y = "Cases", fill = "", color = "") +
-#       theme_minimal() +
-#       theme(axis.text.x = element_blank(), axis.title.x = element_blank())
-#   })
-# 
-# 
-# presence_plots <-  disease_status %>%
-#   rename(Predicted = predicted_status, Reported = actual_status) %>%
-#   pivot_longer(cols = c("Predicted", "Reported"), names_to = "type") %>%
-#   mutate(missing = factor(if_else(value, "Present", "Absent", "Missing"), levels = c("Missing", "Present", "Absent"))) %>%
-#   select(-value) %>%
-#   group_split(disease) %>%
-#   map(., function(presence_df){
-#     ggplot(presence_df, aes(x = yr, y = type, fill = missing)) +
-#       geom_tile(color = "white") +
-#       scale_x_continuous(breaks = breaks_by(1)) +
-#       scale_fill_manual(values = c(Present = "#E31A1C", Absent = "#1F78B4", Missing = "#FFFFFF")) +
-#       labs(fill = "", color = "") +
-#       theme_minimal() +
-#       theme(axis.title.x = element_blank(), panel.grid = element_blank(), axis.title.y = element_blank(), axis.text.x = element_text(angle = 45, vjust = 0.5, hjust=1))
-#   })
-# 
-# # absent/endemic/outbreak/import (instead of presence_plots?)
-# import_prob_plots <-  disease_status %>%
-#   group_split(disease) %>%
-#   map(., function(presence_df){
-#     ggplot(presence_df, aes(x = yr, y = 1, fill = predicted_semester_outbreak_probability)) +
-#       geom_tile(color = "white") +
-#       scale_x_continuous(breaks = breaks_by(1)) +
-#       viridis::scale_fill_viridis() +
-#       labs(fill = "", color = "") +
-#       theme_minimal() +
-#       theme(axis.title.x = element_blank(),
-#             panel.grid = element_blank(),
-#             axis.title.y = element_blank(),
-#             axis.text.y = element_blank(),
-#             axis.text.x = element_text(angle = 45, vjust = 0.5, hjust=1))
-#   })
+disease_status <- get_disease_status_predict(conn,
+                                             country_iso3c = "USA",
+                                             diseases = oie_high_importance_diseases)
+
+ds_usa <- disease_status %>%
+  split(f = as.factor(.$disease_clean)) %>% 
+  map(., function(x){
+    x %>% 
+      select(-country_iso3c, -disease, -yr, -disease_clean, -country) %>% 
+      mutate(predicted_semester_outbreak_probability = signif(predicted_semester_outbreak_probability, 2)) %>%
+      datatable()
+  })
+
 ```
 
+
+```{r disease-status-tables, include = FALSE}
+dstable_usa <- map_chr(seq_along(ds_usa), ~ {
+  tab_name <- names(ds_usa[.x])
+  knit_expand(text = c("<details>",
+                       "<summary>{{tab_name}}</summary>",
+                       "```{r disease-status-tables-{{.x}}, echo = FALSE, align = 'left'}", 
+                       "ds_usa[[{{.x}}]]",
+                       "```",
+                       "</details>"))
+})
+```
+
+`r knit_child(text = viplot_by_disease_co_usa)`
 ```{r disconnect}
 repeldata::repel_remote_disconnect()
 dbDisconnect(conn)
