@@ -116,14 +116,14 @@ repel_init.network_model <- function(model_object, conn){
 
   #assume last conditions are present conditions
   endemic_status_present_latest <- endemic_status_present %>%
-    mutate(report_period = as.numeric(paste(report_year, recode(report_semester, '1' = '0', '2' = '5'), sep = "."))) %>%
+    mutate(report_period = report_year + (report_semester - 1)/2) %>%
     filter(report_period == max(report_period)) %>%
     tidyr::expand(.,
                   country_iso3c,
                   disease,
                   report_period = as.character(format(seq(from = max(.$report_period), to = current_period, by = 0.5), nsmall = 1))) %>%
     mutate(report_year = as.integer(str_sub(report_period, start = 1, end = 4))) %>%
-    mutate(report_semester = as.integer(recode(str_sub(report_period, -1), '5' = '2', '0' = '1'))) %>%
+    mutate(report_semester = as.integer(str_sub(report_period, -1)) * 2 + 1 ) %>%
     filter(report_period != min(report_period)) %>%
     select(-report_period)
 
