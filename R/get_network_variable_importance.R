@@ -34,8 +34,8 @@ get_network_variable_importance <- function(conn,
   network_augment_predict <- network_augment_predict %>%
     left_join(randef_disease, by = c("disease", "variable")) %>%
     left_join(network_scaling_values, by = "variable") %>%
-    mutate(x = (x - `mean`) / `sd`) %>%
-    mutate(variable_importance = x * coef) %>%
+    mutate(x_standardized = (x - `mean`) / `sd`) %>%
+    mutate(variable_importance = x_standardized * coef) %>%
     mutate(pos = variable_importance > 0)
 
   # country name lookup
@@ -89,8 +89,8 @@ get_network_variable_importance_with_origins <- function(conn,
     left_join(randef_disease, by = c("disease", "variable")) %>%
     left_join(network_scaling_values, by = "variable") %>%
     #TODO how to handle standardization for individual contributions????
-    mutate(x = (x - `mean`) / `sd`) %>%
-    mutate(variable_importance = x * coef) %>%
+    mutate(x_standardized = (x - `mean`) / `sd`) %>%
+    mutate(variable_importance = x_standardized * coef) %>%
     mutate(pos = variable_importance > 0)
 
   # country name lookup

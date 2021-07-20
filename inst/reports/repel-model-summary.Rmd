@@ -203,6 +203,33 @@ ds_usa <- disease_status %>%
 
 ```
 
+```{r standardization-confusion}
+
+us_asf <- get_network_variable_importance(conn,
+                                          country_iso3c = "USA",
+                                          diseases =  "african_swine_fever",
+                                          month = "2021-07-01")
+
+us_asf_disagg <- get_network_variable_importance_with_origins(conn,
+                                          country_iso3c = "USA",
+                                          diseases =  "african_swine_fever",
+                                          month = "2021-07-01")
+
+t1 <- us_asf %>% 
+  filter(variable == "n_migratory_wildlife_from_outbreaks") %>% 
+  select(variable, x, mean, sd, x_standardized,  coef, variable_importance)
+# (1713 - 258.6446)/803.3205
+t1$variable_importance
+
+t2 <- us_asf_disagg %>% 
+  filter(variable == "n_migratory_wildlife_from_outbreaks") %>% 
+  select(variable, x, mean, sd, x_standardized,  coef, variable_importance)
+# of course mean and sd are from the full dataset
+# convert variable importance here to percentages?
+sum(t2$variable_importance)
+
+```
+
 
 ```{r disconnect}
 repeldata::repel_remote_disconnect()
