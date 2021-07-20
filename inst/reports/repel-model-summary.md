@@ -67,7 +67,6 @@ output:
 ![](repel-model-summary_files/figure-html/vi-by-disease-plots-13-1.png)<!-- -->
 </details>
 
-
 ### Variable importance by disease and country (USA)
 
 
@@ -75,55 +74,55 @@ output:
 
 <details>
 <summary>African Horse Sickness</summary>
-![](repel-model-summary_files/figure-html/vi-by-disease-country-plots-1-1.png)<!-- -->
+![](repel-model-summary_files/figure-html/vi-by-disease-usa-plots-1-1.png)<!-- -->
 </details>
 <details>
 <summary>African Swine Fever</summary>
-![](repel-model-summary_files/figure-html/vi-by-disease-country-plots-2-1.png)<!-- -->
+![](repel-model-summary_files/figure-html/vi-by-disease-usa-plots-2-1.png)<!-- -->
 </details>
 <details>
 <summary>Classical Swine Fever</summary>
-![](repel-model-summary_files/figure-html/vi-by-disease-country-plots-3-1.png)<!-- -->
+![](repel-model-summary_files/figure-html/vi-by-disease-usa-plots-3-1.png)<!-- -->
 </details>
 <details>
 <summary>Foot And Mouth Disease</summary>
-![](repel-model-summary_files/figure-html/vi-by-disease-country-plots-4-1.png)<!-- -->
+![](repel-model-summary_files/figure-html/vi-by-disease-usa-plots-4-1.png)<!-- -->
 </details>
 <details>
 <summary>Highly Pathogenic Avian Influenza</summary>
-![](repel-model-summary_files/figure-html/vi-by-disease-country-plots-5-1.png)<!-- -->
+![](repel-model-summary_files/figure-html/vi-by-disease-usa-plots-5-1.png)<!-- -->
 </details>
 <details>
 <summary>Lumpy Skin Disease</summary>
-![](repel-model-summary_files/figure-html/vi-by-disease-country-plots-6-1.png)<!-- -->
+![](repel-model-summary_files/figure-html/vi-by-disease-usa-plots-6-1.png)<!-- -->
 </details>
 <details>
 <summary>Newcastle Disease</summary>
-![](repel-model-summary_files/figure-html/vi-by-disease-country-plots-7-1.png)<!-- -->
+![](repel-model-summary_files/figure-html/vi-by-disease-usa-plots-7-1.png)<!-- -->
 </details>
 <details>
 <summary>Ovine Bluetongue Disease</summary>
-![](repel-model-summary_files/figure-html/vi-by-disease-country-plots-8-1.png)<!-- -->
+![](repel-model-summary_files/figure-html/vi-by-disease-usa-plots-8-1.png)<!-- -->
 </details>
 <details>
 <summary>Ovine Pox Disease</summary>
-![](repel-model-summary_files/figure-html/vi-by-disease-country-plots-9-1.png)<!-- -->
+![](repel-model-summary_files/figure-html/vi-by-disease-usa-plots-9-1.png)<!-- -->
 </details>
 <details>
 <summary>Peste Des Petits Ruminants</summary>
-![](repel-model-summary_files/figure-html/vi-by-disease-country-plots-10-1.png)<!-- -->
+![](repel-model-summary_files/figure-html/vi-by-disease-usa-plots-10-1.png)<!-- -->
 </details>
 <details>
 <summary>Pleuropneumonia</summary>
-![](repel-model-summary_files/figure-html/vi-by-disease-country-plots-11-1.png)<!-- -->
+![](repel-model-summary_files/figure-html/vi-by-disease-usa-plots-11-1.png)<!-- -->
 </details>
 <details>
 <summary>Rift Valley Fever</summary>
-![](repel-model-summary_files/figure-html/vi-by-disease-country-plots-12-1.png)<!-- -->
+![](repel-model-summary_files/figure-html/vi-by-disease-usa-plots-12-1.png)<!-- -->
 </details>
 <details>
 <summary>Vesicular Stomatitis</summary>
-![](repel-model-summary_files/figure-html/vi-by-disease-country-plots-13-1.png)<!-- -->
+![](repel-model-summary_files/figure-html/vi-by-disease-usa-plots-13-1.png)<!-- -->
 </details>
 
 
@@ -181,7 +180,8 @@ output:
 ![](repel-model-summary_files/figure-html/vi-by-disease-country-origin-plots-12-1.png)<!-- -->
 </details>
 
-### Disease status summary
+### Disease status summary (USA)
+
 
 
 

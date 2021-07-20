@@ -13,13 +13,7 @@ get_network_variable_importance <- function(conn,
                                             diseases = get_oie_high_importance_diseases(),
                                             month = NULL){
 
-   if(is.null(month)) month <- floor_date(Sys.Date(), unit = "month")
-
-  #####TODO apply scaling values!
-  model_object <-  network_lme_model(
-    network_model = aws.s3::s3readRDS(bucket = "repeldb/models", object = "lme_mod_network.rds"),
-    network_scaling_values = aws.s3::s3readRDS(bucket = "repeldb/models", object = "network_scaling_values.rds")
-  )
+  if(is.null(month)) month <- floor_date(Sys.Date(), unit = "month")
 
   # get augmented data
   network_augment_predict <- tbl(conn,  "network_lme_augment_predict") %>%
@@ -34,7 +28,7 @@ get_network_variable_importance <- function(conn,
 
   # get model coeffs
   randef_disease <- tbl(conn, "network_lme_coefficients") %>% collect()
-  network_scaling_values <-  model_object$network_scaling_values %>% rename(variable = key)
+  network_scaling_values <-  tbl(conn, "network_lme_scaling_values") %>% collect() %>% rename(variable = key)
 
   # join together augment and coeffs, calc variable importance
   network_augment_predict <- network_augment_predict %>%
@@ -73,13 +67,7 @@ get_network_variable_importance_with_origins <- function(conn,
 
   if(is.null(month)) month <- floor_date(Sys.Date(), unit = "month")
 
-  #####TODO apply scaling values!
-  model_object <-  network_lme_model(
-    network_model = aws.s3::s3readRDS(bucket = "repeldb/models", object = "lme_mod_network.rds"),
-    network_scaling_values = aws.s3::s3readRDS(bucket = "repeldb/models", object = "network_scaling_values.rds")
-  )
-
-  disagg_network_augment_predict <- tbl(conn,  "network_lme_augment_disaggregated") %>%
+  disagg_network_augment_predict <- tbl(conn,  "network_lme_augment_predict_by_origin") %>%
     filter(disease %in% !!diseases)  %>%
     filter(country_iso3c %in% !!country_iso3c) %>%
     filter(month == !!month) %>%
@@ -88,19 +76,19 @@ get_network_variable_importance_with_origins <- function(conn,
     collect() %>%
     pivot_wider(names_from = continent, values_from = continent, names_prefix = "continent") %>%
     mutate_at(vars(starts_with("continent")), ~ifelse(!is.na(.), 1, NA)) %>%
-    pivot_longer(cols = -c("country_iso3c", "country_origin_iso3c", "disease", "month", "outbreak_start","endemic", "outbreak_ongoing"),
+    pivot_longer(cols = -c("country_iso3c", "country_origin_iso3c", "disease", "month", "outbreak_start","endemic", "outbreak_ongoing", "predicted_outbreak_probability"),
                  names_to = "variable", values_to = "x")
 
 
   # get model coeffs
   randef_disease <- tbl(conn, "network_lme_coefficients") %>% collect()
-  network_scaling_values <-  model_object$network_scaling_values %>% rename(variable = key)
+  network_scaling_values <-  tbl(conn, "network_lme_scaling_values") %>% collect() %>% rename(variable = key)
 
   # join together augment and coeffs, calc variable importance
   disagg_network_augment_predict <- disagg_network_augment_predict %>%
     left_join(randef_disease, by = c("disease", "variable")) %>%
     left_join(network_scaling_values, by = "variable") %>%
-    #TODO how to handle this for individual contributions - take mean and sd by group????
+    #TODO how to handle standardization for individual contributions????
     mutate(x = (x - `mean`) / `sd`) %>%
     mutate(variable_importance = x * coef) %>%
     mutate(pos = variable_importance > 0)
@@ -117,3 +105,37 @@ get_network_variable_importance_with_origins <- function(conn,
   return(disagg_network_augment_predict)
 
 }
+
+
+
+#' Get contribution of origin countries to import risk
+#' @param conn repeldata connection
+#' @param country_iso3c iso3c(s) of countries
+#' @param disease disease(s) name(s)
+#' @param month in format of "yyyy-mm-01". if NULL, uses latest month
+#' @return dataframe containing sum of variable importance by country origin
+#' @import dplyr tidyr
+#' @export
+get_network_origin_contribution_import_risk <- function(conn,
+                                                        country_iso3c,
+                                                        diseases = get_oie_high_importance_diseases(),
+                                                        month = NULL){
+
+  if(is.null(month)) month <- floor_date(Sys.Date(), unit = "month")
+
+  vi_co <- get_network_variable_importance_with_origins(conn,
+                                                        country_iso3c = country_iso3c,
+                                                        diseases =  diseases,
+                                                        month = month)
+
+  vi_co %>%
+    filter(str_detect(variable, "from_outbreaks")) %>%
+    group_by(month, disease,
+             country, country_iso3c, country_origin, country_origin_iso3c,
+             predicted_outbreak_probability) %>%
+    summarize(contribution_to_import_risk = sum(variable_importance)) %>%
+    ungroup() %>%
+    arrange(country, month, disease, -contribution_to_import_risk)
+
+}
+

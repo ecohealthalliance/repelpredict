@@ -76,7 +76,6 @@ viplot_by_disease <- map_chr(seq_along(vi_by_disease_plots), ~ {
 ```
 `r knit_child(text = viplot_by_disease)`
 
-
 ### Variable importance by disease and country (USA)
 ```{r gen-vi-by-disease-country-plots}
 vi_usa <- get_network_variable_importance(conn,
@@ -114,7 +113,7 @@ viplot_by_disease_usa <- map_chr(seq_along(vi_by_disease_plots_usa), ~ {
   tab_name <- names(vi_by_disease_plots_usa[.x])
   knit_expand(text = c("<details>",
                        "<summary>{{tab_name}}</summary>",
-                       "```{r vi-by-disease-country-plots-{{.x}}, echo = FALSE, align = 'left'}", 
+                       "```{r vi-by-disease-usa-plots-{{.x}}, echo = FALSE, align = 'left'}", 
                        "vi_by_disease_plots_usa[[{{.x}}]]",
                        "```",
                        "</details>"))
@@ -127,68 +126,37 @@ viplot_by_disease_usa <- map_chr(seq_along(vi_by_disease_plots_usa), ~ {
 ```{r gen-vi-by-disease-country-origins-plots}
 vi_usa_co <- get_network_variable_importance_with_origins(conn,
                                                           country_iso3c = "USA",
-                                                          diseases =  "highly_pathogenic_avian_influenza",
+                                                          diseases =  oie_high_importance_diseases,
                                                           month = "2021-07-01")
-
-library(jsonlite)
-vi_usa <- get_network_variable_importance(conn,
-                                          country_iso3c = "USA",
-                                          diseases = "highly_pathogenic_avian_influenza",
-                                          month = "2021-07-01")
-
-usa_hpai_outbreak_prob <- signif(unique(vi_usa$predicted_outbreak_probability), 2)
-
-v1 = vi_usa_co %>% 
-  filter(str_detect(variable, "from_outbreaks")) %>% 
-  group_by(disease, country, country_origin) %>% 
-  summarize(contribution_to_import_risk = sum(variable_importance)) %>% 
-  ungroup() %>% 
-  mutate(predicted_outbreak_probability = usa_hpai_outbreak_prob) %>% 
-  arrange(-contribution_to_import_risk) %>% 
-  filter(contribution_to_import_risk > 0) #%>% 
-#mutate(contribution_to_import_risk = rank(-contribution_to_import_risk)) %>% 
-#toJSON(pretty = TRUE)
-
-v2 =  vi_usa_co %>% 
-  filter(str_detect(variable, "from_outbreaks")) %>% 
-  group_by(disease, country, country_origin, variable_clean) %>% 
-  summarize(contribution_to_import_risk = sum(variable_importance)) %>% 
-  ungroup() %>% 
-  mutate(predicted_outbreak_probability = usa_hpai_outbreak_prob)  %>% 
-  arrange(-contribution_to_import_risk)
-
-
-
-
 
 vi_by_disease_co_plots_usa <- vi_usa_co %>%
   filter(str_detect(variable, "from_outbreaks")) %>%
-  split(f = as.factor(.$disease_clean)) %>% 
+  split(f = as.factor(.$disease_clean)) %>%
   map(., function(x){
     country_name <- unique(x$country)
     disease_name <- unique(x$disease_clean)
     year <- year(unique(x$month))
-    
-    x %>% 
-      arrange(variable, -variable_importance) %>% 
-      group_by(variable) %>% 
-      mutate(variable_importance_total = sum(variable_importance, na.rm = TRUE)) %>% 
-      mutate(variable_importance_perc = variable_importance/variable_importance_total) %>% 
-      mutate(country_origin = ifelse(variable_importance_perc >= 0.1, country_origin, "other")) %>% 
-      drop_na(country_origin) %>% 
+
+    x %>%
+      arrange(variable, -variable_importance) %>%
+      group_by(variable) %>%
+      mutate(variable_importance_total = sum(variable_importance, na.rm = TRUE)) %>%
+      mutate(variable_importance_perc = variable_importance/variable_importance_total) %>%
+      mutate(country_origin = ifelse(variable_importance_perc >= 0.1, country_origin, "other")) %>%
+      drop_na(country_origin) %>%
       group_by(variable, variable_clean, country_origin) %>% # add over other
-      summarize(variable_importance = sum(variable_importance)) %>% 
-      group_by(country_origin) %>% 
-      mutate(variable_importance_rank = sum(abs(variable_importance))) %>% 
-      ungroup() %>% 
-      mutate(variable_importance_rank = ifelse(country_origin == "other", 0, variable_importance_rank)) %>% 
-      mutate(country_origin = forcats::fct_reorder(country_origin, -variable_importance_rank)) %>% 
+      summarize(variable_importance = sum(variable_importance)) %>%
+      group_by(country_origin) %>%
+      mutate(variable_importance_rank = sum(abs(variable_importance))) %>%
+      ungroup() %>%
+      mutate(variable_importance_rank = ifelse(country_origin == "other", 0, variable_importance_rank)) %>%
+      mutate(country_origin = forcats::fct_reorder(country_origin, -variable_importance_rank)) %>%
       ggplot() +
       geom_vline(aes(xintercept = 0), color = "gray50") +
       geom_col(aes(x = variable_importance, y = variable_clean, fill = country_origin)) +
-      labs(y = "", 
-           x = "Variable importance", 
-           title = glue::glue("{year} {disease_name} Outbreak in {country_name} Variable Importance"), 
+      labs(y = "",
+           x = "Variable importance",
+           title = glue::glue("{year} {disease_name} Outbreak in {country_name} Variable Importance"),
            fill = "Origin Country") +
       theme_minimal() +
       theme(axis.text = element_text(size = 10),
@@ -197,6 +165,12 @@ vi_by_disease_co_plots_usa <- vi_usa_co %>%
       NULL
   })
 
+# get contribution by country (summing over variables)
+vi_usa_co_contri <- get_network_origin_contribution_import_risk(conn,
+                                                          country_iso3c = "USA",
+                                                          diseases =  oie_high_importance_diseases,
+                                                          month = "2021-07-01")
+
 ```
 
 ```{r vi-by-disease-country-origin-plots, include = FALSE}
@@ -204,7 +178,7 @@ viplot_by_disease_co_usa <- map_chr(seq_along(vi_by_disease_co_plots_usa), ~ {
   tab_name <- names(vi_by_disease_co_plots_usa[.x])
   knit_expand(text = c("<details>",
                        "<summary>{{tab_name}}</summary>",
-                       "```{r vi-by-disease-country-origin-plots-{{.x}}, echo = FALSE, align = 'left'}", 
+                       "```{r vi-by-disease-country-origin-plots-{{.x}}, echo = FALSE, align = 'left'}",
                        "vi_by_disease_co_plots_usa[[{{.x}}]]",
                        "```",
                        "</details>"))
@@ -230,19 +204,6 @@ ds_usa <- disease_status %>%
 ```
 
 
-```{r disease-status-tables, include = FALSE}
-dstable_usa <- map_chr(seq_along(ds_usa), ~ {
-  tab_name <- names(ds_usa[.x])
-  knit_expand(text = c("<details>",
-                       "<summary>{{tab_name}}</summary>",
-                       "```{r disease-status-tables-{{.x}}, echo = FALSE, align = 'left'}", 
-                       "ds_usa[[{{.x}}]]",
-                       "```",
-                       "</details>"))
-})
-```
-
-`r knit_child(text = viplot_by_disease_co_usa)`
 ```{r disconnect}
 repeldata::repel_remote_disconnect()
 dbDisconnect(conn)
