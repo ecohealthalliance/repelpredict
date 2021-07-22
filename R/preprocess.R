@@ -10,14 +10,17 @@ repel_init <- function(x, ...){
 #' @export
 repel_init.nowcast_model <- function(model_object, conn){
 
-  annual_reports_animal_hosts <- read_rds(here::here("transformed_six_month_quantitative_reports_summary.rds")) %>%
+  six_month_reports_summary <- tbl(conn, "six_month_reports_summary") %>%
+    mutate(country_iso3c = toupper(country_iso3c)) %>%
     mutate(taxa = str_remove(taxa, " \\(mixed herd\\)")) %>%
     mutate(taxa = str_remove(taxa, " \\(mixed group\\)")) %>%
     mutate(taxa = ifelse(taxa %in% c("goats", "sheep"), "sheep/goats", taxa)) %>%
     mutate(taxa = ifelse(taxa %in% c("rabbits", "hares"), "hares/rabbits", taxa)) %>%
     filter(taxa %in% taxa_list) %>%
-    select(all_of(grouping_vars), control_measures, disease_status, cases) %>%
-   # collect() %>%
+    mutate(control_measures = na_if(control_measures, "na")) %>%
+    select(all_of(grouping_vars), serotype, control_measures, disease_status, cases) %>%
+    collect() %>%
+    drop_na(country_iso3c) %>%  # few small non-independent countries
     group_by_at(grouping_vars) %>% # summarize over serotype
     summarize(
       cases = as.integer(sum_na(suppressWarnings(as.integer(cases)))),
@@ -29,12 +32,11 @@ repel_init.nowcast_model <- function(model_object, conn){
     mutate(control_measures = ifelse(control_measures == "", "none", control_measures)) %>%
     mutate(disease_status = recode(disease_status,
                                    "absent,present"  = "present",
-                                   "absent,suspected" = "suspected",
-                                   "present,suspected" = "present"
-
-
+                                   "present,unreported"  = "present",
+                                   "absent,unreported" = "absent"
     ))
-  return(annual_reports_animal_hosts)
+
+  return(six_month_reports_summary)
 }
 
 

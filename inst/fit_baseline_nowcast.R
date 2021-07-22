@@ -2,9 +2,7 @@ devtools::load_all()
 library(tidyverse)
 
 #repeldata::repel_local_download()
-conn <- repeldata::repel_local_conn()
-
-#TODO fill lag as far back as need to, otherwise 0
+conn <- repeldata::repel_remote_conn()
 
 model_object <- nowcast_baseline_model()
 
@@ -25,7 +23,7 @@ scored_data <- repel_score(model_object = model_object, augmented_data = augment
 newdata <- tibble(country_iso3c = "AFG",
                   report_year = rep(2016:2020, each = 2),
                   report_semester = rep(1:2, 5),
-                  disease = "foot-and-mouth disease",
+                  disease = "foot_and_mouth_disease",
                   disease_population = "domestic",
                   taxa = "cattle")
 

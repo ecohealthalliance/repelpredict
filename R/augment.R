@@ -13,8 +13,15 @@ repel_augment <- function(x, ...){
 #' @export
 repel_augment.nowcast_baseline <- function(model_object, conn, newdata) {
 
-  lagged_newdata <- repel_lag(model_object, conn, newdata, lags = 1, control_measures = FALSE) %>%
-    mutate_at(names(.)[str_detect(names(.), "disease_status")],  ~recode(., "present" = 1, "suspected" = 1, "absent" = 0))
+  lagged_newdata <- repel_lag(model_object, conn, newdata, lags = 1, control_measures = FALSE)
+
+  ds_names <- names(lagged_newdata)[str_detect(names(lagged_newdata), "disease_status")]
+  for(ds in ds_names){
+    lagged_newdata <- lagged_newdata %>%
+      mutate(!!paste0(ds, "_unreported") := as.integer(!!sym(ds)  == "unreported"))
+  }
+  lagged_newdata <- lagged_newdata %>%
+    mutate_at(ds_names, ~as.integer(recode(., "present" = 1, "unreported" = 0, "absent" = 0)))
 
   lag_vars <- colnames(lagged_newdata)[str_detect(names(lagged_newdata), "disease_status_lag|cases_lag")]
   for(var in lag_vars){
@@ -30,7 +37,7 @@ repel_augment.nowcast_baseline <- function(model_object, conn, newdata) {
 
   lagged_newdata <- lagged_newdata %>%
     left_join(disease_lookup, by = "disease") %>%
-    select(-disease) %>%
+    select(-disease, -ends_with("_unreported_missing")) %>%
     rename(disease = disease_clean)
 
   return(lagged_newdata)
@@ -53,7 +60,7 @@ repel_augment.nowcast_boost <- function(model_object, conn, newdata) {
   lagged_newdata <- lagged_newdata %>%
     mutate(continent = suppressWarnings(countrycode::countrycode(country_iso3c, origin = "iso3c", destination = "continent")))
 
-  # combine lagged 3 yrs control measures
+  # combine lagged 3 yrs control measures (overlaps are ok - this is for str extraction)
   lagged_newdata <- lagged_newdata %>%
     mutate(control_measures_lag = paste(control_measures_lag1, control_measures_lag2, control_measures_lag3, sep = "; "))
 
@@ -69,7 +76,7 @@ repel_augment.nowcast_boost <- function(model_object, conn, newdata) {
 
   # get summed lag values of adjacent countries
   borders <- tbl(conn, "connect_static_vars") %>%
-    filter(shared_border == "t") %>%
+    filter(shared_border == "TRUE") %>%
     select(country_origin, country_destination) %>%
     collect()
 
@@ -158,13 +165,19 @@ repel_augment.nowcast_boost <- function(model_object, conn, newdata) {
     drop_na(gdp_dollars)
   warning(paste("Dropping", nrow(removing_gdp), "rows of data with missing GDP values from following countries:", paste(na_countries, collapse = ", ")))
 
-  # recode disease status
+  # recode disease status - assuming unreported is absent - but mark as unreported
+  ds_names <- names(lagged_newdata)[str_detect(names(lagged_newdata), "disease_status")]
+  for(ds in ds_names){
+    lagged_newdata <- lagged_newdata %>%
+      mutate(!!paste0(ds, "_unreported") := as.integer(!!sym(ds)  == "unreported"))
+  }
   lagged_newdata <- lagged_newdata %>%
-    mutate_at(names(.)[str_detect(names(.), "disease_status")],  ~as.integer(recode(., "present" = 1, "suspected" = 1, "absent" = 0)))
+    mutate_at(ds_names, ~as.integer(recode(., "present" = 1, "unreported" = 0, "absent" = 0)))
 
   # disease ever ... 4 scenarios
   scenarios <- c("country_given_taxa", "continent_given_taxa",
                  "country_any_taxa",  "continent_any_taxa")
+
   ever <- map(scenarios, function(iter){
 
     # columns for grouping
@@ -248,7 +261,6 @@ repel_augment.nowcast_boost <- function(model_object, conn, newdata) {
     mutate(first_reporting_semester = report_period == min(report_period)) %>%
     ungroup() %>%
     select(-report_period)
-
 
   # final feature engineering - transformations etc
   lagged_newdata <- lagged_newdata %>%
@@ -347,8 +359,8 @@ repel_augment.network_model <- function(model_object, conn, newdata, sum_country
     collect() %>%
     rename(taxa_population = population) %>%
     right_join(tidyr::crossing(country_iso3c = unique(.$country_iso3c),
-                            year = seq(min(.$year), max(outbreak_status$year)),
-                            taxa = unique(.$taxa))) %>%
+                               year = seq(min(.$year), max(outbreak_status$year)),
+                               taxa = unique(.$taxa))) %>%
     arrange(country_iso3c, taxa, year) %>%
     group_split(country_iso3c, taxa) %>%
     map_dfr(~na_interp(., "taxa_population")) %>%
@@ -395,7 +407,7 @@ repel_augment.network_model <- function(model_object, conn, newdata, sum_country
   outbreak_status <- outbreak_status %>%
     mutate(outbreak_start = as.integer(outbreak_start)) %>%
     select(-validation_set) #%>%
-   # filter(month >= min(disease_status_present$month), month <= max(disease_status_present$month))
+  # filter(month >= min(disease_status_present$month), month <= max(disease_status_present$month))
 
   # set up country origin/destination combinations - origin is countries that have the disease present in the given month
   outbreak_status <- outbreak_status %>%
@@ -535,7 +547,7 @@ repel_augment.network_model <- function(model_object, conn, newdata, sum_country
       select(-country_origin, -year) %>%
       group_by(country_destination, disease, month, outbreak_start,
                gdp_dollars, human_population, target_taxa_population, veterinarian_count ## non-bilaterial values
-               ) %>%
+      ) %>%
       summarize_all(~sum(as.numeric(.), na.rm = TRUE)) %>%  #TODO DEAL WITH NAS in human movement
       ungroup() %>%
       as_tibble()
