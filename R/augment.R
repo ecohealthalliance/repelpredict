@@ -24,9 +24,10 @@ repel_augment.nowcast_baseline <- function(model_object, conn, newdata) {
     mutate_at(ds_names, ~as.integer(recode(., "present" = 1, "unreported" = 0, "absent" = 0)))
 
   lag_vars <- colnames(lagged_newdata)[str_detect(names(lagged_newdata), "disease_status_lag|cases_lag")]
+  lag_vars <- lag_vars[!lag_vars %in% "disease_status_lag1_unreported"]
   for(var in lag_vars){
     lagged_newdata <- lagged_newdata %>%
-      mutate(!!paste0(var, "_missing") := is.na(get(var))) %>%
+      mutate(!!paste0(var, "_missing") := as.integer(is.na(get(var)))) %>%
       mutate_at(var, ~replace_na(., 0))
   }
 
@@ -37,7 +38,7 @@ repel_augment.nowcast_baseline <- function(model_object, conn, newdata) {
 
   lagged_newdata <- lagged_newdata %>%
     left_join(disease_lookup, by = "disease") %>%
-    select(-disease, -ends_with("_unreported_missing")) %>%
+    select(-disease) %>%
     rename(disease = disease_clean)
 
   return(lagged_newdata)

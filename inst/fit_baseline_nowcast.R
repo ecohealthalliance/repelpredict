@@ -13,7 +13,8 @@ traindat <- repel_training(model_object, conn) %>%
 augmented_data <- repel_augment(model_object = model_object, conn = conn, newdata = traindat)
 #assertthat::are_equal(nrow(traindat), nrow(augmented_data))
 # ^ there are some dupes in cases where both present and suspected have counts
-map(augmented_data, ~any(is.na(.))) # can be in cases and disease status only
+map(augmented_data, ~any(is.na(.))) # okay in disease_status_lag1_unreported (because these are missing reports)
+# also okay in cases - often status is reported but not cases. we make assumptions around this for lags, but it's not necessary for current cases in baseline
 
 predicted_cases <- repel_predict(model_object = model_object, newdata = augmented_data)
 
