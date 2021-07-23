@@ -246,14 +246,12 @@ repel_augment.nowcast_boost <- function(model_object, conn, newdata) {
 
   # mark missingness
   lag_vars <- colnames(lagged_newdata)[str_detect(names(lagged_newdata), "disease_status_lag|cases_lag")]
+  lag_vars <- lag_vars[!endsWith(lag_vars, "_unreported")]
   for(var in c(lag_vars)){
     lagged_newdata <- lagged_newdata %>%
       mutate(!!paste0(var, "_missing") := is.na(get(var))) %>%
       mutate_at(var, ~replace_na(., 0))
   }
-
-  lagged_newdata <- lagged_newdata %>%
-    mutate(cases_missing_disease_present = is.na(cases))
 
   # add column to indicate first year country reporting
   lagged_newdata <- lagged_newdata %>%

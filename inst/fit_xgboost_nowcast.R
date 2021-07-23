@@ -7,11 +7,12 @@ model_object <-  nowcast_boost_model(disease_status_model = NULL, cases_model = 
 # traindat <- repel_training(model_object, conn) %>%
 #   select(all_of(grouping_vars)) %>%
 #   distinct()
-#
+# map(traindat, ~any(is.na(.)))
+
 # augmented_data <- repel_augment(model_object = model_object,
 #                                 conn = conn, newdata = traindat) %>%
 #    arrange(country_iso3c, disease, taxa, report_year, report_semester)
-# write_rds(augmented_data, "tmp/augmented_data.rds")
+#write_rds(augmented_data, "tmp/augmented_data.rds")
 augmented_data <- read_rds(here::here("tmp/augmented_data.rds"))
 
 # fitting takes about a day for these two models on prospero
@@ -20,10 +21,10 @@ repel_fit(model_object =  model_object,
           model = "disease_status",
           output_directory = "models")
 
-repel_fit(model_object = model_object,
-          augmented_data = augmented_data,
-          model = "cases",
-          output_directory = "models")
+# repel_fit(model_object = model_object,
+#           augmented_data = augmented_data,
+#           model = "cases",
+#           output_directory = "models")
 
 
 # Forecast on training ----------------------------------------------------
