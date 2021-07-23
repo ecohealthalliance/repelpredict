@@ -63,7 +63,7 @@ repel_fit.nowcast_boost <- function(model_object,
 
     disease_status_recipe_prepped <- prep(disease_status_recipe)
     disease_status_recipe_juiced <- juice(disease_status_recipe_prepped)
-    assertthat::assert_that(!any(map_lgl(disease_status_recipe_juiced, ~any(is.na(.))))
+    assertthat::assert_that(!any(map_lgl(disease_status_recipe_juiced, ~any(is.na(.)))))
 
     # Set up parallel
     all_cores <- parallel::detectCores(logical = FALSE)

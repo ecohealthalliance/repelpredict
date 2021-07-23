@@ -7,6 +7,8 @@ repel_init <- function(x, ...){
 #' Preprocess nowcast data
 #' @import repeldata dplyr tidyr stringr
 #' @importFrom purrr map_chr
+#' @importFrom janitor get_dupes
+#' @importFrom assertthat are_equal
 #' @export
 repel_init.nowcast_model <- function(model_object, conn){
 
@@ -21,20 +23,25 @@ repel_init.nowcast_model <- function(model_object, conn){
     select(all_of(grouping_vars), serotype, control_measures, disease_status, cases) %>%
     collect() %>%
     drop_na(country_iso3c) %>%  # few small non-independent countries
-    group_by_at(grouping_vars) %>% # summarize over serotype
+    group_by_at(grouping_vars) %>% # summarize over serotype and multiple taxa in same grp
     summarize(
       cases = as.integer(sum_na(suppressWarnings(as.integer(cases)))),
       disease_status = str_flatten(sort(na.omit(unique(disease_status))), collapse = ","),
-      control_measures = unique(str_split(control_measures, pattern = "; "))
+      control_measures = str_flatten(control_measures, collapse = "; ")
       ) %>%
     ungroup() %>%
-    mutate(control_measures = map_chr(control_measures, ~str_c(sort(.), collapse = "; "))) %>%
+    mutate(control_measures = str_split(control_measures, "; ")) %>%
+    mutate(control_measures = map(control_measures, ~str_flatten(sort(na.omit(unique(.))), collapse = "; "))) %>%
     mutate(control_measures = ifelse(control_measures == "", "none", control_measures)) %>%
     mutate(disease_status = recode(disease_status,
                                    "absent,present"  = "present",
                                    "present,unreported"  = "present",
                                    "absent,unreported" = "absent"
     ))
+
+  dup_test <- six_month_reports_summary %>%
+    janitor::get_dupes(all_of(grouping_vars))
+  assertthat::are_equal(0, nrow(dup_test))
 
   return(six_month_reports_summary)
 }
