@@ -30,7 +30,8 @@ repel_fit.nowcast_boost <- function(model_object,
     disease_status_recipe <-
       recipe(formula = disease_status ~ ., data = augmented_data) %>%
       step_mutate(report_semester_1 = as.numeric(report_semester == 1)) %>%
-      step_rm(report_year, report_semester, cases, ends_with("_unreported")) %>%
+      step_rm(report_year, report_semester, cases,
+              disease_status_unreported, disease_status_lag1_unreported, disease_status_lag2_unreported, disease_status_lag3_unreported) %>%
       step_novel(all_nominal(), -all_outcomes()) %>%
       step_dummy(all_nominal(), -all_outcomes(), one_hot = TRUE) %>%
       step_zv(all_predictors()) %>%
@@ -59,16 +60,24 @@ repel_fit.nowcast_boost <- function(model_object,
       update(mtry = finalize(mtry(), augmented_data))
 
     # Set up 10 fold cross validation
-    disease_status_folds <- vfold_cv(augmented_data, strata = disease_status)
+    disease_status_folds <- augmented_data %>%
+      dplyr::slice(sample(x = nrow(.), size = 50000, replace = FALSE)) %>%
+      vfold_cv(strata = disease_status, v = 3)
 
     disease_status_recipe_prepped <- prep(disease_status_recipe)
     disease_status_recipe_juiced <- juice(disease_status_recipe_prepped)
     assertthat::assert_that(!any(map_lgl(disease_status_recipe_juiced, ~any(is.na(.)))))
+    # names(disease_status_recipe_juiced)
 
     # Set up parallel
     all_cores <- parallel::detectCores(logical = FALSE)
     cl <- parallel::makePSOCKcluster(all_cores)
     doParallel::registerDoParallel(cl)
+
+    #TODO - future based parallel frameworks - try this first -
+    # future.callr backend
+    # register doFuture
+
 
     # Tune disease status model - first using a grid
     tic("pre-tuning disease status model (grid)")
