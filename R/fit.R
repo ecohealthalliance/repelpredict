@@ -61,8 +61,7 @@ repel_fit.nowcast_boost <- function(model_object,
 
     # Set up 10 fold cross validation
     disease_status_folds <- augmented_data %>%
-      dplyr::slice(sample(x = nrow(.), size = 50000, replace = FALSE)) %>%
-      vfold_cv(strata = disease_status, v = 3)
+      vfold_cv(strata = disease_status, v = 10)
 
     disease_status_recipe_prepped <- prep(disease_status_recipe)
     disease_status_recipe_juiced <- juice(disease_status_recipe_prepped)
@@ -73,11 +72,6 @@ repel_fit.nowcast_boost <- function(model_object,
     all_cores <- parallel::detectCores(logical = FALSE)
     cl <- parallel::makePSOCKcluster(all_cores)
     doParallel::registerDoParallel(cl)
-
-    #TODO - future based parallel frameworks - try this first -
-    # future.callr backend
-    # register doFuture
-
 
     # Tune disease status model - first using a grid
     tic("pre-tuning disease status model (grid)")
