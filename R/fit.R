@@ -69,7 +69,7 @@ repel_fit.nowcast_boost <- function(model_object,
     # names(disease_status_recipe_juiced)
 
     # Set up parallel
-    all_cores <- parallel::detectCores(logical = FALSE)
+    all_cores <- parallel::detectCores(logical = FALSE)/2
     cl <- parallel::makePSOCKcluster(all_cores)
     doParallel::registerDoParallel(cl)
 
@@ -111,7 +111,7 @@ repel_fit.nowcast_boost <- function(model_object,
     disease_status_workflow_tuned <- finalize_workflow(disease_status_workflow, disease_status_tuned_param)
 
     # Set up parallel again
-    all_cores <- parallel::detectCores(logical = FALSE)
+    all_cores <- parallel::detectCores(logical = FALSE)/2
     cl <- parallel::makePSOCKcluster(all_cores)
     doParallel::registerDoParallel(cl)
 
@@ -173,7 +173,7 @@ repel_fit.nowcast_boost <- function(model_object,
     cases_folds <- vfold_cv(augmented_data_cases)
 
     # Set up parallel
-    all_cores <- parallel::detectCores(logical = FALSE)
+    all_cores <- parallel::detectCores(logical = FALSE)/2
     cl <- parallel::makePSOCKcluster(all_cores)
     doParallel::registerDoParallel(cl)
 
@@ -210,7 +210,7 @@ repel_fit.nowcast_boost <- function(model_object,
     cases_workflow_tuned <- finalize_workflow(cases_workflow, cases_tuned_param)
 
     # Set up parallel again
-    all_cores <- parallel::detectCores(logical = FALSE)
+    all_cores <- parallel::detectCores(logical = FALSE)/2
     cl <- parallel::makePSOCKcluster(all_cores)
     doParallel::registerDoParallel(cl)
 
