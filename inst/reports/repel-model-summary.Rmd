@@ -1,0 +1,238 @@
+---
+title: "REPEL Model Summary"
+output: 
+  html_document:
+    keep_md: TRUE
+---
+
+<small>_Click on the_ ▶ _︎arrows to expand sections._</small>
+
+```{r setup, include=FALSE, cache = FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE, fig.width = 7, fig.height = 5)
+devtools::load_all()
+library(ggplot2)
+library(ggiraph)
+library(knitr)
+library(vroom)
+library(here)
+library(DBI)
+library(DT)
+library(purrr)
+
+breaks_by <- function(k) {
+  step <- k
+  function(y) seq(floor(min(y)), ceiling(max(y)), by = step)
+}
+
+conn <- repeldata::repel_remote_conn()
+
+oie_high_importance_diseases <- repelpredict:::get_oie_high_importance_diseases()
+
+```
+
+### Variable importance by disease
+```{r gen-vi-by-disease-plots}
+
+randef <- dbReadTable(conn, "network_lme_coefficients")
+
+vi_by_disease_plots <- randef %>%
+  filter(str_detect(variable, "from_outbreaks")) %>%
+  filter(disease %in% oie_high_importance_diseases) %>%
+  mutate(pos = coef > 0) %>%
+  split(f = as.factor(.$disease_clean)) %>% 
+  map(., function(x){
+    title <- unique(x$disease_clean)
+    x %>%
+      mutate(variable_clean = forcats::fct_reorder(variable_clean, coef)) %>%
+      ggplot() +
+      geom_hline(aes(yintercept = 0), color = "gray50") +
+      geom_point(aes(x = variable_clean, y = coef, color = pos), size = 2) +
+      geom_segment(aes(x = variable_clean, xend = variable_clean, y = coef, yend = 0, color = pos)) +
+      #    scale_y_continuous(limits = c(xmin,  xmax)) +
+      scale_color_manual(values = c("TRUE" = "#0072B2", "FALSE" = "#D55E00")) +
+      labs(y = "Coefficient", x = "", title = title) +
+      coord_flip() +
+      theme_minimal() +
+      theme(legend.position = "none",
+            axis.text = element_text(size = 12),
+            title = element_text(size = 12),
+            plot.title.position = "plot") +
+      NULL
+    
+  })
+
+```
+
+```{r vi-by-disease-plots, include = FALSE}
+viplot_by_disease <- map_chr(seq_along(vi_by_disease_plots), ~ {
+  tab_name <- names(vi_by_disease_plots[.x])
+  knit_expand(text = c("<details>",
+                       "<summary>{{tab_name}}</summary>",
+                       "```{r vi-by-disease-plots-{{.x}}, echo = FALSE, align = 'left'}", 
+                       "vi_by_disease_plots[[{{.x}}]]",
+                       "```",
+                       "</details>"))
+})
+```
+`r knit_child(text = viplot_by_disease)`
+
+### Variable importance by disease and country (USA)
+```{r gen-vi-by-disease-country-plots}
+vi_usa <- get_network_variable_importance(conn,
+                                          country_iso3c = "USA",
+                                          diseases = oie_high_importance_diseases,
+                                          month = "2021-07-01")
+
+vi_by_disease_plots_usa <- vi_usa %>%
+  filter(str_detect(variable, "from_outbreaks")) %>%
+  split(f = as.factor(.$disease_clean)) %>% 
+  map(., function(x){
+    outbreak_prob <- signif(unique(x$predicted_outbreak_probability), 2)
+    country_name <- unique(x$country)
+    disease_name <- unique(x$disease_clean)
+    year <- year(unique(x$month))
+    
+    ggplot(x) +
+      geom_vline(aes(xintercept = 0), color = "gray50") +
+      geom_point(aes(x = variable_importance, y = variable_clean, color = pos), size = 2) +
+      geom_segment(aes(x = variable_importance, xend = 0, y = variable_clean, yend = variable_clean, color = pos)) +
+      scale_color_manual(values = c("TRUE" = "#0072B2", "FALSE" = "#D55E00")) +
+      labs(y = "", x = "Variable importance", title = glue::glue("{year} {disease_name} Outbreak in {country_name} Variable Importance ({outbreak_prob} probability outbreak)")) +
+      theme_minimal() +
+      theme(legend.position = "none",
+            axis.text = element_text(size = 10),
+            title = element_text(size = 10),
+            plot.title.position = "plot") +
+      NULL
+  })
+
+```
+
+```{r vi-by-disease-country-plots, include = FALSE}
+viplot_by_disease_usa <- map_chr(seq_along(vi_by_disease_plots_usa), ~ {
+  tab_name <- names(vi_by_disease_plots_usa[.x])
+  knit_expand(text = c("<details>",
+                       "<summary>{{tab_name}}</summary>",
+                       "```{r vi-by-disease-usa-plots-{{.x}}, echo = FALSE, align = 'left'}", 
+                       "vi_by_disease_plots_usa[[{{.x}}]]",
+                       "```",
+                       "</details>"))
+})
+```
+`r knit_child(text = viplot_by_disease_usa)`
+
+
+### Variable importance by disease and country (USA), with country origins
+```{r gen-vi-by-disease-country-origins-plots}
+vi_usa_co <- get_network_variable_importance_with_origins(conn,
+                                                          country_iso3c = "USA",
+                                                          diseases =  oie_high_importance_diseases,
+                                                          month = "2021-07-01")
+
+vi_by_disease_co_plots_usa <- vi_usa_co %>%
+  filter(str_detect(variable, "from_outbreaks")) %>%
+  split(f = as.factor(.$disease_clean)) %>%
+  map(., function(x){
+    country_name <- unique(x$country)
+    disease_name <- unique(x$disease_clean)
+    year <- year(unique(x$month))
+
+    x %>%
+      arrange(variable, -variable_importance) %>%
+      group_by(variable) %>%
+      mutate(variable_importance_total = sum(variable_importance, na.rm = TRUE)) %>%
+      mutate(variable_importance_perc = variable_importance/variable_importance_total) %>%
+      mutate(country_origin = ifelse(variable_importance_perc >= 0.1, country_origin, "other")) %>%
+      drop_na(country_origin) %>%
+      group_by(variable, variable_clean, country_origin) %>% # add over other
+      summarize(variable_importance = sum(variable_importance)) %>%
+      group_by(country_origin) %>%
+      mutate(variable_importance_rank = sum(abs(variable_importance))) %>%
+      ungroup() %>%
+      mutate(variable_importance_rank = ifelse(country_origin == "other", 0, variable_importance_rank)) %>%
+      mutate(country_origin = forcats::fct_reorder(country_origin, -variable_importance_rank)) %>%
+      ggplot() +
+      geom_vline(aes(xintercept = 0), color = "gray50") +
+      geom_col(aes(x = variable_importance, y = variable_clean, fill = country_origin)) +
+      labs(y = "",
+           x = "Variable importance",
+           title = glue::glue("{year} {disease_name} Outbreak in {country_name} Variable Importance"),
+           fill = "Origin Country") +
+      theme_minimal() +
+      theme(axis.text = element_text(size = 10),
+            title = element_text(size = 10),
+            plot.title.position = "plot") +
+      NULL
+  })
+
+# get contribution by country (summing over variables)
+vi_usa_co_contri <- get_network_origin_contribution_import_risk(conn,
+                                                          country_iso3c = "USA",
+                                                          diseases =  oie_high_importance_diseases,
+                                                          month = "2021-07-01")
+
+```
+
+```{r vi-by-disease-country-origin-plots, include = FALSE}
+viplot_by_disease_co_usa <- map_chr(seq_along(vi_by_disease_co_plots_usa), ~ {
+  tab_name <- names(vi_by_disease_co_plots_usa[.x])
+  knit_expand(text = c("<details>",
+                       "<summary>{{tab_name}}</summary>",
+                       "```{r vi-by-disease-country-origin-plots-{{.x}}, echo = FALSE, align = 'left'}",
+                       "vi_by_disease_co_plots_usa[[{{.x}}]]",
+                       "```",
+                       "</details>"))
+})
+```
+`r knit_child(text = viplot_by_disease_co_usa)`
+
+### Disease status summary (USA)
+```{r disease_status, include = FALSE}
+disease_status <- get_disease_status_predict(conn,
+                                             country_iso3c = "USA",
+                                             diseases = oie_high_importance_diseases)
+
+ds_usa <- disease_status %>%
+  split(f = as.factor(.$disease_clean)) %>% 
+  map(., function(x){
+    x %>% 
+      select(-country_iso3c, -disease, -yr, -disease_clean, -country) %>% 
+      mutate(predicted_semester_outbreak_probability = signif(predicted_semester_outbreak_probability, 2)) %>%
+      datatable()
+  })
+
+```
+
+```{r standardization-confusion}
+
+us_asf <- get_network_variable_importance(conn,
+                                          country_iso3c = "USA",
+                                          diseases =  "african_swine_fever",
+                                          month = "2021-07-01")
+
+us_asf_disagg <- get_network_variable_importance_with_origins(conn,
+                                          country_iso3c = "USA",
+                                          diseases =  "african_swine_fever",
+                                          month = "2021-07-01")
+
+t1 <- us_asf %>% 
+  filter(variable == "n_migratory_wildlife_from_outbreaks") %>% 
+  select(variable, x, mean, sd, x_standardized,  coef, variable_importance)
+# (1713 - 258.6446)/803.3205
+t1$variable_importance
+
+t2 <- us_asf_disagg %>% 
+  filter(variable == "n_migratory_wildlife_from_outbreaks") %>% 
+  select(variable, x, mean, sd, x_standardized,  coef, variable_importance)
+# of course mean and sd are from the full dataset
+# convert variable importance here to percentages?
+sum(t2$variable_importance)
+
+```
+
+
+```{r disconnect}
+repeldata::repel_remote_disconnect()
+dbDisconnect(conn)
+```
+
