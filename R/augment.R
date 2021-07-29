@@ -127,6 +127,10 @@ repel_augment.nowcast_boost <- function(model_object, conn, newdata) {
   # taxa population
   taxa <- tbl(conn, "country_taxa_population") %>%
     collect() %>%
+    mutate(taxa = ifelse(taxa %in% c("goats", "sheep"), "sheep/goats", taxa)) %>%
+    group_by(country_iso3c, year, taxa) %>%
+    summarize(population = sum(population, na.rm = TRUE)) %>%  # adds up all goats and sheep
+    ungroup() %>%
     rename(report_year = year, taxa_population = population) %>%
     right_join(expand(lagged_newdata, country_iso3c, report_year, taxa),  by = c("country_iso3c", "report_year", "taxa")) %>%
     mutate(taxa_population_missing = is.na(taxa_population)) %>%
