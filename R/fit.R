@@ -6,7 +6,7 @@ repel_fit <- function(x, ...){
 
 #' Fit nowcast Boost model object
 #' @return list containing predicted count and whether disease is expected or not (T/F)
-#' @import dplyr tidyr parsnip dials tune workflows tictoc
+#' @import dplyr tidyr parsnip dials tune workflows tictoc doFuture future
 #' @importFrom rsample vfold_cv
 #' @importFrom parallel detectCores makePSOCKcluster
 #' @importFrom doParallel registerDoParallel
@@ -69,9 +69,12 @@ repel_fit.nowcast_boost <- function(model_object,
     # names(disease_status_recipe_juiced)
 
     # Set up parallel
-    all_cores <- parallel::detectCores(logical = FALSE)/2
-    cl <- parallel::makePSOCKcluster(all_cores)
-    doParallel::registerDoParallel(cl)
+    all_cores <- parallel::detectCores(logical = FALSE)-2
+    # cl <- parallel::makePSOCKcluster(all_cores)
+    # doParallel::registerDoParallel(cl)
+    registerDoFuture()
+    cl <- parallel::makeCluster(all_cores)
+    plan(cluster, workers = cl)
 
     # Tune disease status model - first using a grid
     tic("pre-tuning disease status model (grid)")
@@ -111,7 +114,7 @@ repel_fit.nowcast_boost <- function(model_object,
     disease_status_workflow_tuned <- finalize_workflow(disease_status_workflow, disease_status_tuned_param)
 
     # Set up parallel again
-    all_cores <- parallel::detectCores(logical = FALSE)/2
+    all_cores <- parallel::detectCores(logical = FALSE)-2
     cl <- parallel::makePSOCKcluster(all_cores)
     doParallel::registerDoParallel(cl)
 
@@ -173,7 +176,7 @@ repel_fit.nowcast_boost <- function(model_object,
     cases_folds <- vfold_cv(augmented_data_cases)
 
     # Set up parallel
-    all_cores <- parallel::detectCores(logical = FALSE)/2
+    all_cores <- parallel::detectCores(logical = FALSE)-2
     cl <- parallel::makePSOCKcluster(all_cores)
     doParallel::registerDoParallel(cl)
 
@@ -210,7 +213,7 @@ repel_fit.nowcast_boost <- function(model_object,
     cases_workflow_tuned <- finalize_workflow(cases_workflow, cases_tuned_param)
 
     # Set up parallel again
-    all_cores <- parallel::detectCores(logical = FALSE)/2
+    all_cores <- parallel::detectCores(logical = FALSE)-2
     cl <- parallel::makePSOCKcluster(all_cores)
     doParallel::registerDoParallel(cl)
 
