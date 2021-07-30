@@ -1,21 +1,21 @@
 devtools::load_all()
 
 # Connection and create model object  -------------------------------------------------------------------
-# conn <- repeldata::repel_remote_conn()
+conn <- repeldata::repel_remote_conn()
 model_object <- network_lme_model()
 
 # Augment  ----------------------------------------------------------------
 # valdat <- repel_validation(model_object, conn)
 #
-# traindat <- repel_training(model_object, conn) %>%
-#   select(country_iso3c, disease, month)
+traindat <- repel_training(model_object, conn) %>%
+  select(country_iso3c, disease, month)
 # vroom::vroom_write(traindat, here::here("tmp/network_traindat.csv.gz"))
 # traindat <- vroom::vroom(here::here("tmp/network_traindat.csv.gz"))
 #
-# augmented_data <- repel_augment(model_object = model_object,
-#                                 conn = conn, newdata = traindat)
-#
-# vroom::vroom_write(augmented_data, gzfile("tmp/network_augmented_data.csv.gz"))
+augmented_data <- repel_augment(model_object = model_object,
+                                conn = conn, newdata = traindat)
+
+vroom::vroom_write(augmented_data, gzfile("tmp/network_augmented_data.csv.gz"))
 augmented_data <- vroom::vroom(here::here("tmp/network_augmented_data.csv.gz"))
 
 # repel_remote_disconnect()
