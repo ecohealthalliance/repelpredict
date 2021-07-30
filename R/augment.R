@@ -343,7 +343,7 @@ repel_augment.network_model <- function(model_object, conn, newdata, sum_country
   disease_taxa_lookup <- vroom::vroom(system.file("lookup", "disease_taxa_lookup.csv", package = "repelpredict")) %>%
     select(-disease_pre_clean)
 
-  taxa_population3 <- tbl(conn, "country_taxa_population") %>%
+  taxa_population <- tbl(conn, "country_taxa_population") %>%
     collect() %>%
     mutate(taxa = ifelse(taxa %in% c("goats", "sheep"), "sheep/goats", taxa)) %>%
     group_by(country_iso3c, year, taxa) %>%
