@@ -6,10 +6,8 @@ repel_fit <- function(x, ...){
 
 #' Fit nowcast Boost model object
 #' @return list containing predicted count and whether disease is expected or not (T/F)
-#' @import dplyr tidyr parsnip dials tune workflows tictoc doFuture future
+#' @import dplyr tidyr parsnip dials tune workflows tictoc future future.callr
 #' @importFrom rsample vfold_cv
-#' @importFrom parallel detectCores makePSOCKcluster
-#' @importFrom doParallel registerDoParallel
 #' @importFrom readr write_rds
 #' @importFrom assertthat assert_that
 #' @importFrom here here
@@ -68,13 +66,8 @@ repel_fit.nowcast_boost <- function(model_object,
     assertthat::assert_that(!any(map_lgl(disease_status_recipe_juiced, ~any(is.na(.)))))
     # names(disease_status_recipe_juiced)
 
-    # Set up parallel
-    all_cores <- parallel::detectCores(logical = FALSE)-2
-    # cl <- parallel::makePSOCKcluster(all_cores)
-    # doParallel::registerDoParallel(cl)
-    registerDoFuture()
-    cl <- parallel::makeCluster(all_cores)
-    plan(cluster, workers = cl)
+    # Set up parallel w future.callr
+    plan(callr)
 
     # Tune disease status model - first using a grid
     tic("pre-tuning disease status model (grid)")
@@ -84,8 +77,6 @@ repel_fit.nowcast_boost <- function(model_object,
     toc()
     # ^ this takes about 24 hrs on aegypti
     write_rds(disease_status_tune_grid, here::here(paste0(output_directory, "/boost_tune_disease_status_grid.rds")))
-
-    parallel::stopCluster(cl = cl)
 
     ### Not running bayes tune
     # Tune disease status model - now with bayes, using tune grid as prior
@@ -113,11 +104,6 @@ repel_fit.nowcast_boost <- function(model_object,
     # Update workflow with selected parameters
     disease_status_workflow_tuned <- finalize_workflow(disease_status_workflow, disease_status_tuned_param)
 
-    # Set up parallel again
-    all_cores <- parallel::detectCores(logical = FALSE)-2
-    cl <- parallel::makePSOCKcluster(all_cores)
-    doParallel::registerDoParallel(cl)
-
     # Fit model with tuned parameters
     tic("Fit final disease status model")
     disease_status_fit <-  parsnip::fit(object = disease_status_workflow_tuned,
@@ -127,7 +113,6 @@ repel_fit.nowcast_boost <- function(model_object,
 
     write_rds(disease_status_fit, here::here(paste0(output_directory, "/boost_mod_disease_status.rds")))
     aws.s3::s3saveRDS(disease_status_fit, bucket = "repeldb/models", object = "boost_mod_disease_status.rds")
-    parallel::stopCluster(cl = cl)
   }
 
   # Case model ------------------------------------------------------------
