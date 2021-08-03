@@ -66,14 +66,12 @@ repel_fit.nowcast_boost <- function(model_object,
     assertthat::assert_that(!any(map_lgl(disease_status_recipe_juiced, ~any(is.na(.)))))
     # names(disease_status_recipe_juiced)
 
-    # Set up parallel w future.callr
-    plan(callr)
-
     # Tune disease status model - first using a grid
     tic("pre-tuning disease status model (grid)")
     disease_status_tune_grid <- tune_grid(disease_status_workflow,
                                           resamples = disease_status_folds,
-                                          control = control_grid(verbose = TRUE))
+                                          control = control_grid(verbose = TRUE,
+                                                                 parallel_over = "everything"))
     toc()
     # ^ this takes about 24 hrs on aegypti
     write_rds(disease_status_tune_grid, here::here(paste0(output_directory, "/boost_tune_disease_status_grid.rds")))
