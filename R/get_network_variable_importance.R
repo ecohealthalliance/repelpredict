@@ -77,7 +77,8 @@ get_network_variable_importance_with_origins <- function(conn,
     pivot_wider(names_from = continent, values_from = continent, names_prefix = "continent") %>%
     mutate_at(vars(starts_with("continent")), ~ifelse(!is.na(.), 1, NA)) %>%
     pivot_longer(cols = -c("country_iso3c", "country_origin_iso3c", "disease", "month", "outbreak_start","endemic", "outbreak_ongoing", "predicted_outbreak_probability"),
-                 names_to = "variable", values_to = "x")
+                 names_to = "variable", values_to = "x") %>%
+    filter(str_detect(variable, "from_outbreaks"))
 
 
   # get model coeffs
@@ -89,9 +90,13 @@ get_network_variable_importance_with_origins <- function(conn,
     left_join(randef_disease, by = c("disease", "variable")) %>%
     left_join(network_scaling_values, by = "variable") %>%
     #TODO how to handle standardization for individual contributions????
-    mutate(x_standardized = (x - `mean`) / `sd`) %>%
-    mutate(variable_importance = x_standardized * coef) %>%
-    mutate(pos = variable_importance > 0)
+    group_by(country_iso3c, disease, month, variable) %>%
+    mutate(sum_x_standardized = (sum(x) - `mean`) / `sd`,
+           sum_x = sum(x)) %>%
+    ungroup() %>%
+    mutate(overall_variable_importance = sum_x_standardized * coef) %>%
+    mutate(disagg_variable_importance = (overall_variable_importance/sum_x)*x) %>%
+    mutate(pos = disagg_variable_importance > 0)
 
   # country name lookup
   country_lookup <- readr::read_csv(system.file("lookup", "countrycode_lookup.csv", package = "repelpredict"),  col_types = cols(
@@ -130,10 +135,11 @@ get_network_origin_contribution_import_risk <- function(conn,
 
   vi_co %>%
     filter(str_detect(variable, "from_outbreaks")) %>%
+    drop_na(disagg_variable_importance) %>%
     group_by(month, disease,
              country, country_iso3c, country_origin, country_origin_iso3c,
              predicted_outbreak_probability) %>%
-    summarize(contribution_to_import_risk = sum(variable_importance)) %>%
+    summarize(contribution_to_import_risk = sum(disagg_variable_importance)) %>%
     ungroup() %>%
     arrange(country, month, disease, -contribution_to_import_risk)
 
