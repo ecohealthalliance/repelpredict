@@ -20,23 +20,23 @@ conn <- repeldata::repel_remote_conn()
 
 # Executive Summary
 
-- The recent African Swine Fever (ASF) outbreak in Dominican Republic is the first detection of the virus in the Americas. 
-- We used EcoHealth Alliance's **REPEL** model, an in-development machine-learning project funded by DHS Science & Technology Directorate, to assess affect of this new development on ASF risk elsewhere in the Americas.
-- The Dominican Republic (D.R.) was not a high-risk country for ASF introduction. Many other countries in the Americas including the U.S. are more susceptible to introduction.
+- The recent African Swine Fever (ASF) outbreak in Dominican Republic (D.R.) is the first detection of the virus in the Americas. 
+- We used EcoHealth Alliance's **REPEL** model, an in-development machine-learning project funded by DHS Science & Technology Directorate, to assess the effect of this new development on ASF risk elsewhere in the Americas.
+- The D.R. was average among countries in the Americas for risk of ASF introduction. Many other countries in the Americas including the U.S. are more susceptible to introduction.
 - As ASF spreads fastest between countries via land border crossing and wildlife migration, increase in risk to other countries in the Americas due to movement from the D.R. is modest (with the exception of Haiti). 
-- The Dominican Republic is now among the most likely sources of infection ASF spread to elsewhere Americas. However, this risk does not greatly exceed other potential source countries from Africa and Asia (e.g., South Africa, Philippines, China, and Russia). Risk mitigation strategies should incorporate source control from the D.R. but continue to focus equally on all major global sources.
+- The D.R. is now among the most likely sources of ASF spread to elsewhere in the Americas. However, this risk does not greatly exceed other potential source countries from Africa and Asia (e.g., South Africa, Philippines, China, and Russia). Risk mitigation strategies should incorporate source control from the D.R. but continue to focus equally on all major global sources.
 
 # Introduction
 
-In July 2021, the U.S. Department of Agriculture confirmed an outbreak of African Swine Fever (ASF) in pigs in the Dominican Republic (D.R.), marking the first detection of the virus in the western hemisphere and raising concerns about potential transmission to the United States. The source of the outbreak in the Dominican Republic is currently unknown. 
+In July 2021, the U.S. Department of Agriculture confirmed an outbreak of African Swine Fever (ASF) in pigs in the Dominican Republic (D.R.), marking the first detection of the virus in the western hemisphere and raising concerns about potential transmission to the United States. The source of the outbreak in the D.R. is currently unknown. 
 
-Under contract with the DHS Science and Technology Directorate, EcoHealth Alliance (EHA) is developing a set of machine-learning-based tools, known as REPEL (Rapid Evaluation of Pathogens to prevent Epidemics in Livestock), to forecast global animal infectious disease incidence, spread, and impact. Here, we look at beta REPEL travel predictions for ASF, to and from the Dominican Republic, to evaluate risk of spread to other countries in the Americas. 
+Under contract with the DHS Science and Technology Directorate, EcoHealth Alliance (EHA) is developing a set of machine-learning-based tools, known as REPEL (Rapid Evaluation of Pathogens to prevent Epidemics in Livestock), to forecast global animal infectious disease incidence, spread, and impact. Here, we look at beta REPEL travel predictions for ASF, to and from the D.R., and evaluate risk of spread to other countries in the Americas. 
 
 # ASF outbreak probability in the Americas over the last 3 years
 
-Across the Americas, the outbreak risk of ASF has increased with the global spread of ASF in Asia and Africa, as shown in the REPEL TravelCast estimates of outbreak probability (Figure 1).  This risk dropped somewhat in the second half of 2020 due to a decrease active reported outbreaks from source countries in the Eastern Hemisphere.  The U.S., due to it's large swine population (a large "attack surface") has some of the highest estimated risk in the Americas. The D.R. was a middle-risk country prior to July 2021. This indicates that arrival of ASF was likely not due to unique D.R. vulnerabilities but that most other countries in the Americas are subject to the same import risks.
+Across the Americas, the outbreak risk of ASF has increased with the global spread of ASF in Asia and Africa, as shown in the REPEL TravelCast estimates of outbreak probability (Figure 1).  This risk dropped somewhat in the second half of 2020 due to a decrease in active reported outbreaks from source countries in the Eastern Hemisphere.  The U.S., due to its large swine population (a large "attack surface"), has the highest estimated risk in the Americas. The D.R. was a middle-risk country prior to July 2021. This indicates that arrival of ASF was likely not due to unique D.R. vulnerabilities but that most other countries in the Americas are subject to the same import risks.
 
-This risk estimate incorporates the force of infection as predicted trade and travel from source countries (e.g.via trade of live animals and animal products, wildlife contact, and land-based border trade) . In addition, the model adjusts for target country vulnerability (as predicted by measures including livestock populations, veterinary and economic capacity). 
+This risk estimate incorporates the force of infection as predicted trade and travel from source countries (e.g., via trade of live animals and animal products, wildlife contact, and land-based border trade) . In addition, the model adjusts for target country vulnerability (as predicted by measures including livestock populations, veterinary and economic capacity). 
 
 ```{r dr-last-yr, fig.cap = "The probability of an ASF outbreak in a given month in the Americas from August 2018 to August 2021. Each line represents a country."}
 americas <- countrycode::codelist %>% 
@@ -62,7 +62,7 @@ asf_outbreak_in_dom <- asf_outbreak_in_americas %>%
   )) %>% 
   mutate(country_label = factor(country_label, levels = c("United States", "Dominican Republic", "other"), ordered = TRUE))
 
-ggplot(asf_outbreak_in_dom, aes(x = month, y = `Predicted Outbreak Probability (%)`, group = country_iso3c,
+ggplot(asf_outbreak_in_dom, aes(x = month, y = `Predicted Outbreak Probability (% chance per month)`, group = country_iso3c,
                                 color = country_label, alpha = country_label, size = country_label)) + 
   geom_line() + 
   scale_color_manual(values = c("other" = "gray50", "United States" = "#0072B2", "Dominican Republic" = "#CC79A7"), guide = "none") +
@@ -70,11 +70,11 @@ ggplot(asf_outbreak_in_dom, aes(x = month, y = `Predicted Outbreak Probability (
   scale_size_manual(values = c("other" = 0.5, "United States" = 0.5, "Dominican Republic" = 1), guide = "none") +
   geom_label(data=filter(asf_outbreak_in_dom, 
                          country_iso3c == "DOM", month == max(month)),
-             aes(x=month, y=`Predicted Outbreak Probability (%)`, label="Dominican Republic"),
+             aes(x=month, y=`Predicted Outbreak Probability (% chance per month)`, label="Dominican Republic"),
              color="#CC79A7", size=5, vjust=-1, hjust=1, fontface="bold") +
   geom_label(data=filter(asf_outbreak_in_dom, 
                          country_iso3c == "USA", month == max(month)),
-             aes(x=month, y=`Predicted Outbreak Probability (%)`, label="USA"),
+             aes(x=month, y=`Predicted Outbreak Probability (% chance per month)`, label="USA"),
              color="#0072B2", size=5, vjust=0, hjust=1, fontface="bold") +
   labs(x = "",color = "") +
   theme_classic()
@@ -116,7 +116,7 @@ ggplot(asf_outbreak_in_dom, aes(x = month, y = `Predicted Outbreak Probability (
 #   mutate(country = countrycode::countrycode(country_iso3c, origin = "iso3c", destination = "country.name")) %>% 
 #   mutate(country = forcats::fct_inorder(country))
 
-# ggplot(asf_outbreak_in_americas_june, aes(x = country, y = `Predicted Outbreak Probability (%)`)) +
+# ggplot(asf_outbreak_in_americas_june, aes(x = country, y = `Predicted Outbreak Probability (% chance per month)`)) +
 #   geom_point() + 
 #   coord_flip() +
 #   theme_classic()
@@ -128,14 +128,14 @@ ggplot(asf_outbreak_in_dom, aes(x = month, y = `Predicted Outbreak Probability (
 # all_probabilities <-  tbl(conn,  "network_lme_augment_predict") %>% 
 #   select(predicted_outbreak_probability) %>% 
 #   collect() %>% 
-#   mutate("Predicted Outbreak Probability (%)" = predicted_outbreak_probability * 100 )
+#   mutate("Predicted Outbreak Probability (% chance per month)" = predicted_outbreak_probability * 100 )
 
 # ggplot() +
-#   geom_histogram(data = all_probabilities, aes(x = `Predicted Outbreak Probability (%)`)) + 
+#   geom_histogram(data = all_probabilities, aes(x = `Predicted Outbreak Probability (% chance per month)`)) + 
 #   scale_x_log10() + 
 #   geom_vline(data = asf_outbreak_in_americas_june %>%
 #                filter(country_iso3c %in% c("USA", "DOM")), 
-#              aes(xintercept =  `Predicted Outbreak Probability (%)`, color = country_iso3c)) + 
+#              aes(xintercept =  `Predicted Outbreak Probability (% chance per month)`, color = country_iso3c)) + 
 #   theme_classic()
 
 # quantile(all_probabilities$predicted_outbreak_probability)
@@ -209,15 +209,15 @@ dom <-  tbl(conn,  "network_lme_augment_predict") %>%
 
 # How does ASF in the Dominican Republic change the situation elsewhere the Americas?
 
-We examined of the REPEL TravelCast risk changed before and after the introduction of ASF to the  D.R. (Figure 2). Due to the importance of land-based contact and wildlife to ASF movement, the largest jump in predicted ASF outbreak probability occurs in Haiti, which shares a land border with the Dominican Republic. Estimated outbreak probability for Other vulnerable countries - USA, Mexico, Colombia, and Cuba - increased a modest amount.  A lack of land connection and low movement of trade products from the D.R. to these countries means a small change in aggregate risk. 
+We examined how REPEL TravelCast risk changed before and after the introduction of ASF to the  D.R. (Figure 2). Due to the importance of land-based contact and wildlife to ASF movement, the largest jump in predicted ASF outbreak probability occurs in Haiti, which shares a land border with the D.R. Estimated outbreak probability for other vulnerable countries - USA, Mexico, Colombia, and Cuba - increased a modest amount.  A lack of land connection and low movement of trade products from the D.R. to these countries means a small change in aggregate risk. 
 
 ```{r dr-impact, fig.cap = "REPEL estimates of change in probability of an ASF outbreaks in the Americas from June 2021 (pre-D.R. outbreak) to August 2021 (ongoing D.R. outbreak)"}
 asf_outbreak_in_americas_june_aug <- asf_outbreak_in_americas %>% 
   filter(month == "2021-06-01" | month == "2021-08-01") %>% 
   filter(country_iso3c != "DOM") %>% 
-  select(country_iso3c, month, `Predicted Outbreak Probability (%)`) %>% 
+  select(country_iso3c, month, `Predicted Outbreak Probability (% chance per month)`) %>% 
   mutate(country = countrycode::countrycode(country_iso3c, origin = "iso3c", destination = "country.name")) %>% 
-  pivot_wider(names_from = month, values_from = `Predicted Outbreak Probability (%)`) %>% 
+  pivot_wider(names_from = month, values_from = `Predicted Outbreak Probability (% chance per month)`) %>% 
   mutate(diff = `2021-08-01` - `2021-06-01`) %>% 
   arrange(diff) %>% 
   mutate(country = forcats::fct_inorder(country)) 
@@ -231,24 +231,24 @@ ggplot(asf_outbreak_in_americas_june_aug) +
   geom_text(data=filter(asf_outbreak_in_americas_june_aug, diff == max(diff)),
             aes(x=`2021-08-01`, y=country, label="August 2021"),
             color="#D55E00", size=4, vjust=0.25, hjust=-0.2, fontface="bold") +
-  labs(x = "Predicted Outbreak Probability (%)", y = "") +
+  labs(x = "Predicted Outbreak Probability (% chance per month)", y = "") +
   theme_classic()
 
 ```
 
 While aggregate risk has only moved modestly, REPEL TravelCast predictions indicate a substantial change in the _source_ of risk. The D.R. is is now among the most likely origin countries for potential ASF spread to North American countries (USA, Mexico, Canada) and higher-risk countries in the Caribbean and South America (Haiti, Brazil, Colombia, Cuba). This emergent risk warrants increased biosecurity measures, such as increasing inspections of flights and boats from the D.R.. 
 
-However, with the exception of Haiti, ASF import risk from the D.R. does not greatly exceed import risk from other likely source countries, such as South Africa, the Philippines, China, and Côte d'Ivoire. Therefore, resources and attention should not be diverted from other potential source countries, as the likelihood of ASF arrival from these locations remains as likely as arrival from the Dominican Republic.
+However, with the exception of Haiti, ASF import risk from the D.R. does not greatly exceed import risk from other likely source countries, such as South Africa, the Philippines, China, and Côte d'Ivoire. Therefore, resources and attention should not be diverted from other potential source countries, as the likelihood of ASF arrival from these locations remains as likely as arrival from the D.R.
 
-```{r na-contrib, fig.cap = "REPEL estimates of relative contribution of ASF source contries to to ASF import probability to select countries in the Americas"}
+```{r na-contrib, fig.cap = "REPEL estimates of relative contribution of ASF source contries to ASF import probability to select countries in the Americas", fig.width = 6, fig.height = 7}
 asf_outbreak_in_americas_import_risk <- get_network_origin_contribution_import_risk(conn, 
                                                                                     country_iso3c = c("USA", "MEX", "CAN",
-                                                                                                      "HTI", "COL", "CUB"),
+                                                                                                     "BRA",  "HTI", "COL", "CUB"),
                                                                                     diseases =  "african_swine_fever",
                                                                                     month = "2021-08-01")
 
 plots <- asf_outbreak_in_americas_import_risk %>% 
-  mutate(country_iso3c = factor(country_iso3c, levels = c("USA", "MEX", "CAN", "HTI", "COL", "CUB"))) %>% 
+  mutate(country_iso3c = factor(country_iso3c, levels = c("USA", "MEX", "CAN", "HTI", "BRA", "COL", "CUB"))) %>% 
   arrange(country_iso3c, -contribution_to_import_risk) %>% 
   mutate(is_dr = country_origin_iso3c == "DOM") %>% 
   group_split(country_iso3c) %>% 
@@ -259,18 +259,21 @@ plots <- asf_outbreak_in_americas_import_risk %>%
       mutate(country_origin = forcats::fct_inorder(country_origin)) 
     
     title <- unique(xmod$country)
-    ggplot(xmod, aes(y = country_origin, x = contribution_to_import_risk, color = is_dr)) +
+    p <- ggplot(xmod, aes(y = country_origin, x = contribution_to_import_risk, color = is_dr)) +
       geom_point() +
       geom_hline(aes(yintercept = 0), color = "gray50") +
       geom_segment(aes( xend = 0, yend = country_origin)) +
       scale_color_manual(values = c(`FALSE` = "black", `TRUE` = "#CC79A7"), guide = "none") +
-      scale_x_continuous(limits = c(0, 0.15))
+      scale_x_continuous(limits = c(0, 0.15)) +
       labs(x = "", y = "", title = title) +
       theme_minimal()
+    if(title == "Haiti"){
+      p <- p + scale_x_continuous(limits = c(0, 0.8))
+    }
+    return(p)
   })
 
-
-cowplot::plot_grid(plotlist = plots)
+cowplot::plot_grid(plotlist = plots, ncol = 2)
 ```
 
 ```{r disconn}
