@@ -9,7 +9,7 @@ output:
 ---
 
 ```{r setup, include=FALSE, cache = FALSE}
-knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE, fig.width = 7, fig.height = 5)
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE, fig.width = 7, fig.height = 5, dpi = 200)
 devtools::load_all()
 library(ggplot2)
 library(ggalt)
