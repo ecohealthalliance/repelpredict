@@ -1,7 +1,7 @@
 ---
 title: "REPEL Memo: July 2021 African Swine Fever Outbreak in the Dominican Republic"
 date: "`r Sys.Date()`"
-author: "Emma Mendelsohn and Noam Ross, EcoHealth Alliance"
+author: "Emma Mendelsohn (mendelsohn@ecohealthalliance.org) and Noam Ross (ross@ecohealthalliance.org), EcoHealth Alliance"
 output: 
   officedown::rdocx_document:
     mapstyles:
