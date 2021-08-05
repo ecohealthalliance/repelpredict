@@ -238,7 +238,7 @@ ggplot(asf_outbreak_in_americas_june_aug) +
 
 While aggregate risk has only moved modestly, REPEL TravelCast predictions indicate a substantial change in the _source_ of risk. The D.R. is is now among the most likely origin countries for potential ASF spread to North American countries (USA, Mexico, Canada) and higher-risk countries in the Caribbean and South America (Haiti, Brazil, Colombia, Cuba). This emergent risk warrants increased biosecurity measures, such as increasing inspections of flights and boats from the D.R.. 
 
-However, with the exception of Haiti, ASF import risk from the D.R. does not greatly exceed import risk from other likely source countries, such as South Africa, the Philippines, China, and the Ivory Coast. Therefore, resources and attention should not be diverted from other potential source countries, as the likelihood of ASF arrival from these locations matches the likelihood of arrival from the Dominican Republic.
+However, with the exception of Haiti, ASF import risk from the D.R. does not greatly exceed import risk from other likely source countries, such as South Africa, the Philippines, China, and Côte d'Ivoire. Therefore, resources and attention should not be diverted from other potential source countries, as the likelihood of ASF arrival from these locations remains as likely as arrival from the Dominican Republic.
 
 ```{r na-contrib, fig.cap = "REPEL estimates of relative contribution of ASF source contries to to ASF import probability to select countries in the Americas"}
 asf_outbreak_in_americas_import_risk <- get_network_origin_contribution_import_risk(conn, 
