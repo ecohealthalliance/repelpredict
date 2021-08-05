@@ -70,7 +70,7 @@ get_network_variable_importance_with_origins <- function(conn,
   disagg_network_augment_predict <- tbl(conn,  "network_lme_augment_predict_by_origin") %>%
     filter(disease %in% !!diseases)  %>%
     filter(country_iso3c %in% !!country_iso3c) %>%
-    filter(month == !!month) %>%
+    filter(month %in% !!month) %>%
     select(-outbreak_subsequent_month) %>%
     rename(country_origin_iso3c = country_origin) %>%
     collect() %>%
