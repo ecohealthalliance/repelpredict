@@ -20,21 +20,23 @@ conn <- repeldata::repel_remote_conn()
 
 # Executive Summary
 
-- The recent African Swine Fever (ASF) outbreak in Dominican Republic (D.R.) is the first detection of the virus in the Americas. 
+- The recent African Swine Fever (ASF) outbreak in Dominican Republic (D.R.) is the first detection of the virus in the Americas since 1978. 
 - We used EcoHealth Alliance's **REPEL** model, an in-development machine-learning project funded by DHS Science & Technology Directorate, to assess the effect of this new development on ASF risk elsewhere in the Americas.
-- The D.R. was average among countries in the Americas for risk of ASF introduction. Many other countries in the Americas including the U.S. are more susceptible to introduction.
+- Prior to the current introduction, the D.R. was average among countries in the Americas for risk of ASF introduction. Many other countries in the Americas, including the U.S., were calculated to be more susceptible to introduction.
 - As ASF spreads fastest between countries via land border crossing and wildlife migration, increase in risk to other countries in the Americas due to movement from the D.R. is modest (with the exception of Haiti). 
-- The D.R. is now among the most likely sources of ASF spread to elsewhere in the Americas. However, this risk does not greatly exceed other potential source countries from Africa and Asia (e.g., South Africa, Philippines, China, and Russia). Risk mitigation strategies should incorporate source control from the D.R. but continue to focus equally on all major global sources.
+- The D.R. is now __among__ the most likely sources of ASF spread to elsewhere in the Americas. This emergent risk warrants increased biosecurity measures, such as increasing inspections of flights and boats from the D.R.
+- However, this risk does not greatly exceed other potential source countries from Africa and Asia (e.g., South Africa, Philippines, China, and Russia).
+- Risk mitigation strategies should incorporate source control from the D.R. but continue to focus equally on other identified major global sources. The introduction to the D.R. reaffirms the risk from other, more distant sources. 
 
 # Introduction
 
-In July 2021, the U.S. Department of Agriculture confirmed an outbreak of African Swine Fever (ASF) in pigs in the Dominican Republic (D.R.), marking the first detection of the virus in the western hemisphere and raising concerns about potential transmission to the United States. The source of the outbreak in the D.R. is currently unknown. 
+In July 2021, the U.S. Department of Agriculture confirmed an outbreak of African Swine Fever (ASF) in pigs in the Dominican Republic (D.R.), marking the first detection of the virus in the western hemisphere in over 40 years and raising concerns about potential transmission to the United States. The source of the outbreak in the D.R. is currently unknown. 
 
 Under contract with the DHS Science and Technology Directorate, EcoHealth Alliance (EHA) is developing a set of machine-learning-based tools, known as REPEL (Rapid Evaluation of Pathogens to prevent Epidemics in Livestock), to forecast global animal infectious disease incidence, spread, and impact. Here, we look at beta REPEL travel predictions for ASF, to and from the D.R., and evaluate risk of spread to other countries in the Americas. 
 
 # ASF outbreak probability in the Americas over the last 3 years
 
-Across the Americas, the outbreak risk of ASF has increased with the global spread of ASF in Asia and Africa, as shown in the REPEL TravelCast estimates of outbreak probability (Figure 1).  This risk dropped somewhat in the second half of 2020 due to a decrease in active reported outbreaks from source countries in the Eastern Hemisphere.  The U.S., due to its large swine population (a large "attack surface"), has the highest estimated risk in the Americas. The D.R. was a middle-risk country prior to July 2021. This indicates that arrival of ASF was likely not due to unique D.R. vulnerabilities but that most other countries in the Americas are subject to the same import risks.
+Across the Americas, the outbreak risk of ASF has increased with the global spread of ASF in Asia and Africa, as shown in the REPEL TravelCast estimates of outbreak probability (Figure 1).  This risk dropped somewhat in the second half of 2020 due to a decrease in active reported outbreaks from source countries in the Eastern Hemisphere.  The U.S., due to its large swine population (a large "attack surface"), has the highest estimated risk in the Americas. The D.R. was a middle-risk country prior to July 2021. This indicates that arrival of ASF was likely not due to unique D.R. vulnerabilities but that most countries in the Americas are subject to the same import risks.
 
 This risk estimate incorporates the force of infection as predicted trade and travel from source countries (e.g., via trade of live animals and animal products, wildlife contact, and land-based border trade) . In addition, the model adjusts for target country vulnerability (as predicted by measures including livestock populations, veterinary and economic capacity). 
 
@@ -236,11 +238,11 @@ ggplot(asf_outbreak_in_americas_june_aug) +
 
 ```
 
-While aggregate risk has only moved modestly, REPEL TravelCast predictions indicate a substantial change in the _source_ of risk. The D.R. is is now among the most likely origin countries for potential ASF spread to North American countries (USA, Mexico, Canada) and higher-risk countries in the Caribbean and South America (Haiti, Brazil, Colombia, Cuba). This emergent risk warrants increased biosecurity measures, such as increasing inspections of flights and boats from the D.R.. 
+While aggregate risk has only moved modestly, REPEL TravelCast predictions indicate a substantial change in the _source_ of risk. The D.R. is is now among the most likely origin countries for potential ASF spread to North American countries (USA, Mexico, Canada) and higher-risk countries in the Caribbean and South America (Haiti, Brazil, Colombia, Cuba) (Figure 3). This emergent risk warrants increased biosecurity measures, such as increasing inspections of flights and boats from the D.R.. 
 
 However, with the exception of Haiti, ASF import risk from the D.R. does not greatly exceed import risk from other likely source countries, such as South Africa, the Philippines, China, and Côte d'Ivoire. Therefore, resources and attention should not be diverted from other potential source countries, as the likelihood of ASF arrival from these locations remains as likely as arrival from the D.R.
 
-```{r na-contrib, fig.cap = "REPEL estimates of relative contribution of ASF source contries to ASF import probability to select countries in the Americas", fig.width = 6, fig.height = 7}
+```{r na-contrib, fig.cap = "REPEL estimates of relative contribution of ASF source countries to ASF import probability to select countries in the Americas", fig.width = 6, fig.height = 7}
 asf_outbreak_in_americas_import_risk <- get_network_origin_contribution_import_risk(conn, 
                                                                                     country_iso3c = c("USA", "MEX", "CAN",
                                                                                                      "BRA",  "HTI", "COL", "CUB"),
