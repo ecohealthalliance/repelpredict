@@ -6,7 +6,7 @@ repel_fit <- function(x, ...){
 
 #' Fit nowcast Boost model object
 #' @return list containing predicted count and whether disease is expected or not (T/F)
-#' @import dplyr tidyr parsnip dials tune workflows tictoc future future.callr
+#' @import dplyr tidyr parsnip dials tune workflows tictoc doMC parallel
 #' @importFrom rsample vfold_cv
 #' @importFrom readr write_rds
 #' @importFrom assertthat assert_that
@@ -65,6 +65,9 @@ repel_fit.nowcast_boost <- function(model_object,
     disease_status_recipe_juiced <- juice(disease_status_recipe_prepped)
     assertthat::assert_that(!any(map_lgl(disease_status_recipe_juiced, ~any(is.na(.)))))
     # names(disease_status_recipe_juiced)
+
+    # set up parallel
+    registerDoMC(cores=parallel::detectCores())
 
     # Tune disease status model - first using a grid
     tic("pre-tuning disease status model (grid)")
