@@ -47,8 +47,8 @@ repel_init.network_model <- function(model_object, conn){
   current_semester <- ifelse(current_month < "2021-07-01", 1, 2)
   current_period <- as.numeric(paste(current_year, recode(current_semester, '1' = '0', '2' = '5'), sep = "."))
 
-  prev_year <- current_month - 365
-  next_century <- current_month + 36500
+  prev_year <- floor_date(current_month - 365,  unit = "month")
+  next_century <- floor_date(current_month + 36500, unit = "month")
 
   events <- tbl(conn, "outbreak_reports_events") %>%
     collect() %>%
