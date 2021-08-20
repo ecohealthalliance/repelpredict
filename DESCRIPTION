@@ -1,5 +1,5 @@
 Package: repelpredict
-Title: What the Package Does (One Line, Title Case)
+Title: Modeling veterinary disease occurrence and spread using repel database
 Version: 0.0.1
 Authors@R: 
     person(given = "Ross",
@@ -8,7 +8,7 @@ Authors@R:
            email = "noam.ross@gmail.com",
            comment = c(ORCID = "0000-0002-2136-0000"))
 Author: Noam Ross
-Description: What the package does (one paragraph).
+Description: This package contains functions that pull data from the repel database, perform data processing and augmentation, fit models, and run predictions from models.
 License: MIT + file LICENSE
 Encoding: UTF-8
 LazyData: true

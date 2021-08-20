@@ -4,9 +4,9 @@
 \name{repelpredict-package}
 \alias{repelpredict}
 \alias{repelpredict-package}
-\title{repelpredict: What the Package Does (One Line, Title Case)}
+\title{repelpredict: Modeling veterinary disease occurrence and spread using repel database}
 \description{
-What the package does (one paragraph).
+This package contains functions that pull data from the repel database, perform data processing and augmentation, fit models, and run predictions from models.
 }
 \author{
 \strong{Maintainer}: Ross Noam \email{noam.ross@gmail.com} (\href{https://orcid.org/0000-0002-2136-0000}{ORCID})
