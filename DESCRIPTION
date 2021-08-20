@@ -39,7 +39,6 @@ Imports:
     recipes,
     rsample,
     R.utils,
-    spatstat.geom,
     lme4,
     countrycode,
     vroom,
@@ -51,5 +50,6 @@ Suggests:
     lintr,
     roxygen2
 Remotes:
-  ecohealthalliance/repeldata
+  ecohealthalliance/repeldata,
+  cran/spatstat.geom@2.2-0
 Language: en-US
