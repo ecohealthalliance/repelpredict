@@ -30,7 +30,7 @@ Imports:
     tune,
     workflows,
     aws.s3,
-    doParallel,
+    doMC,
     here,
     imputeTS,
     janitor,
