@@ -10,7 +10,7 @@ generate_indices <- function(n, prop){
   return(unique(sort(c(init_sample, init_sample_next))))
 }
 
-conn <- repeldata::repel_local_conn()
+conn <- repeldata::repel_remote_conn()
 #repeldata::repel_local_download()
 
 all_dat <- repel_init(model_object, conn) %>%

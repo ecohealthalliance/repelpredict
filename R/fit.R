@@ -6,10 +6,8 @@ repel_fit <- function(x, ...){
 
 #' Fit nowcast Boost model object
 #' @return list containing predicted count and whether disease is expected or not (T/F)
-#' @import dplyr tidyr parsnip dials tune workflows tictoc
+#' @import dplyr tidyr parsnip dials tune workflows tictoc doMC parallel
 #' @importFrom rsample vfold_cv
-#' @importFrom parallel detectCores makePSOCKcluster
-#' @importFrom doParallel registerDoParallel
 #' @importFrom readr write_rds
 #' @importFrom assertthat assert_that
 #' @importFrom here here
@@ -30,7 +28,8 @@ repel_fit.nowcast_boost <- function(model_object,
     disease_status_recipe <-
       recipe(formula = disease_status ~ ., data = augmented_data) %>%
       step_mutate(report_semester_1 = as.numeric(report_semester == 1)) %>%
-      step_rm(report_year, report_semester, cases, cases_missing_disease_present) %>%
+      step_rm(report_year, report_semester, cases,
+              disease_status_unreported, disease_status_lag1_unreported, disease_status_lag2_unreported, disease_status_lag3_unreported) %>%
       step_novel(all_nominal(), -all_outcomes()) %>%
       step_dummy(all_nominal(), -all_outcomes(), one_hot = TRUE) %>%
       step_zv(all_predictors()) %>%
@@ -59,27 +58,26 @@ repel_fit.nowcast_boost <- function(model_object,
       update(mtry = finalize(mtry(), augmented_data))
 
     # Set up 10 fold cross validation
-    disease_status_folds <- vfold_cv(augmented_data, strata = disease_status)
+    disease_status_folds <- augmented_data %>%
+      vfold_cv(strata = disease_status, v = 10)
 
-    # disease_status_recipe_prepped <- prep(disease_status_recipe)
-    # disease_status_recipe_juiced <- juice(disease_status_recipe_prepped)
-    # any(map_lgl(disease_status_recipe_juiced, ~any(is.na(.))))
+    disease_status_recipe_prepped <- prep(disease_status_recipe)
+    disease_status_recipe_juiced <- juice(disease_status_recipe_prepped)
+    assertthat::assert_that(!any(map_lgl(disease_status_recipe_juiced, ~any(is.na(.)))))
+    # names(disease_status_recipe_juiced)
 
-    # Set up parallel
-    all_cores <- parallel::detectCores(logical = FALSE)
-    cl <- parallel::makePSOCKcluster(all_cores)
-    doParallel::registerDoParallel(cl)
+    # set up parallel
+    registerDoMC(cores=parallel::detectCores())
 
     # Tune disease status model - first using a grid
     tic("pre-tuning disease status model (grid)")
     disease_status_tune_grid <- tune_grid(disease_status_workflow,
                                           resamples = disease_status_folds,
-                                          control = control_grid(verbose = TRUE))
+                                          control = control_grid(verbose = TRUE,
+                                                                 parallel_over = "everything"))
     toc()
     # ^ this takes about 24 hrs on aegypti
     write_rds(disease_status_tune_grid, here::here(paste0(output_directory, "/boost_tune_disease_status_grid.rds")))
-
-    parallel::stopCluster(cl = cl)
 
     ### Not running bayes tune
     # Tune disease status model - now with bayes, using tune grid as prior
@@ -107,11 +105,6 @@ repel_fit.nowcast_boost <- function(model_object,
     # Update workflow with selected parameters
     disease_status_workflow_tuned <- finalize_workflow(disease_status_workflow, disease_status_tuned_param)
 
-    # Set up parallel again
-    all_cores <- parallel::detectCores(logical = FALSE)
-    cl <- parallel::makePSOCKcluster(all_cores)
-    doParallel::registerDoParallel(cl)
-
     # Fit model with tuned parameters
     tic("Fit final disease status model")
     disease_status_fit <-  parsnip::fit(object = disease_status_workflow_tuned,
@@ -121,7 +114,6 @@ repel_fit.nowcast_boost <- function(model_object,
 
     write_rds(disease_status_fit, here::here(paste0(output_directory, "/boost_mod_disease_status.rds")))
     aws.s3::s3saveRDS(disease_status_fit, bucket = "repeldb/models", object = "boost_mod_disease_status.rds")
-    parallel::stopCluster(cl = cl)
   }
 
   # Case model ------------------------------------------------------------
@@ -135,7 +127,8 @@ repel_fit.nowcast_boost <- function(model_object,
     cases_recipe <-
       recipe(formula = cases ~ ., data = augmented_data_cases) %>%
       step_mutate(report_semester_1 = as.numeric(report_semester == 1)) %>%
-      step_rm(report_year, report_semester, disease_status, cases_missing_disease_present) %>%
+      step_rm(report_year, report_semester,
+              disease_status, disease_status_unreported, disease_status_lag1_unreported, disease_status_lag2_unreported, disease_status_lag3_unreported) %>%
       step_novel(all_nominal(), -all_outcomes()) %>%
       step_dummy(all_nominal(), -all_outcomes(), one_hot = TRUE) %>%
       step_zv(all_predictors()) %>%
@@ -170,9 +163,7 @@ repel_fit.nowcast_boost <- function(model_object,
     cases_folds <- vfold_cv(augmented_data_cases)
 
     # Set up parallel
-    all_cores <- parallel::detectCores(logical = FALSE)
-    cl <- parallel::makePSOCKcluster(all_cores)
-    doParallel::registerDoParallel(cl)
+    registerDoMC(cores=parallel::detectCores())
 
     # Tune cases model - first using a grid
     tic("pre-tuning cases model (grid)")
@@ -197,7 +188,6 @@ repel_fit.nowcast_boost <- function(model_object,
     # ^ this takes about 1 hr
     toc()
     write_rds(cases_tune_bayes, here::here(paste0(output_directory, "/boost_tune_cases_bayes.rds")))
-    parallel::stopCluster(cl = cl)
 
     # Read in tuned results and select best parameters
     cases_tune_bayes <- read_rds(here::here(paste0(output_directory, "/boost_tune_cases_bayes.rds")))
@@ -205,11 +195,6 @@ repel_fit.nowcast_boost <- function(model_object,
 
     # Update workflow with selected parameters
     cases_workflow_tuned <- finalize_workflow(cases_workflow, cases_tuned_param)
-
-    # Set up parallel again
-    all_cores <- parallel::detectCores(logical = FALSE)
-    cl <- parallel::makePSOCKcluster(all_cores)
-    doParallel::registerDoParallel(cl)
 
     # Fit model with tuned parameters
     tic("Fit final cases model")
@@ -219,7 +204,6 @@ repel_fit.nowcast_boost <- function(model_object,
     # ^ about 5 min
     write_rds(cases_fit, here::here(paste0(output_directory, "/boost_mod_cases.rds")))
     aws.s3::s3saveRDS(cases_fit, bucket = "repeldb/models", object = "boost_mod_cases.rds")
-    parallel::stopCluster(cl = cl)
   }
 }
 
