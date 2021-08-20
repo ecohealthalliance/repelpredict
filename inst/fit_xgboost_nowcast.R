@@ -22,10 +22,10 @@ repel_fit(model_object =  model_object,
           model = "disease_status",
           output_directory = "models")
 
-# repel_fit(model_object = model_object,
-#           augmented_data = augmented_data,
-#           model = "cases",
-#           output_directory = "models")
+repel_fit(model_object = model_object,
+          augmented_data = augmented_data,
+          model = "cases",
+          output_directory = "models")
 
 
 # Forecast on training ----------------------------------------------------

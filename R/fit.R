@@ -127,7 +127,8 @@ repel_fit.nowcast_boost <- function(model_object,
     cases_recipe <-
       recipe(formula = cases ~ ., data = augmented_data_cases) %>%
       step_mutate(report_semester_1 = as.numeric(report_semester == 1)) %>%
-      step_rm(report_year, report_semester, disease_status, disease_status_unreported) %>%
+      step_rm(report_year, report_semester,
+              disease_status, disease_status_unreported, disease_status_lag1_unreported, disease_status_lag2_unreported, disease_status_lag3_unreported) %>%
       step_novel(all_nominal(), -all_outcomes()) %>%
       step_dummy(all_nominal(), -all_outcomes(), one_hot = TRUE) %>%
       step_zv(all_predictors()) %>%
@@ -162,9 +163,7 @@ repel_fit.nowcast_boost <- function(model_object,
     cases_folds <- vfold_cv(augmented_data_cases)
 
     # Set up parallel
-    all_cores <- parallel::detectCores(logical = FALSE)-2
-    cl <- parallel::makePSOCKcluster(all_cores)
-    doParallel::registerDoParallel(cl)
+    registerDoMC(cores=parallel::detectCores())
 
     # Tune cases model - first using a grid
     tic("pre-tuning cases model (grid)")
@@ -189,7 +188,6 @@ repel_fit.nowcast_boost <- function(model_object,
     # ^ this takes about 1 hr
     toc()
     write_rds(cases_tune_bayes, here::here(paste0(output_directory, "/boost_tune_cases_bayes.rds")))
-    parallel::stopCluster(cl = cl)
 
     # Read in tuned results and select best parameters
     cases_tune_bayes <- read_rds(here::here(paste0(output_directory, "/boost_tune_cases_bayes.rds")))
@@ -197,11 +195,6 @@ repel_fit.nowcast_boost <- function(model_object,
 
     # Update workflow with selected parameters
     cases_workflow_tuned <- finalize_workflow(cases_workflow, cases_tuned_param)
-
-    # Set up parallel again
-    all_cores <- parallel::detectCores(logical = FALSE)-2
-    cl <- parallel::makePSOCKcluster(all_cores)
-    doParallel::registerDoParallel(cl)
 
     # Fit model with tuned parameters
     tic("Fit final cases model")
@@ -211,7 +204,6 @@ repel_fit.nowcast_boost <- function(model_object,
     # ^ about 5 min
     write_rds(cases_fit, here::here(paste0(output_directory, "/boost_mod_cases.rds")))
     aws.s3::s3saveRDS(cases_fit, bucket = "repeldb/models", object = "boost_mod_cases.rds")
-    parallel::stopCluster(cl = cl)
   }
 }
 
