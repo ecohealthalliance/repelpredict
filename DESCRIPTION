@@ -50,6 +50,6 @@ Suggests:
     lintr,
     roxygen2
 Remotes:
-  ecohealthalliance/repeldata,
-  cran/spatstat.geom@2.2-0
+    ecohealthalliance/repeldata,
+    cran/spatstat.geom@2.2-0
 Language: en-US
