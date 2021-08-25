@@ -335,7 +335,8 @@ repel_augment.network_model <- function(model_object, conn, newdata, sum_country
   assertthat::has_name(newdata, c("country_iso3c", "disease", "month", "outbreak_start",
                                   "outbreak_subsequent_month", "outbreak_ongoing", "endemic",
                                   "disease_country_combo_unreported"))
-  outbreak_status <- newdata
+  outbreak_status <- newdata %>%
+    select(-suppressWarnings(one_of("disease_name_uncleaned")))
 
    # add year column to support joins
   outbreak_status <- outbreak_status %>%
@@ -607,9 +608,6 @@ repel_augment.network_model <- function(model_object, conn, newdata, sum_country
   names(outbreak_status)[str_starts(names(outbreak_status), "trade_")] <- paste0("fao_",
                                                                                  names(outbreak_status)[str_starts(names(outbreak_status), "trade_")],
                                                                                  "_from_outbreaks")
-
-  augmented_newdata <- left_join(newdata, outbreak_status, by = c("country_iso3c", "disease", "month"))
-
-  return(augmented_newdata)
+  return(outbreak_status)
 }
 

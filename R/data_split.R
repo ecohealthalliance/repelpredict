@@ -68,7 +68,8 @@ repel_split.network_model <- function(model_object, conn){
                                  month = col_date(format = ""),
                                  validation_set = col_logical()
                                )) %>%
-    repel_clean_disease_names(model_object, .)
+    repel_clean_disease_names(model_object, .) %>%
+    select(-disease_name_uncleaned)
 
   all_dat <- repel_init(model_object, conn, outbreak_reports_events = NULL,
                         remove_single_country_disease = TRUE) %>%
