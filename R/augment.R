@@ -318,7 +318,11 @@ repel_augment.nowcast_gam <- function(model_object, conn, newdata, rare = 1000) 
 }
 
 
-#' Augment nowcast baseline model object
+#' Augment network model object
+#' @param model_object network model object
+#' @param conn connection to repel db
+#' @param newdata dataframe that has been preprocessed through `repel_init()` and optionally split into training/validation. contains country, disease, month, and outbreak status.
+#' @param sum_country_imports whether or not to sum all imports. FALSE results in data disaggregated by origin countries. Default is TRUE.
 #' @import repeldata dplyr tidyr dtplyr data.table
 #' @importFrom assertthat has_name assert_that
 #' @importFrom janitor make_clean_names
@@ -328,12 +332,10 @@ repel_augment.nowcast_gam <- function(model_object, conn, newdata, rare = 1000) 
 repel_augment.network_model <- function(model_object, conn, newdata, sum_country_imports = TRUE) {
 
   # check newdata has correct input vars
-  assertthat::has_name(newdata, c("country_iso3c", "disease", "month"))
-  newdata <- newdata %>%
-    select(country_iso3c, disease, month)
-
-  # start lookup table for augmenting
-  outbreak_status <- repel_split(model_object, conn)
+  assertthat::has_name(newdata, c("country_iso3c", "disease", "month", "outbreak_start",
+                                  "outbreak_subsequent_month", "outbreak_ongoing", "endemic",
+                                  "disease_country_combo_unreported"))
+  outbreak_status <- newdata
 
    # add year column to support joins
   outbreak_status <- outbreak_status %>%
@@ -341,8 +343,8 @@ repel_augment.network_model <- function(model_object, conn, newdata, sum_country
 
   # World Bank indicators
   wbi <-  tbl(conn, "worldbank_indicators") %>%
+    right_join(tidyr::expand(outbreak_status, country_iso3c, year),  by = c("country_iso3c", "year"), copy = TRUE) %>%
     collect() %>%
-    right_join(tidyr::expand(outbreak_status, country_iso3c, year),  by = c("country_iso3c", "year")) %>%
     arrange(country_iso3c, year) %>%
     group_split(country_iso3c) %>%
     map_dfr(~na_interp(., "gdp_dollars") %>%
@@ -355,7 +357,7 @@ repel_augment.network_model <- function(model_object, conn, newdata, sum_country
   outbreak_status <- left_join(outbreak_status, wbi,  by = c("country_iso3c", "year"))
 
   # taxa population
-  disease_taxa_lookup <- vroom::vroom(system.file("lookup", "disease_taxa_lookup.csv", package = "repelpredict")) %>%
+  disease_taxa_lookup <- vroom::vroom(system.file("lookup", "disease_taxa_lookup.csv", package = "repelpredict"), show_col_types = FALSE) %>%
     select(-disease_pre_clean)
 
   taxa_population <- tbl(conn, "country_taxa_population") %>%
@@ -367,19 +369,18 @@ repel_augment.network_model <- function(model_object, conn, newdata, sum_country
     rename(taxa_population = population) %>%
     right_join(tidyr::crossing(country_iso3c = unique(.$country_iso3c),
                                year = seq(min(.$year), max(outbreak_status$year)),
-                               taxa = unique(.$taxa))) %>%
+                               taxa = unique(.$taxa)), by = c("country_iso3c", "year", "taxa")) %>%
     arrange(country_iso3c, taxa, year) %>%
     group_split(country_iso3c, taxa) %>%
     map_dfr(~na_interp(., "taxa_population")) %>%
     select(-taxa_population) %>%
     rename(taxa_population = taxa_population_imputed) %>%
-    left_join(disease_taxa_lookup) %>%
+    left_join(disease_taxa_lookup, by = "taxa") %>%
     group_by(country_iso3c, year, disease) %>%
     summarize(target_taxa_population = sum(taxa_population, na.rm = TRUE)) %>%
     ungroup()
 
   outbreak_status <- left_join(outbreak_status, taxa_population,  by = c("country_iso3c", "year", "disease"))
-  # ^ may not be most reliable source
 
   # vet capacity
   vets <- tbl(conn, "annual_reports_veterinarians") %>%
@@ -412,15 +413,13 @@ repel_augment.network_model <- function(model_object, conn, newdata, sum_country
     select(country_origin = country_iso3c, month, disease)
 
   outbreak_status <- outbreak_status %>%
-    mutate(outbreak_start = as.integer(outbreak_start)) %>%
-    select(-validation_set)
-
+    mutate(outbreak_start = as.integer(outbreak_start))
 
   # set up country origin/destination combinations - origin is countries that have the disease present in the given month
   outbreak_status <- outbreak_status %>%
     left_join(disease_status_present, by = c("month", "disease")) %>%
     rename(country_destination = country_iso3c) %>%
-    mutate(country_origin = if_else(country_origin == country_destination, NA_character_, country_origin))
+    mutate(country_origin = if_else(country_origin == country_destination, NA_character_, country_origin)) # dont want to filter this out because there are outbreaks with no country origins - these should be in the dataset
 
   # bring in static vars
   connect_static <- tbl(conn, "connect_static_vars")  %>%
@@ -433,8 +432,14 @@ repel_augment.network_model <- function(model_object, conn, newdata, sum_country
 
   #assertthat::assert_that(!any(is.na(outbreak_status$shared_border)))
 
+  yearly_lookup <- outbreak_status %>%
+    distinct(country_destination, country_origin, year) %>%
+    drop_na(country_origin) %>%
+    mutate(year = as.character(year))
+
   # bring in yearly vars
-  connect_yearly <- DBI::dbReadTable(conn, "connect_yearly_vars") %>%
+  connect_yearly <- tbl(conn, "connect_yearly_vars") %>%
+    inner_join(yearly_lookup, copy = TRUE, by = c("country_origin", "country_destination", "year")) %>%
     collect() %>%
     mutate(year = as.integer(year))
 
@@ -468,12 +473,12 @@ repel_augment.network_model <- function(model_object, conn, newdata, sum_country
     trade_vars <- bind_rows(trade_vars, trade_vars_latest_add)
   }
 
-  ots_lookup <- DBI::dbReadTable(conn, "connect_ots_lookup") %>%
+  ots_lookup <- tbl(conn, "connect_ots_lookup") %>%
     collect() %>%
     mutate(source = "ots_trade_dollars") %>%
     select(product_code, group_name = product_fullname_english, source)
 
-  connect_fao_lookup <- DBI::dbReadTable(conn, "connect_fao_lookup") %>%
+  connect_fao_lookup <- tbl(conn, "connect_fao_lookup") %>%
     collect() %>%
     mutate(source = "fao_livestock_heads") %>%
     mutate(item_code = as.character(item_code)) %>%
@@ -493,7 +498,7 @@ repel_augment.network_model <- function(model_object, conn, newdata, sum_country
     left_join(trade_lookup,  by = c("product_code", "source")) %>%
     mutate(group_name = str_extract(group_name, "[^;]+"))
 
-  # sum trade vars over groups
+  # sum trade vars over groups (should be part of transform function for connect)
   trade_vars_groups_summed <- trade_vars %>%
     left_join(trade_vars_lookup, by = "name") %>%
     lazy_dt() %>%

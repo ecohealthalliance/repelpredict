@@ -86,6 +86,8 @@ repel_training <- function(x, ...){
 }
 
 #' Get cases training set (~80%)
+#' @param model_object network model object
+#' @param conn connection to repel db
 #' @import repeldata dplyr tidyr
 #' @return a tibble
 #' @export
@@ -110,6 +112,8 @@ repel_validation <- function(x, ...){
 }
 
 #' Hold out validation set (~20%)
+#' @param model_object network model object
+#' @param conn connection to repel db
 #' @import repeldata dplyr tidyr
 #' @return a tibble
 #' @export

@@ -6,6 +6,11 @@
 \usage{
 \method{repel_validation}{repel_model}(model_object, conn)
 }
+\arguments{
+\item{model_object}{network model object}
+
+\item{conn}{connection to repel db}
+}
 \value{
 a tibble
 }
