@@ -335,10 +335,11 @@ repel_augment.network_model <- function(model_object, conn, newdata, sum_country
   assertthat::has_name(newdata, c("country_iso3c", "disease", "month", "outbreak_start",
                                   "outbreak_subsequent_month", "outbreak_ongoing", "endemic",
                                   "disease_country_combo_unreported"))
-  outbreak_status <- newdata %>%
+
+   outbreak_status <- newdata %>%
     select(-suppressWarnings(one_of("disease_name_uncleaned")))
 
-   # add year column to support joins
+  # add year column to support joins
   outbreak_status <- outbreak_status %>%
     mutate(year = year(month))
 
@@ -408,8 +409,17 @@ repel_augment.network_model <- function(model_object, conn, newdata, sum_country
 
   outbreak_status <- left_join(outbreak_status, vets,  by = c("country_iso3c", "year"))
 
-  # which countries have disease outbreak in a given month
-  disease_status_present <- outbreak_status %>%
+  # which countries have disease outbreak in a given month - read from cached data - roundabout way of dealing with pre/post cleaned disease names
+  disease_status_present <- tbl(conn, "outbreak_reports_events") %>%
+    repel_clean_disease_names(model_object, .) %>%  # need to clean disease names to be able to do inner join
+    filter(disease %in% !!unique(outbreak_status$disease)) %>%
+    collect() %>%
+    select(-disease) %>%
+    rename(disease = disease_name_uncleaned) %>%
+    repel_init(model_object,
+               conn,
+               outbreak_reports_events = .,
+               remove_single_country_disease = FALSE) %>%
     filter(outbreak_start | outbreak_subsequent_month | endemic) %>%
     select(country_origin = country_iso3c, month, disease)
 
@@ -574,6 +584,14 @@ repel_augment.network_model <- function(model_object, conn, newdata, sum_country
       summarize_all(~sum(as.numeric(.), na.rm = TRUE)) %>%  #TODO DEAL WITH NAS in human movement
       ungroup() %>%
       as_tibble()
+  }else{
+    # for disaggregated imports, remove NAs in country_origins, unless there are no imports at all, as we do not want to lose country record
+    outbreak_status <- outbreak_status %>%
+      group_by(country_iso3c, disease, month) %>%
+      mutate(no_origin = all(is.na(country_origin))) %>%
+      ungroup() %>%
+      filter(!(!no_origin & is.na(country_origin))) %>% # removing na if country/disease has at least one country_origin
+      select(-no_origin)
   }
 
   # finishing touches
@@ -605,9 +623,13 @@ repel_augment.network_model <- function(model_object, conn, newdata, sum_country
            fao_livestock_heads_from_outbreaks = fao_livestock_heads,
            everything())
 
+
   names(outbreak_status)[str_starts(names(outbreak_status), "trade_")] <- paste0("fao_",
                                                                                  names(outbreak_status)[str_starts(names(outbreak_status), "trade_")],
                                                                                  "_from_outbreaks")
+
+
   return(outbreak_status)
+
 }
 
