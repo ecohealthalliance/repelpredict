@@ -463,7 +463,7 @@ repel_augment.network_model <- function(model_object, conn, newdata, sum_country
     pivot_longer(cols = -c("country_origin" , "country_destination",  "year" ))
 
   current_year <- lubridate::year(Sys.Date())
-  years_to_add = seq(from = max(trade_vars$year)+1, to = current_year)
+  years_to_add = seq(from = max(trade_vars$year, na.rm=TRUE)+1, to = current_year)
   trade_vars_latest <- trade_vars %>%
     filter(year == max(year))
 
