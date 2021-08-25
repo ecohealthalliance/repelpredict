@@ -21,7 +21,7 @@ repel_clean_disease_names.network_model <- function(model_object, df){
     disease_recode = col_character()
   ))
   df %>%
-    left_join(diseases_recode, by = "disease") %>%
+    left_join(diseases_recode, by = "disease", copy = TRUE) %>% # copy TRUE because sometimes cleaning names on the db connection
     select(-disease) %>%
     rename(disease = disease_recode)
 }
