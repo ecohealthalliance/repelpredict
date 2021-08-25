@@ -1,10 +1,12 @@
-#' define generic augment
+#' define generic function
 #' @export
 repel_init <- function(x, ...){
   UseMethod("repel_init")
 }
 
 #' Preprocess nowcast data
+#' @param model_object nowcast model object
+#' @param conn connection to repel db
 #' @import repeldata dplyr tidyr stringr
 #' @importFrom purrr map_chr
 #' @importFrom janitor get_dupes
@@ -28,7 +30,7 @@ repel_init.nowcast_model <- function(model_object, conn){
       cases = as.integer(sum_na(suppressWarnings(as.integer(cases)))),
       disease_status = str_flatten(sort(na.omit(unique(disease_status))), collapse = ","),
       control_measures = str_flatten(control_measures, collapse = "; ")
-      ) %>%
+    ) %>%
     ungroup() %>%
     mutate(control_measures = str_split(control_measures, "; ")) %>%
     mutate(control_measures = map(control_measures, ~str_flatten(sort(na.omit(unique(.))), collapse = "; "))) %>%
@@ -47,11 +49,18 @@ repel_init.nowcast_model <- function(model_object, conn){
 }
 
 
-#' Preprocess nowcast data
+#' Preprocess network data
+#' @param model_object network model object
+#' @param conn connection to repel db
+#' @param outbreak_reports_events optional to provide outbreak_reports_events dataframe. This is used when providing new data. Default is to read full outbreak_reports_events from conn for model fitting.
+#' @param remove_single_country_disease whether to remove diseases that occur in only one country. Default is TRUE for model fitting. Use FALSE for new data.
 #' @import repeldata dplyr tidyr stringr
 #' @importFrom lubridate floor_date ceiling_date
 #' @export
-repel_init.network_model <- function(model_object, conn){
+repel_init.network_model <- function(model_object,
+                                     conn,
+                                     outbreak_reports_events = NULL,
+                                     remove_single_country_disease = TRUE){
 
   current_month <- floor_date(Sys.Date(), unit = "month")
   current_year <- year(current_month)
@@ -61,21 +70,29 @@ repel_init.network_model <- function(model_object, conn){
   prev_year <- floor_date(current_month - 365,  unit = "month")
   next_century <- floor_date(current_month + 36500, unit = "month")
 
-  events <- tbl(conn, "outbreak_reports_events") %>%
-    collect() %>%
+  if(is.null(outbreak_reports_events)){
+    dat <- tbl(conn, "outbreak_reports_events") %>%
+      collect()
+  }else{
+    dat <- outbreak_reports_events
+  }
+
+  events <- dat %>%
     filter(!is.na(country_iso3c), country_iso3c != "NA") %>%
     mutate_at(vars(contains("date")), as.Date)
 
   # Remove disease that have have reports in only one country_iso3c
-  diseases_keep <- events %>%
-    group_by(disease) %>%
-    summarize(n_countries = length(unique(country_iso3c))) %>%
-    arrange(desc(n_countries)) %>%
-    filter(n_countries > 1 ) %>%
-    pull(disease)
+  if(remove_single_country_disease){
+    diseases_keep <- events %>%
+      group_by(disease) %>%
+      summarize(n_countries = length(unique(country_iso3c))) %>%
+      arrange(desc(n_countries)) %>%
+      filter(n_countries > 1 ) %>%
+      pull(disease)
 
-  events <- events %>%
-    filter(disease %in% diseases_keep)
+    events <- events %>%
+      filter(disease %in% diseases_keep)
+  }
 
   # dates handling
   events <- events %>%
@@ -104,7 +121,7 @@ repel_init.network_model <- function(model_object, conn){
           country_iso3c,
           disease,
           month = seq.Date(
-            from = floor_date(min(events$date_of_start_of_the_event, na.rm = TRUE), unit = "months"),
+            from =  ymd("2005-01-01"), # start of record keeping
             to = current_month,
             by = "months")), by = c("country_iso3c", "disease"))
 
@@ -117,11 +134,11 @@ repel_init.network_model <- function(model_object, conn){
 
   # identify endemic events
   endemic_status_present <- tbl(conn, "nowcast_boost_augment_predict")  %>% # this should have even coverage by country/disease up to latest reporting period
-    collect() %>%
-    mutate(cases = as.integer(predicted_cases)) %>%
+    inner_join(distinct(events, country_iso3c, disease), copy = TRUE,  by = c("disease", "country_iso3c")) %>%
     mutate(cases = coalesce(cases, predicted_cases)) %>%
     filter(cases > 0) %>%
     select(country_iso3c, report_year, report_semester, disease) %>%
+    collect() %>%
     mutate(report_year = as.integer(report_year)) %>%
     mutate(report_semester = as.integer(report_semester))
 
@@ -167,15 +184,20 @@ repel_init.network_model <- function(model_object, conn){
               disease_country_combo_unreported = all(disease_country_combo_unreported)) %>%
     ungroup() %>%
     mutate(outbreak_ongoing = outbreak_start|outbreak_subsequent_month)
+
   #mutate(endemic = ifelse(outbreak_start, FALSE, endemic))
   # ^ this last mutate covers cases where the outbreak makes it into the semester report. the first month of the outbreak should still count.
   # on the other hand, there are outbreaks that are reported when it really is already endemic, eg rabies, so commenting out for now
   # events %>% filter(outbreak_start, endemic) %>% View
 
   # remove diseases that do not affect primary taxa
-  disease_taxa_lookup <- vroom::vroom(system.file("lookup", "disease_taxa_lookup.csv", package = "repelpredict"))
+  disease_taxa_lookup <- vroom::vroom(system.file("lookup", "disease_taxa_lookup.csv", package = "repelpredict"), show_col_types = FALSE)
   events <- events %>%
     filter(disease %in% unique(disease_taxa_lookup$disease_pre_clean))
+
+  # clean disease names
+  events <- repel_clean_disease_names(model_object, df = events)
+  assertthat::assert_that(!any(is.na(unique(events$disease)))) # if this fails, rerun inst/nowcast_generate_disease_lookup.R
 
   return(events)
 }

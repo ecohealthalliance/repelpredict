@@ -6,6 +6,11 @@
 \usage{
 \method{repel_init}{nowcast_model}(model_object, conn)
 }
+\arguments{
+\item{model_object}{nowcast model object}
+
+\item{conn}{connection to repel db}
+}
 \description{
 Preprocess nowcast data
 }
