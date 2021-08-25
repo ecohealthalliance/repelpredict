@@ -587,7 +587,7 @@ repel_augment.network_model <- function(model_object, conn, newdata, sum_country
   }else{
     # for disaggregated imports, remove NAs in country_origins, unless there are no imports at all, as we do not want to lose country record
     outbreak_status <- outbreak_status %>%
-      group_by(country_iso3c, disease, month) %>%
+      group_by(country_destination, disease, month) %>%
       mutate(no_origin = all(is.na(country_origin))) %>%
       ungroup() %>%
       filter(!(!no_origin & is.na(country_origin))) %>% # removing na if country/disease has at least one country_origin
