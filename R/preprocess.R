@@ -104,7 +104,7 @@ repel_init.network_model <- function(model_object,
     group_by(outbreak_thread_id) %>%
     mutate(outbreak_start_month = min(c(report_month, date_of_start_of_the_event))) %>%
     mutate(outbreak_end_month = max(coalesce(date_event_resolved, report_month))) %>%  # outbreak end is date event resolved, if avail, or report month. the max accounts for instances where the resolved date is farther in the past than more recent reports in the same thread. see outbreak_thread_id == 10954
-    # ^ this assumes that if thread is not marked as resolved, use the last report date as the end month
+    # ^ this assumes that if thread is not marked as resolved, use the last report date as the end month (e.g., thread id 25600)
     # if it's been less than a year, however, keep the event as ongoing (use an end date in the future)
     mutate(outbreak_end_month = if_else(
       outbreak_end_month >= prev_year & all(is.na(date_event_resolved)),
@@ -142,7 +142,7 @@ repel_init.network_model <- function(model_object,
     mutate(report_year = as.integer(report_year)) %>%
     mutate(report_semester = as.integer(report_semester))
 
-  #assume last conditions are present conditions
+  # assume last conditions are present conditions
   endemic_status_present_latest <- endemic_status_present %>%
     mutate(report_period = report_year + (report_semester - 1)/2) %>%
     filter(report_period == max(report_period)) %>%
@@ -185,10 +185,15 @@ repel_init.network_model <- function(model_object,
     ungroup() %>%
     mutate(outbreak_ongoing = outbreak_start|outbreak_subsequent_month)
 
-  #mutate(endemic = ifelse(outbreak_start, FALSE, endemic))
-  # ^ this last mutate covers cases where the outbreak makes it into the semester report. the first month of the outbreak should still count.
-  # on the other hand, there are outbreaks that are reported when it really is already endemic, eg rabies, so commenting out for now
-  # events %>% filter(outbreak_start, endemic) %>% View
+  # db check 2021-08-27
+  # events %>% filter(outbreak_start) %>% nrow() # total outbreaks reported - 3327
+  # events %>% filter(outbreak_start & !outbreak_subsequent_month) %>% nrow() # total outbreaks reported when there isnt on ongoing outbreak - 2667
+  # events %>% filter(outbreak_start & !outbreak_subsequent_month & !endemic) %>% nrow() # total outbreaks reported when there isnt on ongoing outbreak AND it's not listed as endemic - 2415
+
+  # set outbreak start status to FALSE if it overlaps with subsequent months or endemic status
+  events <- events %>%
+    mutate(outbreak_start_while_ongoing_or_endemic = outbreak_start & (outbreak_subsequent_month|endemic)) %>%
+    mutate(outbreak_start = ifelse(outbreak_start_while_ongoing_or_endemic, FALSE, outbreak_start))
 
   # remove diseases that do not affect primary taxa
   disease_taxa_lookup <- vroom::vroom(system.file("lookup", "disease_taxa_lookup.csv", package = "repelpredict"), show_col_types = FALSE)

@@ -14,9 +14,8 @@ traindat <- vroom::vroom(here::here("tmp/network_traindat.csv.gz"))
 augmented_data <- repel_augment(model_object = model_object,
                                 conn = conn, newdata = traindat)
 
-vroom::vroom_write(augmented_data, gzfile("tmp/network_augmented_data.csv.gz"))
-augmented_data <- vroom::vroom(here::here("tmp/network_augmented_data.csv.gz"))
-
+# vroom::vroom_write(augmented_data, gzfile("tmp/network_augmented_data.csv.gz"))
+# augmented_data <- vroom::vroom(here::here("tmp/network_augmented_data.csv.gz"))
 # repel_remote_disconnect()
 
 # Fitting -----------------------------------------------------------------
