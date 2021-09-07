@@ -337,7 +337,7 @@ repel_augment.network_model <- function(model_object, conn, newdata, sum_country
                                   "disease_country_combo_unreported"))
 
    outbreak_status <- newdata %>%
-    select(-suppressWarnings(one_of("disease_name_uncleaned")))
+    select(-suppressWarnings(one_of("disease_name_uncleaned", "disease_in_single_country", "disease_primary_taxa")))
 
   # add year column to support joins
   outbreak_status <- outbreak_status %>%

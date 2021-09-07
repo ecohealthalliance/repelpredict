@@ -54,13 +54,15 @@ repel_init.nowcast_model <- function(model_object, conn){
 #' @param conn connection to repel db
 #' @param outbreak_reports_events optional to provide outbreak_reports_events dataframe. This is used when providing new data. Default is to read full outbreak_reports_events from conn for model fitting.
 #' @param remove_single_country_disease whether to remove diseases that occur in only one country. Default is TRUE for model fitting. Use FALSE for new data.
+#' @param remove_non_primary_taxa_disease whether to remove diseases that do not occur in previously identified taxa for that disease. Default is TRUE for model fitting. Use FALSE for new data.
 #' @import repeldata dplyr tidyr stringr
 #' @importFrom lubridate floor_date ceiling_date
 #' @export
 repel_init.network_model <- function(model_object,
                                      conn,
                                      outbreak_reports_events = NULL,
-                                     remove_single_country_disease = TRUE){
+                                     remove_single_country_disease = TRUE,
+                                     remove_non_primary_taxa_disease = TRUE){
 
   current_month <- floor_date(Sys.Date(), unit = "month")
   current_year <- year(current_month)
@@ -79,20 +81,16 @@ repel_init.network_model <- function(model_object,
 
   events <- dat %>%
     filter(!is.na(country_iso3c), country_iso3c != "NA") %>%
+    filter(!is_aquatic) %>%
     mutate_at(vars(contains("date")), as.Date)
 
-  # Remove disease that have have reports in only one country_iso3c
-  if(remove_single_country_disease){
-    diseases_keep <- events %>%
-      group_by(disease) %>%
-      summarize(n_countries = length(unique(country_iso3c))) %>%
-      arrange(desc(n_countries)) %>%
-      filter(n_countries > 1 ) %>%
-      pull(disease)
-
-    events <- events %>%
-      filter(disease %in% diseases_keep)
-  }
+  # identify disease that have have reports in only one country_iso3c
+  diseases_single_country <- events %>%
+    group_by(disease) %>%
+    summarize(n_countries = length(unique(country_iso3c))) %>%
+    arrange(desc(n_countries)) %>%
+    filter(n_countries == 1 ) %>%
+    pull(disease)
 
   # dates handling
   events <- events %>%
@@ -195,10 +193,24 @@ repel_init.network_model <- function(model_object,
     mutate(outbreak_start_while_ongoing_or_endemic = outbreak_start & (outbreak_subsequent_month|endemic)) %>%
     mutate(outbreak_start = ifelse(outbreak_start_while_ongoing_or_endemic, FALSE, outbreak_start))
 
-  # remove diseases that do not affect primary taxa
+  # add field for disease only in single country
+  events <- events %>%
+    mutate(disease_in_single_country = disease %in% diseases_single_country)
+
+  if(remove_single_country_disease){
+    events <- events %>%
+      filter(!disease_in_single_country)
+  }
+
+  # identify diseases that do not affect previously-identified taxa for disease
   disease_taxa_lookup <- vroom::vroom(system.file("lookup", "disease_taxa_lookup.csv", package = "repelpredict"), show_col_types = FALSE)
   events <- events %>%
-    filter(disease %in% unique(disease_taxa_lookup$disease_pre_clean))
+    mutate(disease_primary_taxa = disease %in% unique(disease_taxa_lookup$disease_pre_clean))
+
+  if(remove_non_primary_taxa_disease){
+  events <- events %>%
+    filter(disease_primary_taxa)
+  }
 
   # clean disease names
   events <- repel_clean_disease_names(model_object, df = events)

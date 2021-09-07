@@ -8,7 +8,8 @@
   model_object,
   conn,
   outbreak_reports_events = NULL,
-  remove_single_country_disease = TRUE
+  remove_single_country_disease = TRUE,
+  remove_non_primary_taxa_disease = TRUE
 )
 }
 \arguments{
@@ -19,6 +20,8 @@
 \item{outbreak_reports_events}{optional to provide outbreak_reports_events dataframe. This is used when providing new data. Default is to read full outbreak_reports_events from conn for model fitting.}
 
 \item{remove_single_country_disease}{whether to remove diseases that occur in only one country. Default is TRUE for model fitting. Use FALSE for new data.}
+
+\item{remove_non_primary_taxa_disease}{whether to remove diseases that do not occur in previously identified taxa for that disease. Default is TRUE for model fitting. Use FALSE for new data.}
 }
 \description{
 Preprocess network data
