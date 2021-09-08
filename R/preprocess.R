@@ -140,38 +140,43 @@ repel_init.network_model <- function(model_object,
     mutate(report_year = as.integer(report_year)) %>%
     mutate(report_semester = as.integer(report_semester))
 
-  # assume last conditions are present conditions
-  endemic_status_present_latest <- endemic_status_present %>%
-    mutate(report_period = report_year + (report_semester - 1)/2) %>%
-    filter(report_period == max(report_period)) %>%
-    tidyr::expand(.,
-                  country_iso3c,
-                  disease,
-                  report_period = as.character(format(seq(from = max(.$report_period), to = current_period, by = 0.5), nsmall = 1))) %>%
-    mutate(report_year = as.integer(str_sub(report_period, start = 1, end = 4))) %>%
-    mutate(report_semester = as.integer(str_sub(report_period, -1)) * 2 + 1 ) %>%
-    filter(report_period != min(report_period)) %>%
-    select(-report_period)
+  if(nrow(endemic_status_present)){ # check if there are any endemic reports for the diseases
 
-  endemic_status_present <- bind_rows(endemic_status_present, endemic_status_present_latest)
+    # assume last conditions are present conditions
+    endemic_status_present_latest <- endemic_status_present %>%
+      mutate(report_period = report_year + (report_semester - 1)/2) %>%
+      filter(report_period == max(report_period)) %>%
+      tidyr::expand(.,
+                    country_iso3c,
+                    disease,
+                    report_period = as.character(format(seq(from = max(.$report_period), to = current_period, by = 0.5), nsmall = 1))) %>%
+      mutate(report_year = as.integer(str_sub(report_period, start = 1, end = 4))) %>%
+      mutate(report_semester = as.integer(str_sub(report_period, -1)) * 2 + 1 ) %>%
+      filter(report_period != min(report_period)) %>%
+      select(-report_period)
 
-  year_lookup <- endemic_status_present %>%
-    distinct(report_semester, report_year) %>%
-    mutate(month = case_when(
-      report_semester == 1 ~ list(seq(1, 6)),
-      report_semester == 2 ~ list(seq(7, 12))))
-  year_lookup <- unnest(year_lookup, month) %>%
-    mutate(month = ymd(paste(report_year, month, "01")))
+    endemic_status_present <- bind_rows(endemic_status_present, endemic_status_present_latest)
 
-  endemic_status_present <- endemic_status_present %>%
-    left_join(year_lookup,  by = c("report_year", "report_semester")) %>%
-    select(country_iso3c, month, disease) %>%
-    mutate(endemic = TRUE) %>%
-    distinct()
+    year_lookup <- endemic_status_present %>%
+      distinct(report_semester, report_year) %>%
+      mutate(month = case_when(
+        report_semester == 1 ~ list(seq(1, 6)),
+        report_semester == 2 ~ list(seq(7, 12))))
+    year_lookup <- unnest(year_lookup, month) %>%
+      mutate(month = ymd(paste(report_year, month, "01")))
 
-  events <- events %>%
-    left_join(endemic_status_present, by = c("country_iso3c", "disease", "month")) %>%
-    mutate(endemic = replace_na(endemic, FALSE))
+    endemic_status_present <- endemic_status_present %>%
+      left_join(year_lookup,  by = c("report_year", "report_semester")) %>%
+      select(country_iso3c, month, disease) %>%
+      mutate(endemic = TRUE) %>%
+      distinct()
+
+    events <- events %>%
+      left_join(endemic_status_present, by = c("country_iso3c", "disease", "month")) %>%
+      mutate(endemic = replace_na(endemic, FALSE))
+  }else{ # no endemic reports
+    events$endemic <- FALSE
+  }
 
   # summarize to id subsequent and endemic
   events <- events %>%
@@ -208,8 +213,8 @@ repel_init.network_model <- function(model_object,
     mutate(disease_primary_taxa = disease %in% unique(disease_taxa_lookup$disease_pre_clean))
 
   if(remove_non_primary_taxa_disease){
-  events <- events %>%
-    filter(disease_primary_taxa)
+    events <- events %>%
+      filter(disease_primary_taxa)
   }
 
   # clean disease names
