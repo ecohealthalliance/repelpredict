@@ -602,6 +602,7 @@ repel_augment.network_model <- function(model_object, conn, newdata, sum_country
     mutate(disease_country_combo_unreported = disease_country_combo_unreported > 0) %>%
     mutate(outbreak_subsequent_month = outbreak_subsequent_month > 0) %>%
     mutate(outbreak_ongoing = outbreak_ongoing > 0) %>%
+    mutate(outbreak_start_while_ongoing_or_endemic = outbreak_start_while_ongoing_or_endemic > 0) %>%
     mutate(shared_border = as.integer(shared_border)) %>%
     mutate(log_human_population = prepvar(human_population, trans_fn = log10)) %>%
     select(-human_population) %>%
@@ -616,7 +617,7 @@ repel_augment.network_model <- function(model_object, conn, newdata, sum_country
            disease, month, log_gdp_dollars, log_human_population, log_target_taxa_population,
            log_veterinarians,
            outbreak_start,
-           outbreak_subsequent_month, outbreak_ongoing, endemic, disease_country_combo_unreported,
+           outbreak_subsequent_month, outbreak_ongoing, outbreak_start_while_ongoing_or_endemic, endemic, disease_country_combo_unreported,
            n_migratory_wildlife_from_outbreaks = n_migratory_wildlife,
            shared_borders_from_outbreaks = shared_border,
            ots_trade_dollars_from_outbreaks = ots_trade_dollars,
