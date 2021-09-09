@@ -336,7 +336,7 @@ repel_augment.network_model <- function(model_object, conn, newdata, sum_country
                                   "outbreak_subsequent_month", "outbreak_ongoing", "endemic",
                                   "disease_country_combo_unreported"))
 
-   outbreak_status <- newdata %>%
+  outbreak_status <- newdata %>%
     select(-suppressWarnings(one_of("disease_name_uncleaned", "disease_in_single_country", "disease_primary_taxa")))
 
   # add year column to support joins
@@ -474,14 +474,16 @@ repel_augment.network_model <- function(model_object, conn, newdata, sum_country
     pivot_longer(cols = -c("country_origin" , "country_destination",  "year" ))
 
   current_year <- lubridate::year(Sys.Date())
-  years_to_add = seq(from = max(trade_vars$year, na.rm=TRUE)+1, to = current_year)
-  trade_vars_latest <- trade_vars %>%
-    filter(year == max(year))
+  if(nrow(trade_vars)){
+    years_to_add = seq(from = max(trade_vars$year, na.rm=TRUE)+1, to = current_year)
+    trade_vars_latest <- trade_vars %>%
+      filter(year == max(year))
 
-  for(yr in years_to_add){
-    trade_vars_latest_add <- trade_vars_latest %>%
-      mutate(year = yr)
-    trade_vars <- bind_rows(trade_vars, trade_vars_latest_add)
+    for(yr in years_to_add){
+      trade_vars_latest_add <- trade_vars_latest %>%
+        mutate(year = yr)
+      trade_vars <- bind_rows(trade_vars, trade_vars_latest_add)
+    }
   }
 
   ots_lookup <- tbl(conn, "connect_ots_lookup") %>%
@@ -529,6 +531,12 @@ repel_augment.network_model <- function(model_object, conn, newdata, sum_country
 
   outbreak_status <- left_join(outbreak_status, trade_vars_groups_total, by = c("country_destination", "year", "country_origin"))
 
+  # certain cases where there will be no trade data
+  if(nrow(trade_vars_groups_total)==0){
+    outbreak_status$ots_trade_dollars_from_outbreaks <- 0
+    outbreak_status$fao_livestock_heads_from_outbreaks <- 0
+  }
+
   # do a pca on ots trade groups
   # pca_dat <- trade_vars_groups_summed %>%
   #   filter(source == "ots_trade_dollars" ) %>%
@@ -572,6 +580,8 @@ repel_augment.network_model <- function(model_object, conn, newdata, sum_country
   # outbreak_status <- left_join(outbreak_status, trade_vars_groups_summed,  by = c("country_destination", "year", "country_origin"))
   # vroom::vroom_write(outbreak_status, here::here("tmp/network_augment_expanded.csv"))
   # outbreak_status <- vroom(here::here("tmp/network_augment_expanded.csv"))
+
+
 
   if(sum_country_imports){
     # sum all incoming values into destination country
