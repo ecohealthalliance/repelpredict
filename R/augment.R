@@ -533,8 +533,8 @@ repel_augment.network_model <- function(model_object, conn, newdata, sum_country
 
   # certain cases where there will be no trade data
   if(nrow(trade_vars_groups_total)==0){
-    outbreak_status$ots_trade_dollars_from_outbreaks <- 0
-    outbreak_status$fao_livestock_heads_from_outbreaks <- 0
+    outbreak_status$ots_trade_dollars <- 0
+    outbreak_status$fao_livestock_heads <- 0
   }
 
   # do a pca on ots trade groups
