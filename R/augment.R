@@ -343,51 +343,39 @@ repel_augment.network_model <- function(model_object, conn, newdata, sum_country
   outbreak_status <- outbreak_status %>%
     mutate(year = year(month))
 
-  # World Bank indicators
-  wbi <-  tbl(conn, "worldbank_indicators") %>%
-    right_join(tidyr::expand(outbreak_status, country_iso3c, year),  by = c("country_iso3c", "year"), copy = TRUE) %>%
-    collect() %>%
-    arrange(country_iso3c, year) %>%
-    group_split(country_iso3c) %>%
-    map_dfr(~na_interp(., "gdp_dollars") %>%
-              na_interp(., "human_population")) %>%
-    select(-gdp_dollars,
-           -human_population) %>%
-    rename(gdp_dollars = gdp_dollars_imputed,
-           human_population = human_population_imputed)
+  ### country characteristics
+  # gdp
+  gdp <- tbl(conn,  "country_yearly_wb_gdp") %>%
+    select(country_iso3c, year, gdp_dollars) %>%
+    collect()
 
-  outbreak_status <- left_join(outbreak_status, wbi,  by = c("country_iso3c", "year"))
+  outbreak_status <- left_join(outbreak_status, gdp,  by = c("country_iso3c", "year"))
+
+  # human populations
+  hpop <- tbl(conn,  "country_yearly_wb_human_population") %>%
+    select(country_iso3c, year, human_population) %>%
+    collect()
+
+  outbreak_status <- left_join(outbreak_status, hpop,  by = c("country_iso3c", "year"))
 
   # taxa population
   disease_taxa_lookup <- vroom::vroom(system.file("lookup", "disease_taxa_lookup.csv", package = "repelpredict"), show_col_types = FALSE) %>%
     select(-disease_pre_clean)
 
-  taxa_population <- tbl(conn, "country_taxa_population") %>%
+  taxa_population <- tbl(conn, "country_yearly_fao_taxa_population") %>%
+    select(country_iso3c, year, taxa, population) %>%
     collect() %>%
-    mutate(taxa = ifelse(taxa %in% c("goats", "sheep"), "sheep/goats", taxa)) %>%
-    group_by(country_iso3c, year, taxa) %>%
-    summarize(population = sum(population, na.rm = TRUE)) %>%  # adds up all goats and sheep - should be done before imputation
-    ungroup() %>%
-    rename(taxa_population = population) %>%
-    right_join(tidyr::crossing(country_iso3c = unique(.$country_iso3c),
-                               year = seq(min(.$year), max(outbreak_status$year)),
-                               taxa = unique(.$taxa)), by = c("country_iso3c", "year", "taxa")) %>%
-    arrange(country_iso3c, taxa, year) %>%
-    group_split(country_iso3c, taxa) %>%
-    map_dfr(~na_interp(., "taxa_population")) %>%
-    select(-taxa_population) %>%
-    rename(taxa_population = taxa_population_imputed) %>%
     left_join(disease_taxa_lookup, by = "taxa") %>%
     group_by(country_iso3c, year, disease) %>%
-    summarize(target_taxa_population = sum(taxa_population, na.rm = TRUE)) %>%
+    summarize(target_taxa_population = sum(population, na.rm = TRUE)) %>%
     ungroup()
 
   outbreak_status <- left_join(outbreak_status, taxa_population,  by = c("country_iso3c", "year", "disease"))
 
   # vet capacity
+  #TODO this will be updated with the annual scraper (should have imputation incorporated upstream)
   vets <- tbl(conn, "annual_reports_veterinarians") %>%
-    collect() %>%
-    rename(year = report_year) %>%
+    select(country_iso3c, year = report_year, veterinarian_field, total_count) %>%
     filter(veterinarian_field %in% c(
       "animal health and welfare activities",
       "veterinary public health activities",
@@ -396,14 +384,14 @@ repel_augment.network_model <- function(model_object, conn, newdata, sum_country
       "academic activities and education",
       "pharmaceutical industry"
     )) %>%
+    collect() %>%
     group_by(country_iso3c, year) %>%
     summarize(veterinarian_count = sum_na(suppressWarnings(as.integer(total_count)))) %>% # summarize over different types of vets
-    ungroup() %>%
-    mutate(year = as.integer(year)) %>%
+    ungroup()  %>%
     right_join(tidyr::expand(outbreak_status, country_iso3c, year),  by = c("country_iso3c", "year")) %>%
     arrange(country_iso3c, year) %>%
     group_split(country_iso3c) %>%
-    map_dfr(~na_interp(., "veterinarian_count")) %>%
+    map_dfr(~repelpredict:::na_interp(., "veterinarian_count")) %>%
     select(-veterinarian_count) %>%
     rename(veterinarian_count = veterinarian_count_imputed)
 
@@ -419,7 +407,8 @@ repel_augment.network_model <- function(model_object, conn, newdata, sum_country
     repel_init(model_object,
                conn,
                outbreak_reports_events = .,
-               remove_single_country_disease = FALSE) %>%
+               remove_single_country_disease = FALSE,
+               remove_non_primary_taxa_disease = FALSE) %>%
     filter(outbreak_start | outbreak_subsequent_month | endemic) %>%
     select(country_origin = country_iso3c, month, disease)
 
@@ -432,156 +421,54 @@ repel_augment.network_model <- function(model_object, conn, newdata, sum_country
     rename(country_destination = country_iso3c) %>%
     mutate(country_origin = if_else(country_origin == country_destination, NA_character_, country_origin)) # dont want to filter this out because there are outbreaks with no country origins - these should be in the dataset
 
-  # bring in static vars
-  connect_static <- tbl(conn, "connect_static_vars")  %>%
+  ### static variables
+  # shared borders
+  borders <- tbl(conn, "connect_static_shared_borders") %>%
     collect() %>%
-    select(-n_migratory_birds, -gc_dist) %>%
-    mutate(shared_border = as.logical(shared_border)) %>%
+    mutate(shared_border = as.logical(shared_border))
+
+  outbreak_status <- left_join(outbreak_status, borders,  by = c("country_destination", "country_origin"))
+
+  # migratory wildlife
+  wildlife <- tbl(conn, "connect_static_iucn_wildlife_migration") %>%
+    collect() %>%
     mutate(n_migratory_wildlife = as.integer(n_migratory_wildlife))
 
-  outbreak_status <- left_join(outbreak_status, connect_static,  by = c("country_destination", "country_origin"))
+  outbreak_status <- left_join(outbreak_status, wildlife,  by = c("country_destination", "country_origin"))
 
   #assertthat::assert_that(!any(is.na(outbreak_status$shared_border)))
 
+  ### bring in yearly variables
   yearly_lookup <- outbreak_status %>%
     distinct(country_destination, country_origin, year) %>%
     drop_na(country_origin) %>%
-    mutate(year = as.character(year))
+    mutate(year = as.integer(year))
 
-  # bring in yearly vars
-  connect_yearly <- tbl(conn, "connect_yearly_vars") %>%
+  # livestock trade
+  livestock <- tbl(conn, "connect_yearly_fao_livestock_summary") %>%
     inner_join(yearly_lookup, copy = TRUE, by = c("country_origin", "country_destination", "year")) %>%
     collect() %>%
     mutate(year = as.integer(year))
 
-  # human movement vars
-  #  human_movement <- connect_yearly %>%
-  #   select(country_origin, # country with disease
-  #          country_destination, # country of interest
-  #          year, n_human_migrants) %>%
-  #   mutate_at(vars(starts_with("n_")), as.numeric)  %>%
-  #   arrange(country_origin, country_destination, year) %>%
-  #   group_split(country_origin, country_destination) %>%
-  #   map_dfr(~na_interp(., "n_human_migrants")) %>%
-  #   select(-n_human_migrants) %>%
-  #   rename(n_human_migrants = n_human_migrants_imputed)
-  #
-  # outbreak_status <- left_join(outbreak_status, human_movement, by = c("country_destination", "year", "country_origin"))
-
-  # trade vars
-  trade_vars <- connect_yearly %>%
-    select(-starts_with("n_")) %>%
-    pivot_longer(cols = -c("country_origin" , "country_destination",  "year" ))
-
-  current_year <- lubridate::year(Sys.Date())
-  if(nrow(trade_vars)){
-    years_to_add = seq(from = max(trade_vars$year, na.rm=TRUE)+1, to = current_year)
-    trade_vars_latest <- trade_vars %>%
-      filter(year == max(year))
-
-    for(yr in years_to_add){
-      trade_vars_latest_add <- trade_vars_latest %>%
-        mutate(year = yr)
-      trade_vars <- bind_rows(trade_vars, trade_vars_latest_add)
-    }
-  }
-
-  ots_lookup <- tbl(conn, "connect_ots_lookup") %>%
-    collect() %>%
-    mutate(source = "ots_trade_dollars") %>%
-    select(product_code, group_name = product_fullname_english, source)
-
-  connect_fao_lookup <- tbl(conn, "connect_fao_lookup") %>%
-    collect() %>%
-    mutate(source = "fao_livestock_heads") %>%
-    mutate(item_code = as.character(item_code)) %>%
-    rename(group_name = item, product_code = item_code)
-
-  trade_lookup <- bind_rows(ots_lookup, connect_fao_lookup)
-
-  trade_vars_lookup <- trade_vars %>%
-    distinct(name) %>%
-    mutate(product_code =  str_remove(name, "trade_dollars_|livestock_heads_")) %>%
-    mutate(source = case_when(
-      str_detect(name, "trade_dollars_") ~ "ots_trade_dollars",
-      str_detect(name, "livestock_heads_") ~ "fao_livestock_heads",
-      name == "n_human_migrants" ~ "un_human_migration",
-      name == "n_tourists" ~ "un_wto_tourism"
-    )) %>%
-    left_join(trade_lookup,  by = c("product_code", "source")) %>%
-    mutate(group_name = str_extract(group_name, "[^;]+"))
-
-  # sum trade vars over groups (should be part of transform function for connect)
-  trade_vars_groups_summed <- trade_vars %>%
-    left_join(trade_vars_lookup, by = "name") %>%
-    lazy_dt() %>%
-    mutate(value = as.numeric(value)) %>%
-    group_by(country_origin, country_destination, year, source, group_name) %>% # sum over groups
-    summarize(value = sum(value, na.rm = TRUE)) %>% # will turn all NAs into 0
-    ungroup() %>%
-    as_tibble()
-
-  # get total trade heads/dollars by source (fao, ots)
-  trade_vars_groups_total <- trade_vars_groups_summed %>%
-    group_by(country_origin, country_destination, year, source) %>%
-    summarize(value = sum(value)) %>%
-    ungroup() %>%
-    as_tibble() %>%
-    pivot_wider(names_from = source, values_from = value)
-
-  outbreak_status <- left_join(outbreak_status, trade_vars_groups_total, by = c("country_destination", "year", "country_origin"))
+  outbreak_status <- left_join(outbreak_status, livestock,  by = c("country_destination", "country_origin", "year"))
 
   # certain cases where there will be no trade data
-  if(nrow(trade_vars_groups_total)==0){
-    outbreak_status$ots_trade_dollars <- 0
+  if(nrow(livestock)==0){
     outbreak_status$fao_livestock_heads <- 0
   }
 
-  # do a pca on ots trade groups
-  # pca_dat <- trade_vars_groups_summed %>%
-  #   filter(source == "ots_trade_dollars" ) %>%
-  #   select(-source) %>%
-  #   pivot_wider(names_from = group_name, values_from = value) %>%
-  #   janitor::clean_names()
-  #
-  # pca <- prcomp(pca_dat %>% select(-country_origin, -country_destination, -year), )
-  # # summary(pca)
-  #
-  # pca_vals <- pca$rotation %>%
-  #   as_tibble() %>%
-  #   mutate(var = rownames(pca$rotation))
-  #
-  # # PC1 interp: high soy and corn
-  # pc1 <- pca_vals %>%
-  #   select(var, PC1) %>%
-  #   arrange(-abs(PC1))
-  #
-  # # PC2 interp: high trunks, fish, leather
-  # pc2 <- pca_vals %>%
-  #   select(var, PC2) %>%
-  #   arrange(-abs(PC2))
-  #
-  # pcout <- pca$x %>%
-  #   as_tibble() %>%
-  #   select(PC1, PC2) %>%
-  #   bind_cols(pca_dat %>% select(country_origin, country_destination, year), .) %>%
-  #   rename(ots_trade_pc1_soy_corn = PC1, ots_trade_pc2_trunks_fish_leather = PC2)
-  #
-  # outbreak_status <- left_join(outbreak_status, pcout, by = c("country_destination", "year", "country_origin"))
+  # ots trade
+  trade <- tbl(conn, "connect_yearly_ots_trade_summary") %>%
+    inner_join(yearly_lookup, copy = TRUE, by = c("country_origin", "country_destination", "year")) %>%
+    collect() %>%
+    mutate(year = as.integer(year))
 
-  # add in all the grouped summed trade values
-  # trade_vars_groups_summed <- trade_vars_groups_summed %>%
-  #   mutate(group_name = paste0("trade_", group_name)) %>%
-  #   select(-source) %>%
-  #   as_tibble() %>%
-  #   pivot_wider(names_from = group_name, values_from = value) %>%
-  #   janitor::clean_names()
-  #
-  # outbreak_status <- left_join(outbreak_status, trade_vars_groups_summed,  by = c("country_destination", "year", "country_origin"))
-  # vroom::vroom_write(outbreak_status, here::here("tmp/network_augment_expanded.csv"))
-  # outbreak_status <- vroom(here::here("tmp/network_augment_expanded.csv"))
+  outbreak_status <- left_join(outbreak_status, trade,  by = c("country_destination", "country_origin", "year"))
 
-
+  # certain cases where there will be no trade data
+  if(nrow(trade)==0){
+    outbreak_status$ots_trade_dollars <- 0
+  }
 
   if(sum_country_imports){
     # sum all incoming values into destination country
@@ -591,7 +478,7 @@ repel_augment.network_model <- function(model_object, conn, newdata, sum_country
       group_by(country_destination, disease, month, outbreak_start,
                gdp_dollars, human_population, target_taxa_population, veterinarian_count ## non-bilaterial values
       ) %>%
-      summarize_all(~sum(as.numeric(.), na.rm = TRUE)) %>%  #TODO DEAL WITH NAS in human movement
+      summarize_all(~sum(as.numeric(.), na.rm = TRUE)) %>%
       ungroup() %>%
       as_tibble()
   }else{
@@ -633,11 +520,6 @@ repel_augment.network_model <- function(model_object, conn, newdata, sum_country
            ots_trade_dollars_from_outbreaks = ots_trade_dollars,
            fao_livestock_heads_from_outbreaks = fao_livestock_heads,
            everything())
-
-
-  names(outbreak_status)[str_starts(names(outbreak_status), "trade_")] <- paste0("fao_",
-                                                                                 names(outbreak_status)[str_starts(names(outbreak_status), "trade_")],
-                                                                                 "_from_outbreaks")
 
 
   return(outbreak_status)
