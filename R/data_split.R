@@ -71,8 +71,10 @@ repel_split.network_model <- function(model_object, conn){
     repel_clean_disease_names(model_object, .) %>%
     select(-disease_name_uncleaned)
 
-  all_dat <- repel_init(model_object, conn, outbreak_reports_events = NULL,
-                        remove_single_country_disease = TRUE) %>%
+  all_dat <- repel_init(model_object, conn,
+                        outbreak_reports_events = NULL,
+                        remove_single_country_disease = TRUE,
+                        remove_non_primary_taxa_disease = TRUE) %>%
     arrange(country_iso3c, disease, month) %>%
     left_join(validation_split,  by = c("country_iso3c", "disease", "month"))
 
