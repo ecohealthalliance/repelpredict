@@ -50,12 +50,15 @@ repel_split.nowcast_model <- function(model_object, conn, clean_disease_names = 
   return(all_dat)
 }
 
+#' Lookup train/val split for network model data
 #' @import repeldata dplyr tidyr readr
 #' @importFrom DBI dbDisconnect
 #' @importFrom vroom vroom
 #' @importFrom here here
+#' @param model_object network model object
+#' @param conn connection to repel db
 #' @export
-repel_split.network_model <- function(model_object, conn, clean_disease_names = TRUE){
+repel_split.network_model <- function(model_object, conn){
 
   # read in static file from inst/network_generate_data_split_lookup.R
   validation_split <- vroom::vroom(system.file("lookup", "network_validation_split_lookup.csv.gz", package = "repelpredict"),
@@ -64,26 +67,18 @@ repel_split.network_model <- function(model_object, conn, clean_disease_names = 
                                  disease = col_character(),
                                  month = col_date(format = ""),
                                  validation_set = col_logical()
-                               ))
+                               )) %>%
+    repel_clean_disease_names(model_object, .) %>%
+    select(-disease_name_uncleaned)
 
-  all_dat <- repel_init(model_object, conn) %>%
+  all_dat <- repel_init(model_object, conn,
+                        outbreak_reports_events = NULL,
+                        remove_single_country_disease = TRUE,
+                        remove_non_primary_taxa_disease = TRUE) %>%
     arrange(country_iso3c, disease, month) %>%
     left_join(validation_split,  by = c("country_iso3c", "disease", "month"))
 
   assert_that(!any(is.na(all_dat$validation_set))) # if this fails, rerun inst/network_generate_data_split_lookup.R
-
-  if(clean_disease_names){
-    # from inst/network_generate_disease_lookup.R
-    diseases_recode <- vroom::vroom(system.file("lookup", "network_diseases_recode.csv",  package = "repelpredict"), col_types = cols(
-      disease = col_character(),
-      disease_recode = col_character()
-    ))
-    all_dat <- all_dat %>%
-      left_join(diseases_recode, by = "disease") %>%
-      select(-disease) %>%
-      rename(disease = disease_recode)
-    assertthat::assert_that(!any(is.na(unique(all_dat$disease)))) # if this fails, rerun inst/network_generate_disease_lookup.R
-  }
 
   return(all_dat)
 }
@@ -94,6 +89,8 @@ repel_training <- function(x, ...){
 }
 
 #' Get cases training set (~80%)
+#' @param model_object network model object
+#' @param conn connection to repel db
 #' @import repeldata dplyr tidyr
 #' @return a tibble
 #' @export
@@ -118,6 +115,8 @@ repel_validation <- function(x, ...){
 }
 
 #' Hold out validation set (~20%)
+#' @param model_object network model object
+#' @param conn connection to repel db
 #' @import repeldata dplyr tidyr
 #' @return a tibble
 #' @export

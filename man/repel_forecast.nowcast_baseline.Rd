@@ -6,6 +6,11 @@
 \usage{
 \method{repel_forecast}{nowcast_baseline}(model_object, conn, newdata)
 }
+\arguments{
+\item{model_object}{nowcast model object}
+
+\item{conn}{connection to repel db}
+}
 \description{
 forecast nowcast baseline model object
 }

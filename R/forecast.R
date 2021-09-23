@@ -6,6 +6,8 @@ repel_forecast <- function(x, ...){
 
 
 #' forecast nowcast baseline model object
+#' @param model_object nowcast model object
+#' @param conn connection to repel db
 #' @import repeldata dplyr tidyr
 #' @importFrom assertthat has_name assert_that
 #' @export
