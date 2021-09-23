@@ -373,27 +373,9 @@ repel_augment.network_model <- function(model_object, conn, newdata, sum_country
   outbreak_status <- left_join(outbreak_status, taxa_population,  by = c("country_iso3c", "year", "disease"))
 
   # vet capacity
-  #TODO this will be updated with the annual scraper (should have imputation incorporated upstream)
-  vets <- tbl(conn, "annual_reports_veterinarians") %>%
-    select(country_iso3c, year = report_year, veterinarian_field, total_count) %>%
-    filter(veterinarian_field %in% c(
-      "animal health and welfare activities",
-      "veterinary public health activities",
-      "laboratories",
-      "private clinical practice",
-      "academic activities and education",
-      "pharmaceutical industry"
-    )) %>%
-    collect() %>%
-    group_by(country_iso3c, year) %>%
-    summarize(veterinarian_count = sum_na(suppressWarnings(as.integer(total_count)))) %>% # summarize over different types of vets
-    ungroup()  %>%
-    right_join(tidyr::expand(outbreak_status, country_iso3c, year),  by = c("country_iso3c", "year")) %>%
-    arrange(country_iso3c, year) %>%
-    group_split(country_iso3c) %>%
-    map_dfr(~repelpredict:::na_interp(., "veterinarian_count")) %>%
-    select(-veterinarian_count) %>%
-    rename(veterinarian_count = veterinarian_count_imputed)
+  vets <- tbl(conn, "country_yearly_oie_vet_population" ) %>%
+    select(country_iso3c, year, veterinarian_count) %>%
+    collect()
 
   outbreak_status <- left_join(outbreak_status, vets,  by = c("country_iso3c", "year"))
 
