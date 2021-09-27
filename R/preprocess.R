@@ -166,7 +166,7 @@ repel_init.impact_model <- function(model_object, conn){
               initial_latitude = latitude[outbreak_start_date == min(outbreak_start_date, na.rm = TRUE)][1],
               initial_longitude = longitude[outbreak_start_date == min(outbreak_start_date, na.rm = TRUE)][1],
               outbreak_start_date = min(outbreak_start_date, na.rm = TRUE),
-              outbreak_end_date = max(outbreak_start_date, na.rm = TRUE),
+              outbreak_end_date = max(outbreak_end_date, na.rm = TRUE),
               outbreak_radius = get_bounding_radius(latitude = latitude, longitude = longitude)
 
     ) %>%

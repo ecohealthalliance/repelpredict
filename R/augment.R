@@ -575,15 +575,17 @@ repel_augment.network_model <- function(model_object, conn, newdata, sum_country
 #' @importFrom purrr map_dfc
 #' @export
 repel_augment.impact_model <- function(model_object, conn, newdata) {
-  wb <- tbl(conn, "worldbank_indicators") %>% collect()
+  wbp <- tbl(conn, "country_yearly_wb_human_population") %>% select(-imputed_value, -source) %>%  collect()
+  wbg <- tbl(conn, "country_yearly_wb_gdp") %>% select(-imputed_value, -source) %>% collect()
   dat <- newdata %>%
     mutate(year = year(outbreak_start_date)) %>%
-    left_join(wb, by = c("country_iso3c", "year"))
+    left_join(wbp, by = c("country_iso3c", "year")) %>%
+    left_join(wbg, by = c("country_iso3c", "year"))
   raster_vals <- purrr::map_dfc(
     c("raster_accessibility", "raster_gdp", "raster_worldpop"),
-      function(x) {
-        repeldata::get_raster_vals(conn, x, lon = dat$initial_longitude, lat = dat$initial_latitude)
-      }) %>%
+    function(x) {
+      repeldata::get_raster_vals(conn, x, lon = dat$initial_longitude, lat = dat$initial_latitude)
+    }) %>%
     rename(initial_latitude = lat...2, initial_longitude = lon...1) %>%
     select(-contains("...")) %>%
     distinct()
