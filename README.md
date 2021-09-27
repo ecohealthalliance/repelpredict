@@ -2,7 +2,7 @@
 
 An R package to predict from REPEL models and power the REPEL API
 
-## model fitting overview
+### model fitting overview
 
 Example workflows are in `inst/`. For example, `fit_xgboost_nowcast.R` fits the nowcast model using xgboost.
 
@@ -35,5 +35,8 @@ Fitted model objects are pushed to AWS S3.
 Model predictions for all disease + country + month combinations can be accessed with `get_disease_status_predict()`. This function returns a dataframe of disease status (reported/predicted), reported endemic/outbreak status, and predicted imported outbreak probability. 
 
 Network model variable importance can be summarized via `get_network_variable_importance()` and with disaggregated country origins via `get_network_variable_importance_with_origins()`. The function `get_network_origin_contribution_import_risk()` summarizes origin country contributions to import risk over all variables. See `inst/reports/asf-dominican-republic-2021/EHA-ASF-outbreak-in-DR-2021.rmd` for an example application of these functions.
+
+### model evaluation
+Model evaluation reports are in `inst/reports/`
 
 
