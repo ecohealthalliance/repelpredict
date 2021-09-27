@@ -20,7 +20,7 @@ get_network_variable_importance <- function(conn,
     filter(disease %in% !!diseases)  %>%
     filter(country_iso3c %in% !!country_iso3c) %>%
     filter(month == !!month) %>%
-    select(-db_network_etag, -outbreak_subsequent_month) %>%
+    select(-db_network_etag, -outbreak_subsequent_month, -id) %>%
     collect() %>%
     pivot_wider(names_from = continent, values_from = continent, names_prefix = "continent") %>%
     mutate_at(vars(starts_with("continent")), ~ifelse(!is.na(.), 1, NA)) %>%
@@ -71,7 +71,7 @@ get_network_variable_importance_with_origins <- function(conn,
     filter(disease %in% !!diseases)  %>%
     filter(country_iso3c %in% !!country_iso3c) %>%
     filter(month %in% !!month) %>%
-    select(-outbreak_subsequent_month) %>%
+    select(-outbreak_subsequent_month, -id) %>%
     rename(country_origin_iso3c = country_origin) %>%
     collect() %>%
     pivot_wider(names_from = continent, values_from = continent, names_prefix = "continent") %>%
@@ -89,7 +89,6 @@ get_network_variable_importance_with_origins <- function(conn,
   disagg_network_augment_predict <- disagg_network_augment_predict %>%
     left_join(randef_disease, by = c("disease", "variable")) %>%
     left_join(network_scaling_values, by = "variable") %>%
-    #TODO how to handle standardization for individual contributions????
     group_by(country_iso3c, disease, month, variable) %>%
     mutate(sum_x_standardized = (sum(x) - `mean`) / `sd`,
            sum_x = sum(x)) %>%
