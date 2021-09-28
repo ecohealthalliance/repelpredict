@@ -2,10 +2,10 @@
 % Please edit documentation in R/preprocess.R
 \name{repel_init}
 \alias{repel_init}
-\title{define generic augment}
+\title{define generic function}
 \usage{
 repel_init(x, ...)
 }
 \description{
-define generic augment
+define generic function
 }

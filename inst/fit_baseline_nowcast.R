@@ -2,9 +2,7 @@ devtools::load_all()
 library(tidyverse)
 
 #repeldata::repel_local_download()
-conn <- repeldata::repel_local_conn()
-
-#TODO fill lag as far back as need to, otherwise 0
+conn <- repeldata::repel_remote_conn()
 
 model_object <- nowcast_baseline_model()
 
@@ -15,7 +13,8 @@ traindat <- repel_training(model_object, conn) %>%
 augmented_data <- repel_augment(model_object = model_object, conn = conn, newdata = traindat)
 #assertthat::are_equal(nrow(traindat), nrow(augmented_data))
 # ^ there are some dupes in cases where both present and suspected have counts
-map(augmented_data, ~any(is.na(.))) # can be in cases and disease status only
+map(augmented_data, ~any(is.na(.))) # okay in disease_status_lag1_unreported (because these are missing reports)
+# also okay in cases - often status is reported but not cases. we make assumptions around this for lags, but it's not necessary for current cases in baseline
 
 predicted_cases <- repel_predict(model_object = model_object, newdata = augmented_data)
 
@@ -25,7 +24,7 @@ scored_data <- repel_score(model_object = model_object, augmented_data = augment
 newdata <- tibble(country_iso3c = "AFG",
                   report_year = rep(2016:2020, each = 2),
                   report_semester = rep(1:2, 5),
-                  disease = "foot-and-mouth disease",
+                  disease = "foot_and_mouth_disease",
                   disease_population = "domestic",
                   taxa = "cattle")
 

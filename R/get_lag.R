@@ -17,10 +17,10 @@ repel_lag.nowcast_model <- function(model_object, conn, newdata, lags = 1:3, con
   assertthat::assert_that(all(unique(newdata$taxa) %in% taxa_list))
 
   # start lookup table for augmenting
-  annual_reports_animal_hosts <- repel_split(model_object, conn)
+  six_month_reports_summary <- repel_split(model_object, conn)
 
   # add 2 semesters into future (to be able to pull lag from reports two years into future)
-  last_two <- annual_reports_animal_hosts %>%
+  last_two <- six_month_reports_summary %>%
     arrange(report_year, report_semester) %>%
     distinct(report_year, report_semester) %>%
     tail(2)
@@ -31,11 +31,11 @@ repel_lag.nowcast_model <- function(model_object, conn, newdata, lags = 1:3, con
     future_two <- tibble(report_year = c(max(last_two$report_year), max(last_two$report_year) + 1), report_semester = 2:1)
   }
 
-  future_reports <- annual_reports_animal_hosts %>%
+  future_reports <- six_month_reports_summary %>%
     distinct(country_iso3c, disease, disease_population, taxa) %>%
     expand_grid(future_two)
 
-  model_lookup <- annual_reports_animal_hosts %>%
+  model_lookup <- six_month_reports_summary %>%
     bind_rows(future_reports) %>%
     mutate(report_period = as.numeric(paste0(report_year, report_semester))) %>%
     left_join(expand(., nesting(country_iso3c, disease, disease_population, taxa), report_period), .,  by = c("country_iso3c", "disease", "disease_population", "taxa", "report_period")) %>%
