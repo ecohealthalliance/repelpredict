@@ -12,9 +12,18 @@ repel_init <- function(x, ...){
 #' @importFrom janitor get_dupes
 #' @importFrom assertthat are_equal
 #' @export
-repel_init.nowcast_model <- function(model_object, conn){
+repel_init.nowcast_model <- function(model_object,
+                                     conn,
+                                     six_month_reports_summary = NULL){
 
-  six_month_reports_summary <- tbl(conn, "six_month_reports_summary") %>%
+  if(is.null(six_month_reports_summary)){
+    dat <- tbl(conn, "six_month_reports_summary") %>%
+      collect()
+  }else{
+    dat <- six_month_reports_summary
+  }
+
+  six_month_reports <- dat %>%
     mutate(country_iso3c = toupper(country_iso3c)) %>%
     mutate(taxa = str_remove(taxa, " \\(mixed herd\\)")) %>%
     mutate(taxa = str_remove(taxa, " \\(mixed group\\)")) %>%
@@ -41,11 +50,11 @@ repel_init.nowcast_model <- function(model_object, conn){
                                    "absent,unreported" = "absent"
     ))
 
-  dup_test <- six_month_reports_summary %>%
+  dup_test <- six_month_reports %>%
     janitor::get_dupes(all_of(grouping_vars))
   assertthat::are_equal(0, nrow(dup_test))
 
-  return(six_month_reports_summary)
+  return(six_month_reports)
 }
 
 
