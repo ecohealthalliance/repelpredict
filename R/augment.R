@@ -76,7 +76,7 @@ repel_augment.nowcast_boost <- function(model_object, conn, newdata) {
     select(-starts_with("control_measures_lag"))
 
   # get summed lag values of adjacent countries
-  borders <- tbl(conn, "connect_static_vars") %>%
+  borders <- tbl(conn, "connect_static_shared_borders") %>%
     filter(shared_border == "TRUE") %>%
     select(country_origin, country_destination) %>%
     collect()
@@ -100,65 +100,41 @@ repel_augment.nowcast_boost <- function(model_object, conn, newdata) {
   lagged_newdata <- left_join(lagged_newdata, lagged_borders_sum, by = grouping_vars)
 
   # vet capacity
-  vets <- tbl(conn, "annual_reports_veterinarians") %>%
-    collect() %>%
-    filter(veterinarian_field %in% c(
-      "animal health and welfare activities",
-      "veterinary public health activities",
-      "laboratories",
-      "private clinical practice",
-      "academic activities and education",
-      "pharmaceutical industry"
-    )) %>%
-    group_by(country_iso3c, report_year) %>%
-    summarize(veterinarian_count = sum_na(suppressWarnings(as.integer(total_count)))) %>% # summarize over different types of vets
-    ungroup() %>%
-    mutate(report_year = as.integer(report_year)) %>%
-    right_join(expand(lagged_newdata, country_iso3c, report_year),  by = c("country_iso3c", "report_year")) %>%
-    mutate(veterinarian_count_missing = is.na(veterinarian_count)) %>%
-    arrange(country_iso3c, report_year) %>%
-    group_split(country_iso3c) %>%
-    map_dfr(~na_interp(., "veterinarian_count")) %>%
-    select(-veterinarian_count) %>%
-    rename(veterinarian_count = veterinarian_count_imputed)
+  vets <- tbl(conn, "country_yearly_oie_vet_population") %>%
+    rename(report_year = year,
+           veterinarian_count_missing = imputed_value) %>%
+    select(-source) %>%
+    collect()
 
   lagged_newdata <- left_join(lagged_newdata, vets, by = c("country_iso3c", "report_year"))
 
   # taxa population
-  taxa <- tbl(conn, "country_taxa_population") %>%
-    collect() %>%
-    mutate(taxa = ifelse(taxa %in% c("goats", "sheep"), "sheep/goats", taxa)) %>%
-    group_by(country_iso3c, year, taxa) %>%
-    summarize(population = sum(population, na.rm = TRUE)) %>%  # adds up all goats and sheep
-    ungroup() %>%
-    rename(report_year = year, taxa_population = population) %>%
-    right_join(expand(lagged_newdata, country_iso3c, report_year, taxa),  by = c("country_iso3c", "report_year", "taxa")) %>%
-    mutate(taxa_population_missing = is.na(taxa_population)) %>%
-    arrange(country_iso3c, taxa, report_year) %>%
-    group_split(country_iso3c, taxa) %>%
-    map_dfr(~na_interp(., "taxa_population")) %>%
-    select(-taxa_population) %>%
-    rename(taxa_population = taxa_population_imputed)
+  taxa <- tbl(conn, "country_yearly_fao_taxa_population") %>%
+    rename(report_year = year,
+           taxa_population_missing = imputed_value,
+           taxa_population = population) %>%
+    select(-source) %>%
+    collect()
 
   lagged_newdata <- left_join(lagged_newdata, taxa, by = c("country_iso3c", "report_year", "taxa"))
 
-  # World Bank indicators
-  wbi <-  tbl(conn, "worldbank_indicators") %>%
-    collect() %>%
-    rename(report_year = year) %>%
-    right_join(expand(lagged_newdata, country_iso3c, report_year),  by = c("country_iso3c", "report_year")) %>%
-    mutate(gdp_dollars_missing = is.na(gdp_dollars),
-           human_population_missing = is.na(human_population)) %>%
-    arrange(country_iso3c, report_year) %>%
-    group_split(country_iso3c) %>%
-    map_dfr(~na_interp(., "gdp_dollars") %>%
-              na_interp(., "human_population")) %>%
-    select(-gdp_dollars,
-           -human_population) %>%
-    rename(gdp_dollars = gdp_dollars_imputed,
-           human_population = human_population_imputed)
+  # gdp
+  gdp <- tbl(conn, "country_yearly_wb_gdp") %>%
+    rename(report_year = year,
+           gdp_dollars_missing = imputed_value) %>%
+    select(-source) %>%
+    collect()
 
-  lagged_newdata <- left_join(lagged_newdata, wbi,  by = c("country_iso3c", "report_year"))
+  lagged_newdata <- left_join(lagged_newdata, gdp, by = c("country_iso3c", "report_year"))
+
+  # human population
+  human_pop <- tbl(conn, "country_yearly_wb_human_population") %>%
+    rename(report_year = year,
+           human_population_missing = imputed_value) %>%
+    select(-source) %>%
+    collect()
+
+  lagged_newdata <- left_join(lagged_newdata, human_pop, by = c("country_iso3c", "report_year"))
 
   # remove rows from countries without GDP data?
   removing_gdp  <- lagged_newdata %>%
