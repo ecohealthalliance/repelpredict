@@ -9,20 +9,3 @@ na_empty <- function(x){
 sum_na <- function(x){
   ifelse(all(is.na(x)), NA_integer_, sum(as.numeric(x), na.rm = TRUE))
 }
-
-#' Adds more NA handling functionality to imputeTS::na_interpolation
-#' @import dplyr tidyr
-#' @importFrom imputeTS na_interpolation
-#' @noRd
-na_interp <- function(df, var){
-  if(sum(!is.na(df[,var])) == 0){
-    out <- mutate(df, !!paste0(var, "_imputed") := NA_integer_)
-  }
-  if(sum(!is.na(df[,var])) == 1){
-    out <- mutate(df,  !!paste0(var, "_imputed") := get(var)[!is.na(get(var))])
-  }
-  if(sum(!is.na(df[,var])) > 1){
-    out <- mutate(df,  !!paste0(var, "_imputed") := imputeTS::na_interpolation(get(var)))
-  }
-  return(out)
-}

@@ -4,7 +4,7 @@
 \alias{repel_init.nowcast_model}
 \title{Preprocess nowcast data}
 \usage{
-\method{repel_init}{nowcast_model}(model_object, conn)
+\method{repel_init}{nowcast_model}(model_object, conn, six_month_reports_summary = NULL)
 }
 \arguments{
 \item{model_object}{nowcast model object}
