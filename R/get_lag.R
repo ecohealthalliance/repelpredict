@@ -8,16 +8,9 @@ repel_lag <- function(x, ...){
 #' @import repeldata dplyr tidyr
 #' @importFrom assertthat has_name assert_that
 #' @export
-repel_lag.nowcast_model <- function(model_object, conn, newdata, lags = 1:3, control_measures = FALSE){
+repel_lag.nowcast_model <- function(model_object, conn, six_month_reports_summary = NULL, newdata, lags = 1:3, control_measures = FALSE){
 
-  # check newdata has correct input vars
-  assertthat::has_name(newdata, grouping_vars)
-
-  # check that taxa in newdata are relevant
-  assertthat::assert_that(all(unique(newdata$taxa) %in% taxa_list))
-
-  # start lookup table for augmenting
-  six_month_reports_summary <- repel_split(model_object, conn)
+  if(is.null(six_month_reports_summary))   six_month_reports_summary <- repel_split(model_object, conn)
 
   # add 2 semesters into future (to be able to pull lag from reports two years into future)
   last_two <- six_month_reports_summary %>%

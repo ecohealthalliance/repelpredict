@@ -54,8 +54,22 @@ repel_augment.nowcast_baseline <- function(model_object, conn, newdata) {
 #' @export
 repel_augment.nowcast_boost <- function(model_object, conn, newdata) {
 
+  # check newdata has correct input vars
+  assertthat::has_name(newdata, grouping_vars)
+
+  # check that taxa in newdata are relevant
+  assertthat::assert_that(all(unique(newdata$taxa) %in% taxa_list))
+
+  # start lookup table for lag augmenting
+  six_month_reports_summary <- repel_split(model_object, conn)
+
   # get lag cases
-  lagged_newdata <- repel_lag(model_object, conn, newdata, lags = 1:3, control_measures = TRUE)
+  lagged_newdata <- repel_lag(model_object,
+                              conn,
+                              six_month_reports_summary,
+                              newdata,
+                              lags = 1:3,
+                              control_measures = TRUE)
 
   # add continent
   lagged_newdata <- lagged_newdata %>%
@@ -87,7 +101,7 @@ repel_augment.nowcast_boost <- function(model_object, conn, newdata) {
     rename(country_origin = country_iso3c) %>%
     left_join(borders,  by = "country_origin") %>%
     rename(country_iso3c = country_destination) %>%
-    repel_lag(model_object, conn, newdata = ., lags = 1:3, control_measures = FALSE)
+    repel_lag(model_object, conn, six_month_reports_summary, newdata = ., lags = 1:3, control_measures = FALSE)
 
   lagged_borders_sum <- lagged_borders %>%
     select(-cases) %>%
@@ -168,7 +182,8 @@ repel_augment.nowcast_boost <- function(model_object, conn, newdata) {
                       "continent_given_taxa" = "continent",
                       "continent_any_taxa" = "continent"
     )
-    ever <- lagged_newdata
+
+    ever <- six_month_reports_summary # full six month dataset
 
     # get continents
     if(stringr::str_starts(iter, "continent")){
@@ -186,9 +201,9 @@ repel_augment.nowcast_boost <- function(model_object, conn, newdata) {
       arrange(grp_var, disease, report_year, report_semester) %>%
       # get whether disease has occurred within given grouping
       group_by(grp_var, disease, taxa, report_year, report_semester) %>%
-      summarize(disease_status = as.integer(1 %in% disease_status)) %>%
+      summarize(disease_status = as.integer("present" %in% disease_status)) %>%
       group_by(grp_var, disease, taxa) %>%
-      # teasing out first appearance and then inferring whether the disease has exisited before in given grouping
+      # teasing out first appearance and then inferring whether the disease has existed before in given grouping
       mutate(cumulative_disease_status = cumsum(disease_status)) %>%
       mutate(first_appearance = cumulative_disease_status == 1 & (row_number() == 1 | lag(cumulative_disease_status) == 0)) %>%
       mutate(ever_in_grp = case_when(first_appearance ~ 1)) %>%
@@ -233,13 +248,15 @@ repel_augment.nowcast_boost <- function(model_object, conn, newdata) {
       mutate_at(var, ~replace_na(., 0))
   }
 
-  # add column to indicate first year country reporting
-  lagged_newdata <- lagged_newdata %>%
+  # lookup if first year country reporting (from full dataset)
+  first_year <- six_month_reports_summary %>%
     mutate(report_period = as.integer(paste0(report_year, report_semester))) %>%
     group_by(country_iso3c) %>%
     mutate(first_reporting_semester = report_period == min(report_period)) %>%
     ungroup() %>%
-    select(-report_period)
+    distinct(country_iso3c, report_year, report_semester, first_reporting_semester)
+
+  lagged_newdata <- left_join(lagged_newdata, first_year)
 
   # final feature engineering - transformations etc
   lagged_newdata <- lagged_newdata %>%
