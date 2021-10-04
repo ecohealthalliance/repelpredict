@@ -4,7 +4,14 @@
 \alias{repel_lag.nowcast_model}
 \title{Get case and status lags}
 \usage{
-\method{repel_lag}{nowcast_model}(model_object, conn, newdata, lags = 1:3, control_measures = FALSE)
+\method{repel_lag}{nowcast_model}(
+  model_object,
+  conn,
+  six_month_reports_summary = NULL,
+  newdata,
+  lags = 1:3,
+  control_measures = FALSE
+)
 }
 \description{
 Get case and status lags
