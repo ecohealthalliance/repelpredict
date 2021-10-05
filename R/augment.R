@@ -65,7 +65,7 @@ repel_augment.nowcast_boost <- function(model_object, conn, newdata) {
     select(-suppressWarnings(one_of("disease_name_uncleaned")))
 
   # start lookup table for lag augmenting
-  six_month_reports_summary <- repel_split(model_object, conn)
+  six_month_reports_summary <- repel_init(model_object, conn, six_month_reports_summary = NULL)
 
   # get lag cases
   lagged_newdata <- repel_lag(model_object,
