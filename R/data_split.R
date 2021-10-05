@@ -26,9 +26,11 @@ repel_split.nowcast_model <- function(model_object, conn, clean_disease_names = 
                                      report_year = col_integer(),
                                      report_semester = col_integer(),
                                      validation_set = col_logical()
-                                   ))
+                                   )) %>%
+    repel_clean_disease_names(model_object, .) %>%
+    select(-disease_name_uncleaned)
 
-  all_dat <- repel_init(model_object, conn) %>%
+  all_dat <- repel_init(model_object, conn,  six_month_reports_summary = NULL) %>%
     arrange(country_iso3c, taxa, disease, disease_population, report_year, report_semester) %>%
     left_join(validation_split,  by = c("country_iso3c", "report_year", "report_semester", "taxa", "disease", "disease_population"))
 
@@ -36,19 +38,6 @@ repel_split.nowcast_model <- function(model_object, conn, clean_disease_names = 
     filter(is.na(validation_set))
   if(nrow(all_dat_na)) warning(paste("data missing from train/validation split:", nrow(all_dat_na), "rows of data "))
   # if given this warning, rerun inst/nowcast_generate_data_split_lookup.R
-
-  if(clean_disease_names){
-    # from inst/network_generate_disease_lookup.R
-    diseases_recode <- vroom::vroom(system.file("lookup", "nowcast_diseases_recode.csv",  package = "repelpredict"), col_types = cols(
-      disease = col_character(),
-      disease_recode = col_character()
-    ))
-    all_dat <- all_dat %>%
-      left_join(diseases_recode, by = "disease") %>%
-      select(-disease) %>%
-      rename(disease = disease_recode)
-    assertthat::assert_that(!any(is.na(unique(all_dat$disease)))) # if this fails, rerun inst/nowcast_generate_disease_lookup.R
-  }
 
   return(all_dat)
 }

@@ -54,6 +54,10 @@ repel_init.nowcast_model <- function(model_object,
     janitor::get_dupes(all_of(grouping_vars))
   assertthat::are_equal(0, nrow(dup_test))
 
+  # clean disease names
+  six_month_reports <- repel_clean_disease_names(model_object, df = six_month_reports)
+  assertthat::assert_that(!any(is.na(unique(six_month_reports$disease)))) # if this fails, rerun inst/nowcast_generate_disease_lookup.R
+
   return(six_month_reports)
 }
 
