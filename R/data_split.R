@@ -14,7 +14,7 @@ repel_split <- function(x, ...){
 #' @importFrom vroom vroom
 #' @importFrom here here
 #' @export
-repel_split.nowcast_model <- function(model_object, conn, clean_disease_names = TRUE){
+repel_split.nowcast_model <- function(model_object, conn){
 
   # read in static file from inst/nowcast_generate_data_split_lookup.R
   validation_split <- vroom::vroom(system.file("lookup", "nowcast_validation_split_lookup.csv.gz", package = "repelpredict"),

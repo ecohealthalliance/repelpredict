@@ -7,6 +7,7 @@ repel_init <- function(x, ...){
 #' Preprocess nowcast data
 #' @param model_object nowcast model object
 #' @param conn connection to repel db
+#' @param six_month_reports_summary optional to provide six_month_reports_summary dataframe. This is used when providing new data. Default is to read full six_month_reports_summary from conn for model fitting.
 #' @import repeldata dplyr tidyr stringr
 #' @importFrom purrr map_chr
 #' @importFrom janitor get_dupes

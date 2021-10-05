@@ -2,10 +2,17 @@
 % Please edit documentation in R/augment.R
 \name{repel_augment.nowcast_boost}
 \alias{repel_augment.nowcast_boost}
-\title{Augment nowcast bart model object}
+\title{Augment nowcast boost model object}
 \usage{
 \method{repel_augment}{nowcast_boost}(model_object, conn, newdata)
 }
+\arguments{
+\item{model_object}{nowcast model object}
+
+\item{conn}{connection to repel db}
+
+\item{newdata}{dataframe that has been preprocessed through \code{repel_init()} and optionally split into training/validation. contains country_iso3c, report_year, report_semester, disease, disease_population, taxa}
+}
 \description{
-Augment nowcast bart model object
+Augment nowcast boost model object
 }

@@ -10,6 +10,8 @@
 \item{model_object}{nowcast model object}
 
 \item{conn}{connection to repel db}
+
+\item{six_month_reports_summary}{optional to provide six_month_reports_summary dataframe. This is used when providing new data. Default is to read full six_month_reports_summary from conn for model fitting.}
 }
 \description{
 Preprocess nowcast data

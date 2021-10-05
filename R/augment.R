@@ -44,8 +44,10 @@ repel_augment.nowcast_baseline <- function(model_object, conn, newdata) {
   return(lagged_newdata)
 }
 
-#' Augment nowcast bart model object
-#'
+#' Augment nowcast boost model object
+#' @param model_object nowcast model object
+#' @param conn connection to repel db
+#' @param newdata dataframe that has been preprocessed through `repel_init()` and optionally split into training/validation. contains country_iso3c, report_year, report_semester, disease, disease_population, taxa
 #' @import repeldata dplyr tidyr
 #' @importFrom assertthat has_name assert_that
 #' @importFrom here here
