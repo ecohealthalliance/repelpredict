@@ -13,7 +13,7 @@ repel_augment <- function(x, ...){
 #' @export
 repel_augment.nowcast_baseline <- function(model_object, conn, newdata) {
 
-  lagged_newdata <- repel_lag(model_object, conn, newdata, lags = 1, control_measures = FALSE)
+  lagged_newdata <- repel_lag(model_object, conn, six_month_reports_summary = NULL, newdata, lags = 1, control_measures = FALSE)
 
   ds_names <- names(lagged_newdata)[str_detect(names(lagged_newdata), "disease_status")]
   for(ds in ds_names){
