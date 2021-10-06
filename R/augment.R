@@ -47,8 +47,8 @@ repel_augment.nowcast_baseline <- function(model_object, conn, newdata) {
 #' Augment nowcast boost model object
 #' @param model_object nowcast model object
 #' @param conn connection to repel db
-#' @param newdata dataframe that contains country_iso3c, report_year, report_semester, disease, disease_population, taxa. augment will perform lag lookup on this data.
-#' @param six_month_processed_lagged dataframe has lags. Skips the step of performing lookup here.
+#' @param subset optional dataframe that contains country_iso3c, report_year, report_semester, disease, disease_population, taxa. Used to subset the output (e.g., for validation/training)
+#' @param six_month_processed optional dataframe that has been processed by repel_init(). If not provided, it will be generated here.
 #' @import repeldata dplyr tidyr
 #' @importFrom assertthat has_name assert_that
 #' @importFrom here here
@@ -57,35 +57,15 @@ repel_augment.nowcast_baseline <- function(model_object, conn, newdata) {
 #' @export
 repel_augment.nowcast_boost <- function(model_object,
                                         conn,
-                                        newdata = NULL,
-                                        six_month_processed_lagged = NULL # option to provide lagged data or to generate it
-                                        ) {
+                                        subset = NULL,
+                                        six_month_processed = NULL) {
 
-  # can either provide six_month_processed_lagged and do augment on the full dataset OR provide newdata and generate lookup here
-  if(is.null(newdata) & is.null(six_month_processed_lagged)) stop("Must provide either newdata or six_month_processed_lagged")
-  if(!is.null(newdata) & !is.null(six_month_processed_lagged)) stop("Must provide newdata OR six_month_processed_lagged, not both")
-
-  # check newdata has correct input vars
-  # assertthat::has_name(newdata, grouping_vars)
-  # newdata <- newdata %>%
-  #   select(all_of(grouping_vars))
-
-  # check that taxa in newdata are relevant
-  # assertthat::assert_that(all(unique(newdata$taxa) %in% taxa_list))
-
-  # get lag cases
-  if(is.null(six_month_processed_lagged)){
-    #TODO refactor repel_lag here
-    # lagged_newdata <- repel_lag(model_object,
-    #                             conn,
-    #                             six_month_reports_summary,
-    #                             newdata,
-    #                             lags = 1:3,
-    #                             control_measures = TRUE)
+  if(is.null(six_month_processed)) {
+    six_month_processed <- repel_init(model_object, conn, six_month_reports_summary = NULL)
   }
 
-
-  # newdata_augmented <- left_join(newdata, six_month_processed_lagged, by = grouping_vars)
+  # get lag cases
+  six_month_processed_lagged <- get_lag(six_month_processed, lags = 3)
 
   # add continent
   six_month_augmented <- six_month_processed_lagged %>%
@@ -112,7 +92,7 @@ repel_augment.nowcast_boost <- function(model_object,
     collect()
 
   six_month_processed_lagged_borders <- six_month_processed_lagged %>%
-    select(all_of(grouping_vars), starts_with("cases")) %>%
+    select(all_of(grouping_vars), starts_with("cases_lag")) %>%
     rename(country_border = country_iso3c)
 
   lagged_borders <- six_month_augmented %>%
@@ -122,7 +102,6 @@ repel_augment.nowcast_boost <- function(model_object,
     left_join(six_month_processed_lagged_borders, by = c("report_year", "report_semester", "disease", "disease_population", "taxa", "country_border"))
 
   lagged_borders_sum <- lagged_borders %>%
-    select(-cases) %>%
     pivot_longer(cols = c(cases_lag1, cases_lag2, cases_lag3)) %>%
     group_by(country_iso3c, disease, disease_population, taxa, report_year, report_semester) %>%
     summarize(cases_lag_sum_border_countries = sum_na(as.integer(value))) %>%
@@ -200,7 +179,7 @@ repel_augment.nowcast_boost <- function(model_object,
                       "continent_any_taxa" = "continent"
     )
 
-    ever <- six_month_processed_lagged # full six month dataset
+    ever <- six_month_processed # full six month dataset
 
     # get continents
     if(stringr::str_starts(iter, "continent")){
@@ -266,7 +245,7 @@ repel_augment.nowcast_boost <- function(model_object,
   }
 
   # lookup if first year country reporting (from full dataset)
-  first_year <- six_month_processed_lagged %>%
+  first_year <- six_month_processed %>%
     mutate(report_period = as.integer(paste0(report_year, report_semester))) %>%
     group_by(country_iso3c) %>%
     mutate(first_reporting_semester = report_period == min(report_period)) %>%
@@ -289,6 +268,7 @@ repel_augment.nowcast_boost <- function(model_object,
     mutate_if(is.character, as.factor) %>%
     mutate_if(is.logical, as.double) %>%
     #reorder
+    select(-control_measures) %>%
     select(report_year, report_semester, disease, taxa, country_iso3c, continent, disease_population,
            starts_with("cases"),  starts_with("disease_status"),
            starts_with("ever_in"),
@@ -301,6 +281,21 @@ repel_augment.nowcast_boost <- function(model_object,
            everything()) # make sure we don't accidentally drop any columns
 
   assertthat::assert_that(!any(map_lgl(six_month_augmented, ~any(is.infinite(.)))))
+
+  # if there is a subset of data, apply filter here
+  if(!is.null(subset)){
+    # check subset has correct input vars
+    assertthat::has_name(subset, grouping_vars)
+    subset <- subset %>%
+      select(all_of(grouping_vars))
+
+    # check that taxa in subset are relevant
+    assertthat::assert_that(all(unique(subset$taxa) %in% taxa_list))
+
+    # left join
+    six_month_augmented <- left_join(subset, six_month_augmented)
+  }
+
   return(six_month_augmented)
 }
 

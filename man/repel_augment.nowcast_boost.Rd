@@ -4,21 +4,16 @@
 \alias{repel_augment.nowcast_boost}
 \title{Augment nowcast boost model object}
 \usage{
-\method{repel_augment}{nowcast_boost}(
-  model_object,
-  conn,
-  newdata = NULL,
-  six_month_processed_lagged = NULL
-)
+\method{repel_augment}{nowcast_boost}(model_object, conn, subset = NULL, six_month_processed = NULL)
 }
 \arguments{
 \item{model_object}{nowcast model object}
 
 \item{conn}{connection to repel db}
 
-\item{newdata}{dataframe that contains country_iso3c, report_year, report_semester, disease, disease_population, taxa. augment will perform lag lookup on this data.}
+\item{subset}{optional dataframe that contains country_iso3c, report_year, report_semester, disease, disease_population, taxa. Used to subset the output (e.g., for validation/training)}
 
-\item{six_month_processed_lagged}{dataframe has lags. Skips the step of performing lookup here.}
+\item{six_month_processed}{optional dataframe that has been processed by repel_init(). If not provided, it will be generated here.}
 }
 \description{
 Augment nowcast boost model object
