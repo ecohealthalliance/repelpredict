@@ -6,42 +6,53 @@ repel_augment <- function(x, ...){
 
 
 #' Augment nowcast baseline model object
+#' @param model_object nowcast model object
+#' @param conn connection to repel db
+#' @param subset optional dataframe that contains country_iso3c, report_year, report_semester, disease, disease_population, taxa. Used to subset the output (e.g., for validation/training)
+#' @param six_month_processed optional dataframe that has been processed by repel_init(). If not provided, it will be generated here.
 #' @import repeldata dplyr tidyr
 #' @importFrom assertthat has_name assert_that
 #' @importFrom janitor make_clean_names
 #' @importFrom purrr map_dfr
 #' @export
-repel_augment.nowcast_baseline <- function(model_object, conn, newdata) {
+repel_augment.nowcast_baseline <- function(model_object, conn,
+                                           subset = NULL,
+                                           six_month_processed = NULL) {
 
-  lagged_newdata <- repel_lag(model_object, conn, six_month_reports_summary = NULL, newdata, lags = 1, control_measures = FALSE)
+  if(is.null(six_month_processed)) {
+    six_month_processed <- repel_init(model_object, conn, six_month_reports_summary = NULL)
+  }
 
-  ds_names <- names(lagged_newdata)[str_detect(names(lagged_newdata), "disease_status")]
+  # get lag cases
+  six_month_processed_lagged <- get_lag(six_month_processed, lags = 1)
+
+  six_month_augmented <- six_month_processed_lagged %>%
+    select(-starts_with("control_measures"))
+
+  # recode disease status - assuming unreported is absent - but mark as unreported
+  ds_names <- names(six_month_augmented)[str_detect(names(six_month_augmented), "disease_status")]
   for(ds in ds_names){
-    lagged_newdata <- lagged_newdata %>%
+    six_month_augmented <- six_month_augmented %>%
       mutate(!!paste0(ds, "_unreported") := as.integer(!!sym(ds)  == "unreported"))
   }
-  lagged_newdata <- lagged_newdata %>%
+  six_month_augmented <- six_month_augmented %>%
     mutate_at(ds_names, ~as.integer(recode(., "present" = 1, "unreported" = 0, "absent" = 0)))
 
-  lag_vars <- colnames(lagged_newdata)[str_detect(names(lagged_newdata), "disease_status_lag|cases_lag")]
-  lag_vars <- lag_vars[!lag_vars %in% "disease_status_lag1_unreported"]
-  for(var in lag_vars){
-    lagged_newdata <- lagged_newdata %>%
-      mutate(!!paste0(var, "_missing") := as.integer(is.na(get(var)))) %>%
-      mutate_at(var, ~replace_na(., 0))
+  # if there is a subset of data, apply filter here
+  if(!is.null(subset)){
+    # check subset has correct input vars
+    assertthat::has_name(subset, grouping_vars)
+    subset <- subset %>%
+      select(all_of(grouping_vars))
+
+    # check that taxa in subset are relevant
+    assertthat::assert_that(all(unique(subset$taxa) %in% taxa_list))
+
+    # left join
+    six_month_augmented <- left_join(subset, six_month_augmented)
   }
 
-  # disease name lookup/clean
-  disease_lookup <- lagged_newdata %>%
-    distinct(disease) %>%
-    mutate(disease_clean = janitor::make_clean_names(disease))
-
-  lagged_newdata <- lagged_newdata %>%
-    left_join(disease_lookup, by = "disease") %>%
-    select(-disease) %>%
-    rename(disease = disease_clean)
-
-  return(lagged_newdata)
+  return(six_month_augmented)
 }
 
 #' Augment nowcast boost model object
@@ -228,10 +239,10 @@ repel_augment.nowcast_boost <- function(model_object,
   for(sc in scenarios){
     if(stringr::str_ends(sc, "any_taxa")){
       six_month_augmented <- left_join(six_month_augmented, ever[[sc]],
-                                  by = c("country_iso3c", "report_year", "report_semester", "disease"))
+                                       by = c("country_iso3c", "report_year", "report_semester", "disease"))
     }else{
       six_month_augmented <- left_join(six_month_augmented, ever[[sc]],
-                                  by = c("country_iso3c", "report_year", "report_semester", "disease", "taxa"))
+                                       by = c("country_iso3c", "report_year", "report_semester", "disease", "taxa"))
     }
   }
 
