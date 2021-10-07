@@ -14,38 +14,30 @@ repel_split <- function(x, ...){
 #' @importFrom vroom vroom
 #' @importFrom here here
 #' @export
-repel_split.nowcast_model <- function(model_object, conn, clean_disease_names = TRUE){
+repel_split.nowcast_model <- function(model_object, conn){
 
   # read in static file from inst/nowcast_generate_data_split_lookup.R
   validation_split <- vroom::vroom(system.file("lookup", "nowcast_validation_split_lookup.csv.gz", package = "repelpredict"),
-                               col_types = cols(
-                                 country_iso3c = col_character(),
-                                 taxa = col_character(),
-                                 disease = col_character(),
-                                 disease_population = col_character(),
-                                 report_year = col_integer(),
-                                 report_semester = col_integer(),
-                                 validation_set = col_logical()
-                               ))
+                                   col_types = cols(
+                                     country_iso3c = col_character(),
+                                     taxa = col_character(),
+                                     disease = col_character(),
+                                     disease_population = col_character(),
+                                     report_year = col_integer(),
+                                     report_semester = col_integer(),
+                                     validation_set = col_logical()
+                                   )) %>%
+    repel_clean_disease_names(model_object, .) %>%
+    select(-disease_name_uncleaned)
 
-  all_dat <- repel_init(model_object, conn) %>%
+  all_dat <- repel_init(model_object, conn,  six_month_reports_summary = NULL) %>%
     arrange(country_iso3c, taxa, disease, disease_population, report_year, report_semester) %>%
     left_join(validation_split,  by = c("country_iso3c", "report_year", "report_semester", "taxa", "disease", "disease_population"))
 
-  assert_that(!any(is.na(all_dat$validation_set)))  # if this fails, rerun inst/nowcast_generate_data_split_lookup.R
-
-  if(clean_disease_names){
-    # from inst/network_generate_disease_lookup.R
-    diseases_recode <- vroom::vroom(system.file("lookup", "nowcast_diseases_recode.csv",  package = "repelpredict"), col_types = cols(
-      disease = col_character(),
-      disease_recode = col_character()
-    ))
-    all_dat <- all_dat %>%
-      left_join(diseases_recode, by = "disease") %>%
-      select(-disease) %>%
-      rename(disease = disease_recode)
-    assertthat::assert_that(!any(is.na(unique(all_dat$disease)))) # if this fails, rerun inst/nowcast_generate_disease_lookup.R
-  }
+  all_dat_na <- all_dat %>%
+    filter(is.na(validation_set))
+  if(nrow(all_dat_na)) warning(paste("data missing from train/validation split:", nrow(all_dat_na), "rows of data "))
+  # if given this warning, rerun inst/nowcast_generate_data_split_lookup.R
 
   return(all_dat)
 }
@@ -62,12 +54,12 @@ repel_split.network_model <- function(model_object, conn){
 
   # read in static file from inst/network_generate_data_split_lookup.R
   validation_split <- vroom::vroom(system.file("lookup", "network_validation_split_lookup.csv.gz", package = "repelpredict"),
-                               col_types = cols(
-                                 country_iso3c = col_character(),
-                                 disease = col_character(),
-                                 month = col_date(format = ""),
-                                 validation_set = col_logical()
-                               )) %>%
+                                   col_types = cols(
+                                     country_iso3c = col_character(),
+                                     disease = col_character(),
+                                     month = col_date(format = ""),
+                                     validation_set = col_logical()
+                                   )) %>%
     repel_clean_disease_names(model_object, .) %>%
     select(-disease_name_uncleaned)
 
@@ -78,7 +70,10 @@ repel_split.network_model <- function(model_object, conn){
     arrange(country_iso3c, disease, month) %>%
     left_join(validation_split,  by = c("country_iso3c", "disease", "month"))
 
-  assert_that(!any(is.na(all_dat$validation_set))) # if this fails, rerun inst/network_generate_data_split_lookup.R
+  all_dat_na <- all_dat %>%
+    filter(is.na(validation_set))
+  if(nrow(all_dat_na)) warning(paste("data missing from train/validation split:", nrow(all_dat_na), "rows of data "))
+  # if given this warning, rerun inst/network_generate_data_split_lookup.R
 
   return(all_dat)
 }

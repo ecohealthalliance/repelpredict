@@ -242,7 +242,7 @@ ggplot(cs_pd_by_disease_dat, aes(x = disease, y = diff, fill = vname)) +
 ## Validation
 
 ```{r validation}
-conn <- repeldata::repel_local_conn()
+conn <- repeldata::repel_remote_conn()
 grouping_vars <- c("country_iso3c", "report_year", "report_semester", "disease", "disease_population", "taxa")
 
 valdat <- repel_validation(model_object, conn) %>%
@@ -269,10 +269,10 @@ scored_baseline <- repel_score(model_object = nowcast_baseline_model(),
 
 
 ## xgboost
-# forecasted_boost <- repel_forecast(model_object = model_object,
-#                                    conn = conn,
-#                                    newdata = valdat, use_cache = TRUE)
-# write_rds(forecasted_boost, here::here("tmp/forecasted_boost.rds"))
+forecasted_boost <- repel_forecast(model_object = model_object,
+                                   conn = conn,
+                                   newdata = valdat)
+write_rds(forecasted_boost, here::here("tmp/forecasted_boost.rds"))
 forecasted_boost <- read_rds(here::here("tmp/forecasted_boost.rds"))
 
 scored_boost <- repel_score(model_object = model_object,

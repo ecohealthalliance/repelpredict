@@ -1,19 +1,27 @@
 devtools::load_all()
-# conn <- repeldata::repel_remote_conn()
+conn <- repeldata::repel_remote_conn()
 model_object <-  nowcast_boost_model(disease_status_model = NULL, cases_model = NULL)
 
 # Fitting  ----------------------------------------------------------------
-# traindat <- repel_training(model_object, conn) %>%
-#   select(all_of(grouping_vars)) %>%
-#   distinct()
-# map(traindat, ~any(is.na(.)))
-#
-# augmented_data <- repel_augment(model_object = model_object,
-#                                 conn = conn, newdata = traindat) %>%
-#    arrange(country_iso3c, disease, taxa, report_year, report_semester)
-# write_rds(augmented_data, "tmp/augmented_data.rds")
-augmented_data <- read_rds(here::here("tmp/augmented_data.rds"))
+# this mirrors what would happen in repel infra
+six_month_processed <- read_rds("six_month_processed.rds")
+augmented_data <- repel_augment(model_object = model_object,
+                                conn = conn,
+                                subset = NULL,
+                                six_month_processed = six_month_processed) %>%
+   arrange(country_iso3c, disease, taxa, report_year, report_semester)
 
+
+# for model fitting
+traindat <- repel_training(model_object, conn)
+map(traindat, ~any(is.na(.)))
+augmented_data <- repel_augment(model_object = model_object,
+                                conn = conn,
+                                subset = traindat,
+                                six_month_processed = NULL) %>%
+  arrange(country_iso3c, disease, taxa, report_year, report_semester)
+write_rds(augmented_data, "tmp/augmented_data.rds")
+augmented_data <- read_rds(here::here("tmp/augmented_data.rds"))
 assertthat::are_equal(nrow(janitor::get_dupes(augmented_data, all_of(grouping_vars))), 0)
 
 # fitting takes about a day for these two models on prospero
@@ -26,7 +34,6 @@ repel_fit(model_object = model_object,
           augmented_data = augmented_data,
           model = "cases",
           output_directory = "models")
-
 
 # Forecast on training ----------------------------------------------------
 # model_object <-  nowcast_boost_model(

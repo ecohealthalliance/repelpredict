@@ -13,7 +13,7 @@ repel_augment <- function(x, ...){
 #' @export
 repel_augment.nowcast_baseline <- function(model_object, conn, newdata) {
 
-  lagged_newdata <- repel_lag(model_object, conn, newdata, lags = 1, control_measures = FALSE)
+  lagged_newdata <- repel_lag(model_object, conn, six_month_reports_summary = NULL, newdata, lags = 1, control_measures = FALSE)
 
   ds_names <- names(lagged_newdata)[str_detect(names(lagged_newdata), "disease_status")]
   for(ds in ds_names){
@@ -44,139 +44,125 @@ repel_augment.nowcast_baseline <- function(model_object, conn, newdata) {
   return(lagged_newdata)
 }
 
-#' Augment nowcast bart model object
-#'
+#' Augment nowcast boost model object
+#' @param model_object nowcast model object
+#' @param conn connection to repel db
+#' @param subset optional dataframe that contains country_iso3c, report_year, report_semester, disease, disease_population, taxa. Used to subset the output (e.g., for validation/training)
+#' @param six_month_processed optional dataframe that has been processed by repel_init(). If not provided, it will be generated here.
 #' @import repeldata dplyr tidyr
 #' @importFrom assertthat has_name assert_that
 #' @importFrom here here
 #' @importFrom purrr map map_lgl
 #' @importFrom stringr str_starts str_ends
 #' @export
-repel_augment.nowcast_boost <- function(model_object, conn, newdata) {
+repel_augment.nowcast_boost <- function(model_object,
+                                        conn,
+                                        subset = NULL,
+                                        six_month_processed = NULL) {
+
+  if(is.null(six_month_processed)) {
+    six_month_processed <- repel_init(model_object, conn, six_month_reports_summary = NULL)
+  }
 
   # get lag cases
-  lagged_newdata <- repel_lag(model_object, conn, newdata, lags = 1:3, control_measures = TRUE)
+  six_month_processed_lagged <- get_lag(six_month_processed, lags = 3)
 
   # add continent
-  lagged_newdata <- lagged_newdata %>%
+  six_month_augmented <- six_month_processed_lagged %>%
     mutate(continent = suppressWarnings(countrycode::countrycode(country_iso3c, origin = "iso3c", destination = "continent")))
 
   # combine lagged 3 yrs control measures (overlaps are ok - this is for str extraction)
-  lagged_newdata <- lagged_newdata %>%
+  six_month_augmented <- six_month_augmented %>%
     mutate(control_measures_lag = paste(control_measures_lag1, control_measures_lag2, control_measures_lag3, sep = "; "))
 
   control_list <- get_disease_controls()
 
   for(control in control_list){
-    lagged_newdata <- lagged_newdata %>%
+    six_month_augmented <- six_month_augmented %>%
       mutate(!!paste0("control_", make_clean_names(control)) := as.integer(str_detect(control_measures_lag, control)))
   }
 
-  lagged_newdata <- lagged_newdata %>%
+  six_month_augmented <- six_month_augmented %>%
     select(-starts_with("control_measures_lag"))
 
   # get summed lag values of adjacent countries
-  borders <- tbl(conn, "connect_static_vars") %>%
+  borders <- tbl(conn, "connect_static_shared_borders") %>%
     filter(shared_border == "TRUE") %>%
-    select(country_origin, country_destination) %>%
+    select(country_iso3c = country_origin, country_border = country_destination) %>%
     collect()
 
-  lagged_borders <- lagged_newdata %>%
+  six_month_processed_lagged_borders <- six_month_processed_lagged %>%
+    select(all_of(grouping_vars), starts_with("cases_lag")) %>%
+    rename(country_border = country_iso3c)
+
+  lagged_borders <- six_month_augmented %>%
     select(all_of(grouping_vars)) %>%
     distinct() %>%
-    rename(country_origin = country_iso3c) %>%
-    left_join(borders,  by = "country_origin") %>%
-    rename(country_iso3c = country_destination) %>%
-    repel_lag(model_object, conn, newdata = ., lags = 1:3, control_measures = FALSE)
+    left_join(borders, by = "country_iso3c") %>%
+    left_join(six_month_processed_lagged_borders, by = c("report_year", "report_semester", "disease", "disease_population", "taxa", "country_border"))
 
   lagged_borders_sum <- lagged_borders %>%
-    select(-cases) %>%
     pivot_longer(cols = c(cases_lag1, cases_lag2, cases_lag3)) %>%
-    group_by(country_origin, disease, disease_population, taxa, report_year, report_semester) %>%
+    group_by(country_iso3c, disease, disease_population, taxa, report_year, report_semester) %>%
     summarize(cases_lag_sum_border_countries = sum_na(as.integer(value))) %>%
-    ungroup() %>%
-    rename(country_iso3c = country_origin)
+    ungroup()
 
-  lagged_newdata <- left_join(lagged_newdata, lagged_borders_sum, by = grouping_vars)
+  six_month_augmented <- left_join(six_month_augmented, lagged_borders_sum, by = grouping_vars)
 
   # vet capacity
-  vets <- tbl(conn, "annual_reports_veterinarians") %>%
-    collect() %>%
-    filter(veterinarian_field %in% c(
-      "animal health and welfare activities",
-      "veterinary public health activities",
-      "laboratories",
-      "private clinical practice",
-      "academic activities and education",
-      "pharmaceutical industry"
-    )) %>%
-    group_by(country_iso3c, report_year) %>%
-    summarize(veterinarian_count = sum_na(suppressWarnings(as.integer(total_count)))) %>% # summarize over different types of vets
-    ungroup() %>%
-    mutate(report_year = as.integer(report_year)) %>%
-    right_join(expand(lagged_newdata, country_iso3c, report_year),  by = c("country_iso3c", "report_year")) %>%
-    mutate(veterinarian_count_missing = is.na(veterinarian_count)) %>%
-    arrange(country_iso3c, report_year) %>%
-    group_split(country_iso3c) %>%
-    map_dfr(~na_interp(., "veterinarian_count")) %>%
-    select(-veterinarian_count) %>%
-    rename(veterinarian_count = veterinarian_count_imputed)
+  vets <- tbl(conn, "country_yearly_oie_vet_population") %>%
+    rename(report_year = year,
+           veterinarian_count_missing = imputed_value) %>%
+    select(-source) %>%
+    collect()
 
-  lagged_newdata <- left_join(lagged_newdata, vets, by = c("country_iso3c", "report_year"))
+  six_month_augmented <- left_join(six_month_augmented, vets, by = c("country_iso3c", "report_year"))
 
   # taxa population
-  taxa <- tbl(conn, "country_taxa_population") %>%
-    collect() %>%
-    mutate(taxa = ifelse(taxa %in% c("goats", "sheep"), "sheep/goats", taxa)) %>%
-    group_by(country_iso3c, year, taxa) %>%
-    summarize(population = sum(population, na.rm = TRUE)) %>%  # adds up all goats and sheep
-    ungroup() %>%
-    rename(report_year = year, taxa_population = population) %>%
-    right_join(expand(lagged_newdata, country_iso3c, report_year, taxa),  by = c("country_iso3c", "report_year", "taxa")) %>%
-    mutate(taxa_population_missing = is.na(taxa_population)) %>%
-    arrange(country_iso3c, taxa, report_year) %>%
-    group_split(country_iso3c, taxa) %>%
-    map_dfr(~na_interp(., "taxa_population")) %>%
-    select(-taxa_population) %>%
-    rename(taxa_population = taxa_population_imputed)
+  taxa <- tbl(conn, "country_yearly_fao_taxa_population") %>%
+    rename(report_year = year,
+           taxa_population_missing = imputed_value,
+           taxa_population = population) %>%
+    select(-source) %>%
+    collect()
 
-  lagged_newdata <- left_join(lagged_newdata, taxa, by = c("country_iso3c", "report_year", "taxa"))
+  six_month_augmented <- left_join(six_month_augmented, taxa, by = c("country_iso3c", "report_year", "taxa"))
 
-  # World Bank indicators
-  wbi <-  tbl(conn, "worldbank_indicators") %>%
-    collect() %>%
-    rename(report_year = year) %>%
-    right_join(expand(lagged_newdata, country_iso3c, report_year),  by = c("country_iso3c", "report_year")) %>%
-    mutate(gdp_dollars_missing = is.na(gdp_dollars),
-           human_population_missing = is.na(human_population)) %>%
-    arrange(country_iso3c, report_year) %>%
-    group_split(country_iso3c) %>%
-    map_dfr(~na_interp(., "gdp_dollars") %>%
-              na_interp(., "human_population")) %>%
-    select(-gdp_dollars,
-           -human_population) %>%
-    rename(gdp_dollars = gdp_dollars_imputed,
-           human_population = human_population_imputed)
+  # gdp
+  gdp <- tbl(conn, "country_yearly_wb_gdp") %>%
+    rename(report_year = year,
+           gdp_dollars_missing = imputed_value) %>%
+    select(-source) %>%
+    collect()
 
-  lagged_newdata <- left_join(lagged_newdata, wbi,  by = c("country_iso3c", "report_year"))
+  six_month_augmented <- left_join(six_month_augmented, gdp, by = c("country_iso3c", "report_year"))
+
+  # human population
+  human_pop <- tbl(conn, "country_yearly_wb_human_population") %>%
+    rename(report_year = year,
+           human_population_missing = imputed_value) %>%
+    select(-source) %>%
+    collect()
+
+  six_month_augmented <- left_join(six_month_augmented, human_pop, by = c("country_iso3c", "report_year"))
 
   # remove rows from countries without GDP data?
-  removing_gdp  <- lagged_newdata %>%
+  removing_gdp  <- six_month_augmented %>%
     filter(is.na(gdp_dollars))
   na_countries <- unique(removing_gdp$country_iso3c) %>%
     countrycode::countrycode(., origin = "iso3c", destination = "country.name", warn = FALSE)
   na_countries <- na_countries[!is.na(na_countries)]
-  lagged_newdata <- lagged_newdata %>%
+  six_month_augmented <- six_month_augmented %>%
     drop_na(gdp_dollars)
   warning(paste("Dropping", nrow(removing_gdp), "rows of data with missing GDP values from following countries:", paste(na_countries, collapse = ", ")))
 
   # recode disease status - assuming unreported is absent - but mark as unreported
-  ds_names <- names(lagged_newdata)[str_detect(names(lagged_newdata), "disease_status")]
+  ds_names <- names(six_month_augmented)[str_detect(names(six_month_augmented), "disease_status")]
   for(ds in ds_names){
-    lagged_newdata <- lagged_newdata %>%
+    six_month_augmented <- six_month_augmented %>%
       mutate(!!paste0(ds, "_unreported") := as.integer(!!sym(ds)  == "unreported"))
   }
-  lagged_newdata <- lagged_newdata %>%
+  six_month_augmented <- six_month_augmented %>%
     mutate_at(ds_names, ~as.integer(recode(., "present" = 1, "unreported" = 0, "absent" = 0)))
 
   # disease ever ... 4 scenarios
@@ -192,7 +178,8 @@ repel_augment.nowcast_boost <- function(model_object, conn, newdata) {
                       "continent_given_taxa" = "continent",
                       "continent_any_taxa" = "continent"
     )
-    ever <- lagged_newdata
+
+    ever <- six_month_processed # full six month dataset
 
     # get continents
     if(stringr::str_starts(iter, "continent")){
@@ -210,9 +197,9 @@ repel_augment.nowcast_boost <- function(model_object, conn, newdata) {
       arrange(grp_var, disease, report_year, report_semester) %>%
       # get whether disease has occurred within given grouping
       group_by(grp_var, disease, taxa, report_year, report_semester) %>%
-      summarize(disease_status = as.integer(1 %in% disease_status)) %>%
+      summarize(disease_status = as.integer("present" %in% disease_status)) %>%
       group_by(grp_var, disease, taxa) %>%
-      # teasing out first appearance and then inferring whether the disease has exisited before in given grouping
+      # teasing out first appearance and then inferring whether the disease has existed before in given grouping
       mutate(cumulative_disease_status = cumsum(disease_status)) %>%
       mutate(first_appearance = cumulative_disease_status == 1 & (row_number() == 1 | lag(cumulative_disease_status) == 0)) %>%
       mutate(ever_in_grp = case_when(first_appearance ~ 1)) %>%
@@ -240,33 +227,35 @@ repel_augment.nowcast_boost <- function(model_object, conn, newdata) {
 
   for(sc in scenarios){
     if(stringr::str_ends(sc, "any_taxa")){
-      lagged_newdata <- left_join(lagged_newdata, ever[[sc]],
+      six_month_augmented <- left_join(six_month_augmented, ever[[sc]],
                                   by = c("country_iso3c", "report_year", "report_semester", "disease"))
     }else{
-      lagged_newdata <- left_join(lagged_newdata, ever[[sc]],
+      six_month_augmented <- left_join(six_month_augmented, ever[[sc]],
                                   by = c("country_iso3c", "report_year", "report_semester", "disease", "taxa"))
     }
   }
 
   # mark missingness
-  lag_vars <- colnames(lagged_newdata)[str_detect(names(lagged_newdata), "disease_status_lag|cases_lag")]
+  lag_vars <- colnames(six_month_augmented)[str_detect(names(six_month_augmented), "disease_status_lag|cases_lag")]
   lag_vars <- lag_vars[!endsWith(lag_vars, "_unreported")]
   for(var in c(lag_vars)){
-    lagged_newdata <- lagged_newdata %>%
+    six_month_augmented <- six_month_augmented %>%
       mutate(!!paste0(var, "_missing") := is.na(get(var))) %>%
       mutate_at(var, ~replace_na(., 0))
   }
 
-  # add column to indicate first year country reporting
-  lagged_newdata <- lagged_newdata %>%
+  # lookup if first year country reporting (from full dataset)
+  first_year <- six_month_processed %>%
     mutate(report_period = as.integer(paste0(report_year, report_semester))) %>%
     group_by(country_iso3c) %>%
     mutate(first_reporting_semester = report_period == min(report_period)) %>%
     ungroup() %>%
-    select(-report_period)
+    distinct(country_iso3c, report_year, report_semester, first_reporting_semester)
+
+  six_month_augmented <- left_join(six_month_augmented, first_year)
 
   # final feature engineering - transformations etc
-  lagged_newdata <- lagged_newdata %>%
+  six_month_augmented <- six_month_augmented %>%
     mutate(log_gdp_per_capita = prepvar(gdp_dollars/human_population, trans_fn = log10)) %>%
     select(-gdp_dollars) %>%
     mutate(log_veterinarians_per_taxa = prepvar((veterinarian_count+1)/(taxa_population+1), trans_fn = log10)) %>%
@@ -279,6 +268,7 @@ repel_augment.nowcast_boost <- function(model_object, conn, newdata) {
     mutate_if(is.character, as.factor) %>%
     mutate_if(is.logical, as.double) %>%
     #reorder
+    select(-control_measures) %>%
     select(report_year, report_semester, disease, taxa, country_iso3c, continent, disease_population,
            starts_with("cases"),  starts_with("disease_status"),
            starts_with("ever_in"),
@@ -290,8 +280,23 @@ repel_augment.nowcast_boost <- function(model_object, conn, newdata) {
            starts_with("control"),
            everything()) # make sure we don't accidentally drop any columns
 
-  assertthat::assert_that(!any(map_lgl(lagged_newdata, ~any(is.infinite(.)))))
-  return(lagged_newdata)
+  assertthat::assert_that(!any(map_lgl(six_month_augmented, ~any(is.infinite(.)))))
+
+  # if there is a subset of data, apply filter here
+  if(!is.null(subset)){
+    # check subset has correct input vars
+    assertthat::has_name(subset, grouping_vars)
+    subset <- subset %>%
+      select(all_of(grouping_vars))
+
+    # check that taxa in subset are relevant
+    assertthat::assert_that(all(unique(subset$taxa) %in% taxa_list))
+
+    # left join
+    six_month_augmented <- left_join(subset, six_month_augmented)
+  }
+
+  return(six_month_augmented)
 }
 
 

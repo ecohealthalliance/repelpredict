@@ -7,14 +7,24 @@ repel_init <- function(x, ...){
 #' Preprocess nowcast data
 #' @param model_object nowcast model object
 #' @param conn connection to repel db
+#' @param six_month_reports_summary optional to provide six_month_reports_summary dataframe. This is used when providing new data. Default is to read full six_month_reports_summary from conn for model fitting.
 #' @import repeldata dplyr tidyr stringr
 #' @importFrom purrr map_chr
 #' @importFrom janitor get_dupes
 #' @importFrom assertthat are_equal
 #' @export
-repel_init.nowcast_model <- function(model_object, conn){
+repel_init.nowcast_model <- function(model_object,
+                                     conn,
+                                     six_month_reports_summary = NULL){
 
-  six_month_reports_summary <- tbl(conn, "six_month_reports_summary") %>%
+  if(is.null(six_month_reports_summary)){
+    dat <- tbl(conn, "six_month_reports_summary") %>%
+      collect()
+  }else{
+    dat <- six_month_reports_summary
+  }
+
+  six_month_reports <- dat %>%
     mutate(country_iso3c = toupper(country_iso3c)) %>%
     mutate(taxa = str_remove(taxa, " \\(mixed herd\\)")) %>%
     mutate(taxa = str_remove(taxa, " \\(mixed group\\)")) %>%
@@ -41,11 +51,15 @@ repel_init.nowcast_model <- function(model_object, conn){
                                    "absent,unreported" = "absent"
     ))
 
-  dup_test <- six_month_reports_summary %>%
+  dup_test <- six_month_reports %>%
     janitor::get_dupes(all_of(grouping_vars))
   assertthat::are_equal(0, nrow(dup_test))
 
-  return(six_month_reports_summary)
+  # clean disease names
+  six_month_reports <- repel_clean_disease_names(model_object, df = six_month_reports)
+  assertthat::assert_that(!any(is.na(unique(six_month_reports$disease)))) # if this fails, rerun inst/nowcast_generate_disease_lookup.R
+
+  return(six_month_reports)
 }
 
 
