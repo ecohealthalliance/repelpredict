@@ -375,7 +375,11 @@ repel_augment.network_model <- function(model_object, conn, newdata, sum_country
   outbreak_status <- left_join(outbreak_status, hpop,  by = c("country_iso3c", "year"))
 
   # taxa population
-  disease_taxa_lookup <- vroom::vroom(system.file("lookup", "disease_taxa_lookup.csv", package = "repelpredict"), show_col_types = FALSE) %>%
+  disease_taxa_lookup <- vroom::vroom(system.file("lookup", "disease_taxa_lookup.csv", package = "repelpredict"), col_types = cols(
+    disease = col_character(),
+    disease_pre_clean = col_character(),
+    taxa = col_character()
+  )) %>%
     select(-disease_pre_clean)
 
   taxa_population <- tbl(conn, "country_yearly_fao_taxa_population") %>%
