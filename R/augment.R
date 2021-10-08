@@ -71,16 +71,31 @@ repel_augment.nowcast_boost <- function(model_object,
                                         subset = NULL,
                                         six_month_processed = NULL) {
 
-  if(is.null(six_month_processed)) {
-    six_month_processed <- repel_init(model_object, conn, six_month_reports_summary = NULL)
+  if(is.null(six_month_processed)) { # six_month_processed can be provided in repel-infrastructure to include all possible combinations of disease, taxa, etc. Not necessary for model fitting
+    six_month_processed <- repel_init(model_object, conn, six_month_reports_summary = NULL) # get full six month reports for lag lookup
   }
 
   # get lag cases
   six_month_processed_lagged <- get_lag(six_month_processed, lags = 3)
+  #map(six_month_processed_lagged, ~any(is.na(.)))
 
   # add continent
   six_month_augmented <- six_month_processed_lagged %>%
     mutate(continent = suppressWarnings(countrycode::countrycode(country_iso3c, origin = "iso3c", destination = "continent")))
+
+  # if there is a subset of data, apply filter here
+  if(!is.null(subset)){
+    # check subset has correct input vars
+    assertthat::has_name(subset, grouping_vars)
+    subset <- subset %>%
+      select(all_of(grouping_vars))
+
+    # check that taxa in subset are relevant
+    assertthat::assert_that(all(unique(subset$taxa) %in% taxa_list))
+
+    # left join
+    six_month_augmented <- left_join(subset, six_month_augmented)
+  }
 
   # combine lagged 3 yrs control measures (overlaps are ok - this is for str extraction)
   six_month_augmented <- six_month_augmented %>%
@@ -122,38 +137,38 @@ repel_augment.nowcast_boost <- function(model_object,
 
   # vet capacity
   vets <- tbl(conn, "country_yearly_oie_vet_population") %>%
-    rename(report_year = year,
-           veterinarian_count_missing = imputed_value) %>%
-    select(-source) %>%
-    collect()
+    rename(report_year = year) %>%
+    select(-source, -imputed_value) %>%
+    collect() %>%
+    mutate(veterinarian_count_missing = is.na(veterinarian_count))
 
   six_month_augmented <- left_join(six_month_augmented, vets, by = c("country_iso3c", "report_year"))
 
   # taxa population
   taxa <- tbl(conn, "country_yearly_fao_taxa_population") %>%
     rename(report_year = year,
-           taxa_population_missing = imputed_value,
            taxa_population = population) %>%
-    select(-source) %>%
-    collect()
+    select(-source, -imputed_value) %>%
+    collect() %>%
+    mutate(taxa_population_missing = is.na(taxa_population))
 
   six_month_augmented <- left_join(six_month_augmented, taxa, by = c("country_iso3c", "report_year", "taxa"))
 
   # gdp
   gdp <- tbl(conn, "country_yearly_wb_gdp") %>%
-    rename(report_year = year,
-           gdp_dollars_missing = imputed_value) %>%
-    select(-source) %>%
-    collect()
+    rename(report_year = year) %>%
+    select(-source, -imputed_value) %>%
+    collect()  %>%
+    mutate(gdp_dollars_missing = is.na(gdp_dollars))
 
   six_month_augmented <- left_join(six_month_augmented, gdp, by = c("country_iso3c", "report_year"))
 
   # human population
   human_pop <- tbl(conn, "country_yearly_wb_human_population") %>%
-    rename(report_year = year,
-           human_population_missing = imputed_value) %>%
-    select(-source) %>%
-    collect()
+    rename(report_year = year) %>%
+    select(-source, -imputed_value) %>%
+    collect() %>%
+    mutate(human_population_missing = is.na(human_population))
 
   six_month_augmented <- left_join(six_month_augmented, human_pop, by = c("country_iso3c", "report_year"))
 
@@ -292,20 +307,6 @@ repel_augment.nowcast_boost <- function(model_object,
            everything()) # make sure we don't accidentally drop any columns
 
   assertthat::assert_that(!any(map_lgl(six_month_augmented, ~any(is.infinite(.)))))
-
-  # if there is a subset of data, apply filter here
-  if(!is.null(subset)){
-    # check subset has correct input vars
-    assertthat::has_name(subset, grouping_vars)
-    subset <- subset %>%
-      select(all_of(grouping_vars))
-
-    # check that taxa in subset are relevant
-    assertthat::assert_that(all(unique(subset$taxa) %in% taxa_list))
-
-    # left join
-    six_month_augmented <- left_join(subset, six_month_augmented)
-  }
 
   return(six_month_augmented)
 }

@@ -31,6 +31,7 @@ repel_init.nowcast_model <- function(model_object,
     mutate(taxa = ifelse(taxa %in% c("goats", "sheep"), "sheep/goats", taxa)) %>%
     mutate(taxa = ifelse(taxa %in% c("rabbits", "hares"), "hares/rabbits", taxa)) %>%
     filter(taxa %in% taxa_list) %>%
+    filter(!taxa %in% c("cats", "dogs", "cervidae")) %>% # we do not have population data to support this
     mutate(control_measures = na_if(control_measures, "na")) %>%
     select(all_of(grouping_vars), serotype, control_measures, disease_status, cases) %>%
     collect() %>%
