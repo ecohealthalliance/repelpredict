@@ -197,7 +197,7 @@ repel_augment.nowcast_boost <- function(model_object,
                       "continent_any_taxa" = "continent"
     )
 
-    ever <- six_month_processed # full six month dataset
+    ever <- six_month_processed_lagged # full expanded six month dataset
 
     # get continents
     if(stringr::str_starts(iter, "continent")){
@@ -263,7 +263,7 @@ repel_augment.nowcast_boost <- function(model_object,
   }
 
   # lookup if first year country reporting (from full dataset)
-  first_year <- six_month_processed %>%
+  first_year <- six_month_processed_lagged %>%
     mutate(report_period = as.integer(paste0(report_year, report_semester))) %>%
     group_by(country_iso3c) %>%
     mutate(first_reporting_semester = report_period == min(report_period)) %>%

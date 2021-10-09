@@ -16,8 +16,8 @@ get_lag <- function(six_month_processed, lags = 3){
                 years_to_expand)
 
   six_month_processed_expanded <- left_join(six_month_expand, six_month_processed, by = c("country_iso3c", "report_year", "report_semester", "disease_name_uncleaned", "disease_population", "taxa", "disease")) %>%
-    arrange(country_iso3c, taxa, disease, disease_population, report_year, report_semester)
-
+    arrange(country_iso3c, taxa, disease, disease_population, report_year, report_semester) %>%
+    mutate(disease_status = replace_na(disease_status, "unreported"))
 
   # look up lags
   six_month_processed_lagged <- six_month_processed_expanded %>%
