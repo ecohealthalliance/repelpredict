@@ -7,22 +7,16 @@ repel_init <- function(x, ...){
 #' Preprocess nowcast data
 #' @param model_object nowcast model object
 #' @param conn connection to repel db
-#' @param six_month_reports_summary optional to provide six_month_reports_summary dataframe. This is used when providing new data. Default is to read full six_month_reports_summary from conn for model fitting.
 #' @import repeldata dplyr tidyr stringr
 #' @importFrom purrr map_chr
 #' @importFrom janitor get_dupes
 #' @importFrom assertthat are_equal
 #' @export
 repel_init.nowcast_model <- function(model_object,
-                                     conn,
-                                     six_month_reports_summary = NULL){
+                                     conn){
 
-  if(is.null(six_month_reports_summary)){
     dat <- tbl(conn, "six_month_reports_summary") %>%
       collect()
-  }else{
-    dat <- six_month_reports_summary
-  }
 
   six_month_reports <- dat %>%
     mutate(country_iso3c = toupper(country_iso3c)) %>%
@@ -71,7 +65,7 @@ repel_init.nowcast_model <- function(model_object,
 #' @param remove_single_country_disease whether to remove diseases that occur in only one country. Default is TRUE for model fitting. Use FALSE for new data.
 #' @param remove_non_primary_taxa_disease whether to remove diseases that do not occur in previously identified taxa for that disease. Default is TRUE for model fitting. Use FALSE for new data.
 #' @import repeldata dplyr tidyr stringr
-#' @importFrom lubridate floor_date ceiling_date
+#' @importFrom lubridate floor_date ceiling_date year
 #' @export
 repel_init.network_model <- function(model_object,
                                      conn,

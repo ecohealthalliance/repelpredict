@@ -91,7 +91,7 @@ repel_training <- function(x, ...){
 #' @export
 repel_training.repel_model <- function(model_object, conn){
   all_dat <- repel_split(model_object, conn)
-  message(paste0("validation set is ", round(100*sum(all_dat$validation_set)/nrow(all_dat)), "% of data"))
+  message(paste0("validation set is ", round(100*sum(all_dat$validation_set, na.rm = TRUE)/nrow(all_dat)), "% of data"))
   train_dat <- all_dat %>%
     filter(!validation_set) %>%
     select(-validation_set)

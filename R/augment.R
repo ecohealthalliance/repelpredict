@@ -9,19 +9,15 @@ repel_augment <- function(x, ...){
 #' @param model_object nowcast model object
 #' @param conn connection to repel db
 #' @param subset optional dataframe that contains country_iso3c, report_year, report_semester, disease, disease_population, taxa. Used to subset the output (e.g., for validation/training)
-#' @param six_month_processed optional dataframe that has been processed by repel_init(). If not provided, it will be generated here.
 #' @import repeldata dplyr tidyr
 #' @importFrom assertthat has_name assert_that
 #' @importFrom janitor make_clean_names
 #' @importFrom purrr map_dfr
 #' @export
 repel_augment.nowcast_baseline <- function(model_object, conn,
-                                           subset = NULL,
-                                           six_month_processed = NULL) {
+                                           subset = NULL) {
 
-  if(is.null(six_month_processed)) {
-    six_month_processed <- repel_init(model_object, conn, six_month_reports_summary = NULL)
-  }
+  six_month_processed <- repel_init(model_object, conn) # get full six month reports for lag lookup
 
   # get lag cases
   six_month_processed_lagged <- get_lag(six_month_processed, lags = 1)
@@ -49,7 +45,7 @@ repel_augment.nowcast_baseline <- function(model_object, conn,
     assertthat::assert_that(all(unique(subset$taxa) %in% taxa_list))
 
     # left join
-    six_month_augmented <- left_join(subset, six_month_augmented)
+    six_month_augmented <- left_join(subset, six_month_augmented, by = c("country_iso3c", "report_year", "report_semester", "disease", "disease_population", "taxa"))
   }
 
   return(six_month_augmented)
@@ -59,7 +55,6 @@ repel_augment.nowcast_baseline <- function(model_object, conn,
 #' @param model_object nowcast model object
 #' @param conn connection to repel db
 #' @param subset optional dataframe that contains country_iso3c, report_year, report_semester, disease, disease_population, taxa. Used to subset the output (e.g., for validation/training)
-#' @param six_month_processed optional dataframe that has been processed by repel_init(). If not provided, it will be generated here.
 #' @import repeldata dplyr tidyr
 #' @importFrom assertthat has_name assert_that
 #' @importFrom here here
@@ -68,20 +63,13 @@ repel_augment.nowcast_baseline <- function(model_object, conn,
 #' @export
 repel_augment.nowcast_boost <- function(model_object,
                                         conn,
-                                        subset = NULL,
-                                        six_month_processed = NULL) {
+                                        subset = NULL) {
 
-  if(is.null(six_month_processed)) { # six_month_processed can be provided in repel-infrastructure to include all possible combinations of disease, taxa, etc. Not necessary for model fitting
-    six_month_processed <- repel_init(model_object, conn, six_month_reports_summary = NULL) # get full six month reports for lag lookup
-  }
+  six_month_processed <- repel_init(model_object, conn) # get full six month reports for lag lookup
 
   # get lag cases
   six_month_processed_lagged <- get_lag(six_month_processed, lags = 3)
-  #map(six_month_processed_lagged, ~any(is.na(.)))
-
-  # add continent
-  six_month_augmented <- six_month_processed_lagged %>%
-    mutate(continent = suppressWarnings(countrycode::countrycode(country_iso3c, origin = "iso3c", destination = "continent")))
+  six_month_augmented <- six_month_processed_lagged # lagged is used for lookup later
 
   # if there is a subset of data, apply filter here
   if(!is.null(subset)){
@@ -94,8 +82,12 @@ repel_augment.nowcast_boost <- function(model_object,
     assertthat::assert_that(all(unique(subset$taxa) %in% taxa_list))
 
     # left join
-    six_month_augmented <- left_join(subset, six_month_augmented)
+    six_month_augmented <- left_join(subset, six_month_augmented, by = c("country_iso3c", "report_year", "report_semester", "disease", "disease_population", "taxa"))
   }
+
+  # add continent
+  six_month_augmented <- six_month_augmented %>%
+    mutate(continent = suppressWarnings(countrycode::countrycode(country_iso3c, origin = "iso3c", destination = "continent")))
 
   # combine lagged 3 yrs control measures (overlaps are ok - this is for str extraction)
   six_month_augmented <- six_month_augmented %>%

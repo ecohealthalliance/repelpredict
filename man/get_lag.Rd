@@ -6,6 +6,9 @@
 \usage{
 get_lag(six_month_processed, lags = 3)
 }
+\arguments{
+\item{six_month_processed}{full six_months dataset processed by repel_init}
+}
 \description{
 Get  lags in cases, disease status, and control measures for nowcast model
 }
