@@ -22,8 +22,8 @@ assertthat::are_equal(nrow(janitor::get_dupes(augmented_data, all_of(grouping_va
 # test = map_lgl(augmented_data, ~any(is.na(.)))
 # test[test]
 
-write_rds(augmented_data, "tmp/augmented_data.rds")
-augmented_data <- read_rds("tmp/augmented_data.rds")
+# write_rds(augmented_data, "tmp/augmented_data.rds")
+# augmented_data <- read_rds("tmp/augmented_data.rds")
 
 # Fitting -----------------------------------------------------------------
 # fitting takes about a day for these two models on prospero
@@ -31,6 +31,16 @@ repel_fit(model_object =  model_object,
           augmented_data = augmented_data,
           model = "disease_status",
           output_directory = "models")
+
+
+# train_dat <- model_object$cases_model$pre$actions$recipe$recipe$template
+# train_dat_predict <- predict(object = model_object$cases_model, new_data = train_dat)
+# hist(train_dat_predict$.pred)
+
+# try running with other parallel approach
+# then look into status model
+# do full run on repelinfra
+
 
 repel_fit(model_object = model_object,
           augmented_data = augmented_data,
@@ -48,6 +58,11 @@ augmented_data <- repel_augment(model_object = model_object,
                                 conn = conn,
                                 subset = NULL) %>%
   arrange(country_iso3c, disease, taxa, report_year, report_semester)
+
+# test = map_lgl(augmented_data, ~any(is.na(.)))
+# test[test]
+augmented_data_predict <- predict(object = model_object$cases_model, new_data = augmented_data)
+hist(augmented_data_predict$.pred)
 
 #map(disease_status_model$pre$actions$recipe$recipe$template, ~any(is.na(.))) # NA only in removed fields
 

@@ -163,7 +163,10 @@ repel_fit.nowcast_boost <- function(model_object,
     cases_folds <- vfold_cv(augmented_data_cases)
 
     # Set up parallel
-    registerDoMC(cores=parallel::detectCores())
+    # registerDoMC(cores=parallel::detectCores())
+    all_cores <- parallel::detectCores(logical = FALSE)-2
+    cl <- parallel::makePSOCKcluster(all_cores)
+    doParallel::registerDoParallel(cl)
 
     # Tune cases model - first using a grid
     tic("pre-tuning cases model (grid)")
@@ -202,6 +205,7 @@ repel_fit.nowcast_boost <- function(model_object,
                                data = augmented_data_cases)
     toc()
     # ^ about 5 min
+    parallel::stopCluster(cl = cl)
     write_rds(cases_fit, here::here(paste0(output_directory, "/boost_mod_cases.rds")))
     aws.s3::s3saveRDS(cases_fit, bucket = "repeldb/models", object = "boost_mod_cases.rds")
   }
