@@ -650,6 +650,6 @@ ggplot(vp2, aes(x = x,  y = yhat)) +
 
 
 ```{r disconnect}
-repel_local_disconnect()
+repel_remote_disconnect()
 ```
 
