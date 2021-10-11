@@ -20,7 +20,7 @@ repel_fit.nowcast_boost <- function(model_object,
                                     output_directory,
                                     verbose = interactive()) {
 
-  augmented_data <- recode_disease_rare(augmented_data) # does not fit into recipe step
+ # augmented_data <- recode_disease_rare(augmented_data) # does not fit into recipe step
 
   # Status model ------------------------------------------------------------
   if(model == "disease_status"){
@@ -33,6 +33,8 @@ repel_fit.nowcast_boost <- function(model_object,
       step_novel(all_nominal(), -all_outcomes()) %>%
       step_dummy(all_nominal(), -all_outcomes(), one_hot = TRUE) %>%
       step_zv(all_predictors()) %>%
+      step_mutate_at(starts_with("cases_lag"), fn = ~ifelse(. == 0, 0.1, .)) %>%
+      step_log(starts_with("cases_lag"), base = 10) %>%
       step_mutate(disease_status = factor(disease_status), skip = TRUE) # skip because this is the outcome, not required in the newdata for prediction
 
     write_rds(disease_status_recipe, here::here(paste0(output_directory, "/boost_recipe_disease_status.rds")))
@@ -163,7 +165,10 @@ repel_fit.nowcast_boost <- function(model_object,
     cases_folds <- vfold_cv(augmented_data_cases)
 
     # Set up parallel
-    registerDoMC(cores=parallel::detectCores())
+     registerDoMC(cores=parallel::detectCores())
+    # all_cores <- parallel::detectCores(logical = FALSE)-2
+    # cl <- parallel::makePSOCKcluster(all_cores)
+    # doParallel::registerDoParallel(cl)
 
     # Tune cases model - first using a grid
     tic("pre-tuning cases model (grid)")
@@ -202,6 +207,7 @@ repel_fit.nowcast_boost <- function(model_object,
                                data = augmented_data_cases)
     toc()
     # ^ about 5 min
+    #parallel::stopCluster(cl = cl)
     write_rds(cases_fit, here::here(paste0(output_directory, "/boost_mod_cases.rds")))
     aws.s3::s3saveRDS(cases_fit, bucket = "repeldb/models", object = "boost_mod_cases.rds")
   }

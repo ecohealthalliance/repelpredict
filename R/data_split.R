@@ -30,7 +30,7 @@ repel_split.nowcast_model <- function(model_object, conn){
     repel_clean_disease_names(model_object, .) %>%
     select(-disease_name_uncleaned)
 
-  all_dat <- repel_init(model_object, conn,  six_month_reports_summary = NULL) %>%
+  all_dat <- repel_init(model_object, conn) %>%
     arrange(country_iso3c, taxa, disease, disease_population, report_year, report_semester) %>%
     left_join(validation_split,  by = c("country_iso3c", "report_year", "report_semester", "taxa", "disease", "disease_population"))
 

@@ -259,7 +259,7 @@ valdat <- repel_validation(model_object, conn) %>%
 ## baseline
 forecasted_baseline <- repel_forecast(model_object = nowcast_baseline_model(),
                                       conn = conn,
-                                      newdata = valdat)
+                                      subset = valdat)
 write_rds(forecasted_baseline, here::here("tmp/forecasted_baseline.rds"))
 forecasted_baseline <- read_rds(here::here("tmp/forecasted_baseline.rds"))
 
@@ -271,7 +271,7 @@ scored_baseline <- repel_score(model_object = nowcast_baseline_model(),
 ## xgboost
 forecasted_boost <- repel_forecast(model_object = model_object,
                                    conn = conn,
-                                   newdata = valdat)
+                                   subset = valdat)
 write_rds(forecasted_boost, here::here("tmp/forecasted_boost.rds"))
 forecasted_boost <- read_rds(here::here("tmp/forecasted_boost.rds"))
 
@@ -358,7 +358,6 @@ out_full_model_dc[[1]]  %>%
 ```
 Note there are baseline cases where disease status is positive but cases are NA, which are imputed in the model as 0. 
 </details>
-
 
 <details>
 <summary>disease status direction change confusion matrix by select diseases</summary>
