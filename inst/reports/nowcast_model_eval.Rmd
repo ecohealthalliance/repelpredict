@@ -29,23 +29,23 @@ cbp1 <- c("#999999", "#E69F00", "#56B4E9", "#009E73",
 
 # Load model
 boost_mod_disease_status <- model_object$disease_status_model
-boost_mod_disease_status_xg <- pull_workflow_fit(boost_mod_disease_status)
+boost_mod_disease_status_xg <- extract_fit_parsnip(boost_mod_disease_status)
 
 # Get training data
-boost_dat_disease_status <- pull_workflow_mold(boost_mod_disease_status)$predictors %>% 
+boost_dat_disease_status <- extract_mold(boost_mod_disease_status)$predictors %>% 
   as.matrix()
-boost_dat_out_disease_status <- pull_workflow_mold(boost_mod_disease_status)$outcomes %>% 
+boost_dat_out_disease_status <- extract_mold(boost_mod_disease_status)$outcomes %>% 
   mutate(disease_status = as.integer(disease_status == 1)) %>% 
   pull(disease_status)
 
 # Load model
 boost_mod_cases <-  model_object$cases_model
-boost_mod_cases_xg <- pull_workflow_fit(boost_mod_cases)
+boost_mod_cases_xg <- extract_fit_parsnip(boost_mod_cases)
 
 # Get training data
-boost_dat_cases <- pull_workflow_mold(boost_mod_cases)$predictors %>%
+boost_dat_cases <- extract_mold(boost_mod_cases)$predictors %>%
   as.matrix()
-boost_dat_out_cases <- pull_workflow_mold(boost_mod_cases)$outcomes %>%
+boost_dat_out_cases <- extract_mold(boost_mod_cases)$outcomes %>%
   pull(cases)
 ```
 
@@ -67,6 +67,7 @@ importance_disease_status$data <-
                            "ever in country any taxa" = "disease ever in country (within any taxa)",
                            "cases lag sum border countries" = "cases in border countries (prev. 18 months)",
                            "cases (6 months) missing" = "missing value: cases (6 months)",
+                           "cases (12 months) missing" = "missing value: cases (12 months)",
                            "cases (18 months) missing" = "missing value: cases (18 months)",
                            "log gdp per capita" = "GDP per capita"
                            
@@ -601,7 +602,7 @@ scored_boost <- repel_score(model_object = model_object,
 
 status_switched <- scored_boost$scored_tibble %>% 
   mutate(ss = disease_status_dirchange_actual == "outbreak starts" &
-         disease_status_dirchange_predicted == "outbreak starts" ) 
+           disease_status_dirchange_predicted == "outbreak starts" ) 
 which_status_switched <- which(status_switched$ss)
 
 status_switched_augmented <- forecasted_boost$augmented_data %>% 
@@ -618,10 +619,10 @@ status_switched_mat <- bake(object = rec, new_data = status_switched_augmented) 
 lag_vars <- c("disease_status_lag1", "disease_status_lag2", "disease_status_lag3")
 
 explainer_disease_status_sub <- DALEX::explain(
-        model = boost_mod_disease_status_xg,
-        data = status_switched_mat,
-        y = rep(1, nrow(status_switched_mat)),
-        predict_function = predict_raw,
+  model = boost_mod_disease_status_xg,
+  data = status_switched_mat,
+  y = rep(1, nrow(status_switched_mat)),
+  predict_function = predict_raw,
   verbose = FALSE
 )
 
@@ -635,9 +636,9 @@ tt = vi %>%
 vp <- DALEX::variable_profile(explainer_disease_status_sub, variables = vars)
 vp2 <- vp$agr_profiles  %>% 
   as_tibble() %>% 
-    janitor::clean_names() %>% 
+  janitor::clean_names() %>% 
   select(-label, -ids) %>% 
-    mutate(x = round(x, 3)) %>%
+  mutate(x = round(x, 3)) %>%
   mutate(yhat = round(yhat, 3)) %>% 
   distinct() 
 
