@@ -28,7 +28,6 @@ repel_init.nowcast_model <- function(model_object,
     filter(!taxa %in% c("cats", "dogs", "cervidae")) %>% # we do not have population data to support this
     mutate(control_measures = na_if(control_measures, "na")) %>%
     select(all_of(grouping_vars), serotype, control_measures, disease_status, cases) %>%
-    collect() %>%
     drop_na(country_iso3c) %>%  # few small non-independent countries
     group_by_at(grouping_vars) %>% # summarize over serotype and multiple taxa in same grp
     summarize(
