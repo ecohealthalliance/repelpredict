@@ -64,7 +64,7 @@ repel_init.nowcast_model <- function(model_object,
 #' @param remove_single_country_disease whether to remove diseases that occur in only one country. Default is TRUE for model fitting. Use FALSE for new data.
 #' @param remove_non_primary_taxa_disease whether to remove diseases that do not occur in previously identified taxa for that disease. Default is TRUE for model fitting. Use FALSE for new data.
 #' @import repeldata dplyr tidyr stringr
-#' @importFrom lubridate floor_date ceiling_date year
+#' @importFrom lubridate floor_date ceiling_date year month
 #' @export
 repel_init.network_model <- function(model_object,
                                      conn,
@@ -74,7 +74,7 @@ repel_init.network_model <- function(model_object,
 
   current_month <- floor_date(Sys.Date(), unit = "month")
   current_year <- year(current_month)
-  current_semester <- ifelse(current_month < "2021-07-01", 1, 2)
+  current_semester <- ifelse(month(current_month) < 7, 1, 2)
   current_period <- as.numeric(paste(current_year, recode(current_semester, '1' = '0', '2' = '5'), sep = "."))
 
   prev_year <- floor_date(current_month - 365,  unit = "month")
