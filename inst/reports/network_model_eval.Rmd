@@ -37,7 +37,7 @@ traindat <- repel_training(model_object, conn)
 augmented_data_training <- repel_augment(model_object = model_object, conn = conn, newdata = traindat) %>% 
     select(country_iso3c, disease, month, outbreak_start, !!predictor_vars)
 
-valdat <- repel_training(model_object, conn) 
+valdat <- repel_validation(model_object, conn) 
 augmented_data_val <- repel_augment(model_object, conn, newdata = valdat) %>% 
   select(country_iso3c, disease, month, outbreak_start, !!predictor_vars)
 augmented_data_val_bootstrap <- augmented_data_val %>% # resample validation
@@ -178,7 +178,7 @@ ggplot(lme_binoms, aes(x = outbreak_start_predict_prob_grp_median, y  = outbreak
   scale_x_continuous(limits = c(0, max(lme_binoms$outbreak_start_actual_upper))) +
   scale_y_continuous(limits = c(0, max(lme_binoms$outbreak_start_actual_upper))) +
   labs(x = "Forecasted probability", y = "Actual probabilty",
-       caption = paste("Forecasted probilities are binned into", n_distinct(lme_binoms$outbreak_start_predict_prob_grp_median), "groups by distribution density.\nActual probabilities are  binomial probabilities and confidence intervals for actual outbreaks occurring within the forecasted interval")) +
+       caption = paste("Forecasted probilities are binned into", n_distinct(lme_binoms$outbreak_start_predict_prob_grp_median), "groups by distribution density.\nActual probabilities are binomial probabilities and confidence intervals for actual outbreaks occurring within the forecasted interval")) +
   theme_minimal() +
   theme(legend.position = "none",
         axis.text = element_text(size = 12),
