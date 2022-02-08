@@ -13,6 +13,7 @@ output:
 knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE, fig.width = 7, fig.height = 5)
 devtools::load_all()
 library(ggplot2)
+library(purrr)
 library(lme4)
 library(binom)
 library(knitr)
@@ -35,7 +36,7 @@ model_object <- network_lme_model()
 
 traindat <- repel_training(model_object, conn)
 augmented_data_training <- repel_augment(model_object = model_object, conn = conn, newdata = traindat) %>% 
-    select(country_iso3c, disease, month, outbreak_start, !!predictor_vars)
+  select(country_iso3c, disease, month, outbreak_start, !!predictor_vars)
 
 valdat <- repel_validation(model_object, conn) 
 augmented_data_val <- repel_augment(model_object, conn, newdata = valdat) %>% 
@@ -59,9 +60,56 @@ lme_mod <- model_object$network_model
 network_scaling_values <- model_object$network_scaling_values
 ```
 
+
+<details>
+<summary>residuals</summary>
+```{r resids}
+residuals <- tibble::enframe(resid(lme_mod))
+
+plot(lme_mod, disease ~ resid(.), abline = 0 )
+
+ggplot(residuals, aes(x = value)) + 
+  geom_histogram(bins = 100) +
+  theme_minimal()
+```
+</details>
+
+<details>
+<summary>model summary</summary>
+```{r rand-effs}
+lm_mod_sum <- summary(lme_mod)
+lm_mod_sum
+
+# add up total variance explained by random effects (following example here: https://it.unt.edu/sites/default/files/linearmixedmodels_jds_dec2010.pdf)
+lm_mod_vars <- map_dfr(lm_mod_sum$varcor, function(x){
+  map_dbl(1:ncol(x), ~x[.,.]) %>%
+    tibble::enframe(value = "variance") %>%
+    mutate(name = colnames(x)) %>% 
+    rename("variable" = name)
+})
+
+# lm_mod_vars <- bind_rows(lm_mod_vars,
+#                          tibble(variable = "residual variance", variance = 100-sum(lm_mod_vars$variance))) %>% 
+#   arrange(-variance)
+# # ^? variance among slopes, or variance explained in data?
+
+knitr::kable(lm_mod_vars)
+
+```
+</details>
+
 ```{r prep-lme-coef-plots}
 # Random effects
 randef <- ranef(lme_mod)
+#randef2 <- coef(lme_mod)$disease
+
+# if these are slopes, why do they all normally distribute around zero?
+# maybe they aren't slopes (as they are here https://journals.sagepub.com/doi/full/10.1177/2515245920960351), because we do not have fixed effects?
+# hist(randef$disease$continentAfrica)
+# hist(randef$disease$log_gdp_dollars)
+# hist(randef$disease$n_migratory_wildlife_from_outbreaks)
+# summary(randef$disease$n_migratory_wildlife_from_outbreaks)
+
 randef_disease <- randef$disease %>%
   tibble::rownames_to_column(var = "disease") %>%
   as_tibble() 
@@ -129,39 +177,33 @@ src_lme <- map_chr(seq_along(lme_coeffs), ~ {
 <details>
 <summary>validation</summary>
 ```{r lme-validation}
-lme_predict <-  augmented_data_val_bootstrap %>%
-  select(-month, -outbreak_start) %>%
-  mutate(outbreak_start_predicted = repel_predict(model_object, .))
-
-# simple prediction versus actual
-# lme_predict %>%
-#   mutate(outbreak_start_actual = as.numeric(outbreak_start)) %>%
-#   ggplot(aes(x = outbreak_start_predicted, outbreak_start_actual)) +
-#   geom_point()
-
 # get predicted outbreak start probability by condition - break into groups by forecasted probability
-lme_predict_compressed <- lme_predict %>%
-  distinct() %>%
-  drop_na(outbreak_start_predicted) %>% 
-  rename(outbreak_start_predict_prob = outbreak_start_predicted) %>%
+lme_predict <- augmented_data_val_bootstrap %>%
+  select(-month, -outbreak_start) %>%
+  mutate(outbreak_start_predict_prob = repel_predict(model_object, .)) %>% 
+  distinct() %>% # getting unique conditions  (unique combination of values)
+  drop_na(outbreak_start_predict_prob) %>% 
   mutate(outbreak_start_predict_prob_grp = cut_number(outbreak_start_predict_prob, n = 30)) %>%
   group_by(outbreak_start_predict_prob_grp) %>%
   mutate(outbreak_start_predict_prob_grp_median = median(outbreak_start_predict_prob)) %>%
   ungroup()
 
 # confirm we get the same prediction when conditions are the same
-lme_predict_compressed %>%
+lme_predict %>%
   group_by_at(vars(-outbreak_start_predict_prob)) %>%
   count() %>%
   ungroup()  %>%
   nrow() %>%
-  assertthat::are_equal(. , nrow(lme_predict_compressed))
+  assertthat::are_equal(. , nrow(lme_predict))
 
 # to get actual probability, bring in data from full dataset that applies to the given conditions
-lme_binoms <- augmented_data_training %>%
+lme_predict_full <- augmented_data_training %>%
   bind_rows(augmented_data_val) %>%
-  right_join(lme_predict_compressed) %>% # joins by condition - gets every actual instance of this condition from which to calculate actual probability
-  drop_na() %>%  # dont include unknowns
+  right_join(lme_predict) %>% # joins by condition - gets every actual instance of this condition from which to calculate actual probability
+  drop_na()  # dont include unknowns
+
+# overall forecast vs actual by binom group
+lme_binoms <- lme_predict_full %>% 
   group_by(outbreak_start_predict_prob_grp) %>%
   group_split() %>%
   purrr::map_dfr(., function(tw){
@@ -171,13 +213,13 @@ lme_binoms <- augmented_data_training %>%
       mutate(outbreak_start_actual_prob = binom$mean, outbreak_start_actual_low = binom$lower, outbreak_start_actual_upper = binom$upper)})
 
 options(scipen = 999)
-ggplot(lme_binoms, aes(x = outbreak_start_predict_prob_grp_median, y  = outbreak_start_actual_prob)) +
+ggplot(lme_binoms, aes(y = outbreak_start_predict_prob_grp_median, x  = outbreak_start_actual_prob)) +
   geom_abline(color = "gray50") +
-  geom_errorbar(aes(ymin = outbreak_start_actual_low, ymax = outbreak_start_actual_upper)) +
+  geom_errorbar(aes(xmin = outbreak_start_actual_low, xmax = outbreak_start_actual_upper)) +
   geom_point(pch = 21,fill = "white") +
   scale_x_continuous(limits = c(0, max(lme_binoms$outbreak_start_actual_upper))) +
   scale_y_continuous(limits = c(0, max(lme_binoms$outbreak_start_actual_upper))) +
-  labs(x = "Forecasted probability", y = "Actual probabilty",
+  labs(y = "Forecasted probability", x = "Actual probabilty",
        caption = paste("Forecasted probilities are binned into", n_distinct(lme_binoms$outbreak_start_predict_prob_grp_median), "groups by distribution density.\nActual probabilities are binomial probabilities and confidence intervals for actual outbreaks occurring within the forecasted interval")) +
   theme_minimal() +
   theme(legend.position = "none",
@@ -186,7 +228,66 @@ ggplot(lme_binoms, aes(x = outbreak_start_predict_prob_grp_median, y  = outbreak
         plot.title.position = "plot",
         plot.caption = element_text(hjust = 0)) +
   NULL
+########################
+# overall forecast vs actual by disease
 
+lme_predict <- augmented_data_val_bootstrap %>%
+  select(-month, -outbreak_start) %>%
+  filter(disease %in% get_oie_high_importance_diseases()) %>% 
+  mutate(outbreak_start_predict_prob = repel_predict(model_object, .)) %>% 
+  distinct() %>% # getting unique conditions  (unique combination of values)
+  drop_na(outbreak_start_predict_prob) %>% 
+  group_by(disease) %>%
+  mutate(outbreak_start_predict_prob_disease_median = median(outbreak_start_predict_prob)) %>%
+  ungroup()
+
+# to get actual probability, bring in data from full dataset that applies to the given conditions
+lme_predict_full <- augmented_data_training %>%
+  bind_rows(augmented_data_val) %>%
+  filter(disease %in% get_oie_high_importance_diseases()) %>% 
+  right_join(lme_predict) %>% # joins by condition - gets every actual instance of this condition from which to calculate actual probability
+  drop_na()  # dont include unknowns
+
+# overall forecast vs actual by binom group
+lme_binoms <- lme_predict_full %>% 
+  group_by(disease) %>%
+  group_split() %>%
+  purrr::map_dfr(., function(tw){
+    binom <-  binom.confint(x = sum(tw$outbreak_start), n=nrow(tw), methods = "wilson")
+    tw %>%
+      distinct(disease, outbreak_start_predict_prob_disease_median) %>%
+      mutate(outbreak_start_actual_prob = binom$mean, outbreak_start_actual_low = binom$lower, outbreak_start_actual_upper = binom$upper)}) %>% 
+  mutate(grp = outbreak_start_predict_prob_disease_median < median(outbreak_start_predict_prob_disease_median)) %>% # split into two for visualization purposes
+  mutate(grp = ifelse(grp, 1, 2)) %>% 
+  mutate(disease = str_replace_all(disease, "_", " ")) 
+
+options(scipen = 999)
+library(ggrepel)
+library(ggthemes)
+
+disease_plots <- lme_binoms %>% 
+  group_split(grp) %>% 
+  map(function(x){
+    ggplot(x, aes(y = outbreak_start_predict_prob_disease_median, x  = outbreak_start_actual_prob, color = disease)) +
+  geom_abline(color = "gray50") +
+  geom_errorbar(aes(xmin = outbreak_start_actual_low, xmax = outbreak_start_actual_upper)) +
+  geom_point(pch = 21,fill = "white") +
+  geom_text_repel(aes(label = disease)) +
+  scale_x_continuous(limits = c(0, max(x$outbreak_start_actual_upper))) +
+  scale_y_continuous(limits = c(0, max(x$outbreak_start_actual_upper))) +
+  scale_color_colorblind()+
+  labs(y = "Forecasted probability", x = "Actual probabilty") +
+  theme_minimal() +
+  theme(legend.position = "none",
+        axis.text = element_text(size = 12),
+        title = element_text(size = 12),
+        plot.title.position = "plot",
+        plot.caption = element_text(hjust = 0)) +
+  NULL
+  })
+
+disease_plots[[1]]
+disease_plots[[2]]
 ```
 </details>
 
