@@ -16,7 +16,7 @@ output:
 
 <details>
 <summary>residuals</summary>
-![](network_model_eval_files/figure-html/resids-1.png)<!-- -->![](network_model_eval_files/figure-html/resids-2.png)<!-- -->
+![](network_model_eval_files/figure-html/lme-resids-1.png)<!-- -->![](network_model_eval_files/figure-html/lme-resids-2.png)<!-- -->
 </details>
 
 <details>
@@ -84,21 +84,21 @@ output:
 
 
 
-|variable                            |  variance|
-|:-----------------------------------|---------:|
-|continentAfrica                     | 5.6911682|
-|continentAmericas                   | 3.3500077|
-|continentAsia                       | 4.2268658|
-|continentEurope                     | 4.1356430|
-|continentOceania                    | 0.9810750|
-|shared_borders_from_outbreaks       | 0.0983553|
-|ots_trade_dollars_from_outbreaks    | 0.0096375|
-|fao_livestock_heads_from_outbreaks  | 0.0005926|
-|n_migratory_wildlife_from_outbreaks | 0.5865768|
-|log_gdp_dollars                     | 1.3348996|
-|log_human_population                | 0.6441507|
-|log_target_taxa_population          | 1.3666570|
-|log_veterinarians                   | 0.0436349|
+|variable                                                   | variance|
+|:----------------------------------------------------------|--------:|
+|Africa                                                     |  5.70000|
+|Asia                                                       |  4.20000|
+|Europe                                                     |  4.10000|
+|Americas                                                   |  3.40000|
+|log target taxa population                                 |  1.40000|
+|log gdp dollars                                            |  1.30000|
+|Oceania                                                    |  0.98000|
+|log human population                                       |  0.64000|
+|n migratory wildlife from countries with existing outbreak |  0.59000|
+|shared borders from countries with existing outbreak       |  0.09800|
+|log veterinarians                                          |  0.04400|
+|ots trade dollars from countries with existing outbreak    |  0.00960|
+|fao livestock heads from countries with existing outbreak  |  0.00059|
 </details>
 
 
@@ -158,6 +158,11 @@ output:
 <details>
 <summary>log veterinarians</summary>
 ![](network_model_eval_files/figure-html/lme-coef-13-1.png)<!-- -->
+</details>
+
+<details>
+<summary>all</summary>
+![](network_model_eval_files/figure-html/lme-coef-all-1.png)<!-- -->![](network_model_eval_files/figure-html/lme-coef-all-2.png)<!-- -->![](network_model_eval_files/figure-html/lme-coef-all-3.png)<!-- -->
 </details>
 
 <details>

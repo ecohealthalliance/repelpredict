@@ -13,6 +13,7 @@ output:
 knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE, fig.width = 7, fig.height = 5)
 devtools::load_all()
 library(ggplot2)
+library(patchwork)
 library(purrr)
 library(lme4)
 library(binom)
@@ -63,7 +64,7 @@ network_scaling_values <- model_object$network_scaling_values
 
 <details>
 <summary>residuals</summary>
-```{r resids}
+```{r lme-resids}
 residuals <- tibble::enframe(resid(lme_mod))
 
 plot(lme_mod, disease ~ resid(.), abline = 0 )
@@ -76,7 +77,7 @@ ggplot(residuals, aes(x = value)) +
 
 <details>
 <summary>model summary</summary>
-```{r rand-effs}
+```{r lme-rand-effs}
 lm_mod_sum <- summary(lme_mod)
 lm_mod_sum
 
@@ -86,7 +87,16 @@ lm_mod_vars <- map_dfr(lm_mod_sum$varcor, function(x){
     tibble::enframe(value = "variance") %>%
     mutate(name = colnames(x)) %>% 
     rename("variable" = name)
-})
+}) %>% 
+  mutate(variable = str_replace(variable, "_from_outbreaks", " from countries with existing outbreak"),
+         #   variable = str_replace(variable, "ots_trade_dollars", "trade value of animal products"),
+         variable = str_replace(variable, "fao_trade_", ""),
+         variable = str_replace(variable, "_other", " (other)"),
+         variable = str_replace_all(variable, "_", " "),
+         variable = str_remove(variable, "continent")) %>% 
+  arrange(-variance) %>% 
+  mutate(variance = signif(variance, 2))
+
 
 # lm_mod_vars <- bind_rows(lm_mod_vars,
 #                          tibble(variable = "residual variance", variance = 100-sum(lm_mod_vars$variance))) %>% 
@@ -126,6 +136,7 @@ randef_disease_long_formatted <- randef_disease_long %>%
          variable = str_remove(variable, "continent"),
          variable = str_replace(variable, "shared borders from countries with existing outbreak", "shared borders with country with existing outbreak"))
 
+
 lme_coeffs <- purrr::map(unique(randef_disease_long_formatted$variable), function(var){
   dat <- randef_disease_long_formatted %>%
     filter(variable == var) %>%
@@ -146,8 +157,9 @@ lme_coeffs <- purrr::map(unique(randef_disease_long_formatted$variable), functio
     coord_flip() +
     theme_minimal() +
     theme(legend.position = "none", 
-          axis.text = element_text(size = 12), 
-          title = element_text(size = 12),
+          axis.text.y = element_text(size = 12, face = "bold"), 
+          axis.text.x = element_text(size = 10), 
+          plot.title= element_text(size = 14,  face = "bold"),
           plot.title.position = "plot") +
     NULL
   
@@ -155,7 +167,6 @@ lme_coeffs <- purrr::map(unique(randef_disease_long_formatted$variable), functio
 
 
 names(lme_coeffs) <- unique(randef_disease_long_formatted$variable)
-
 ```
 
 
@@ -173,6 +184,22 @@ src_lme <- map_chr(seq_along(lme_coeffs), ~ {
 ```
 
 `r knit_child(text = src_lme)`
+
+<details>
+<summary>all</summary>
+```{r lme-coef-all, fig.width = 18, fig.height = 14}
+p1 <- patchwork::wrap_plots(lme_coeffs$Africa, lme_coeffs$Americas, lme_coeffs$Asia, lme_coeffs$Europe, lme_coeffs$Oceania)
+ggsave(filename = here::here("inst/reports/network_model_eval_files", "lme_coefs_continents.png"), width = 16, height = 12, dpi = "print")
+
+patchwork::wrap_plots(lme_coeffs$`log gdp dollars`, lme_coeffs$`log human population`, lme_coeffs$`log target taxa population`, lme_coeffs$`log veterinarians`)
+ggsave(filename = here::here("inst/reports/network_model_eval_files", "lme_coefs_country_attributes.png"), width = 16, height = 12, dpi = "print")
+
+
+patchwork::wrap_plots(lme_coeffs$`shared borders with country with existing outbreak`, lme_coeffs$`ots trade dollars from countries with existing outbreak`, lme_coeffs$`fao livestock heads from countries with existing outbreak`, lme_coeffs$`n migratory wildlife from countries with existing outbreak`)
+ggsave(filename = here::here("inst/reports/network_model_eval_files", "lme_coefs_connect.png"), width = 16, height = 12, dpi = "print")
+
+```
+</details>
 
 <details>
 <summary>validation</summary>
@@ -269,21 +296,21 @@ disease_plots <- lme_binoms %>%
   group_split(grp) %>% 
   map(function(x){
     ggplot(x, aes(y = outbreak_start_predict_prob_disease_median, x  = outbreak_start_actual_prob, color = disease)) +
-  geom_abline(color = "gray50") +
-  geom_errorbar(aes(xmin = outbreak_start_actual_low, xmax = outbreak_start_actual_upper)) +
-  geom_point(pch = 21,fill = "white") +
-  geom_text_repel(aes(label = disease)) +
-  scale_x_continuous(limits = c(0, max(x$outbreak_start_actual_upper))) +
-  scale_y_continuous(limits = c(0, max(x$outbreak_start_actual_upper))) +
-  scale_color_colorblind()+
-  labs(y = "Forecasted probability", x = "Actual probabilty") +
-  theme_minimal() +
-  theme(legend.position = "none",
-        axis.text = element_text(size = 12),
-        title = element_text(size = 12),
-        plot.title.position = "plot",
-        plot.caption = element_text(hjust = 0)) +
-  NULL
+      geom_abline(color = "gray50") +
+      geom_errorbar(aes(xmin = outbreak_start_actual_low, xmax = outbreak_start_actual_upper)) +
+      geom_point(pch = 21,fill = "white") +
+      geom_text_repel(aes(label = disease)) +
+      scale_x_continuous(limits = c(0, max(x$outbreak_start_actual_upper))) +
+      scale_y_continuous(limits = c(0, max(x$outbreak_start_actual_upper))) +
+      scale_color_colorblind()+
+      labs(y = "Forecasted probability", x = "Actual probabilty") +
+      theme_minimal() +
+      theme(legend.position = "none",
+            axis.text = element_text(size = 12),
+            title = element_text(size = 12),
+            plot.title.position = "plot",
+            plot.caption = element_text(hjust = 0)) +
+      NULL
   })
 
 disease_plots[[1]]
