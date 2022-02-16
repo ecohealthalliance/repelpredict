@@ -3,9 +3,15 @@ devtools::load_all()
 model_object <-  network_lme_model()
 
 #repeldata::repel_local_download()
-conn <- repeldata::repel_local_conn()
+conn <- repeldata::repel_remote_conn()
 
-diseases <- repel_init(model_object, conn) %>%
+diseases <- repel_init(model_object, conn,
+                       remove_single_country_disease = FALSE,
+                       remove_non_primary_taxa_disease = FALSE,
+                       clean_disease_names = FALSE) %>%
+  mutate(disease = recode(disease,
+                          "high pathogenicity avian influenza es" = "highly pathogenic avian influenza",
+                          "influenza a es of high pathogenicity" = "highly pathogenic avian influenza" )) %>% # manual fix - should be addressed in wahis package
   filter(!disease_country_combo_unreported) %>%
   group_by(disease) %>%
   count() %>%

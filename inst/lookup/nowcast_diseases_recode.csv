@@ -1,44 +1,44 @@
 disease,disease_recode
 mycoplasma infection,mycoplasma_infection
-equine encephalitis,equine_encephalitis
-highly pathogenic avian influenza,highly_pathogenic_avian_influenza
-peste des petits ruminants,peste_des_petits_ruminants
 hemorrhagic septicemia,hemorrhagic_septicemia
 trypanosomiasis,trypanosomiasis
-ovine pox disease,ovine_pox_disease
 bovine babesiosis,bovine_babesiosis
-scrapie,scrapie
 bovine anaplasmosis,bovine_anaplasmosis
-pleuropneumonia,pleuropneumonia
-caprine arthritis and encephalitis,caprine_arthritis_and_encephalitis
-ovine contagious epididymitis,ovine_contagious_epididymitis
-maedi visna,maedi_visna
-contagious agalactia,contagious_agalactia
 salmonellosis,salmonellosis
-parasitic gastroenteritis,parasitic_gastroenteritis
-bovine spongiform encephalopathy,bovine_spongiform_encephalopathy
-taenia solium,taenia_solium
-glanders,glanders
 bovine genital campylobacteriosis,bovine_genital_campylobacteriosis
-bovine leukosis,bovine_leukosis
+equine encephalitis,equine_encephalitis
+glanders,glanders
+pleuropneumonia,pleuropneumonia
 dourine,dourine
+scrapie,scrapie
+bovine spongiform encephalopathy,bovine_spongiform_encephalopathy
 nairobi disease,nairobi_disease
 venezuelan equine encephalitis,venezuelan_equine_encephalitis
-equine piroplasmosis,equine_piroplasmosis
-taylorella equigenitalis,taylorella_equigenitalis
 avian infectious laryngotracheitis,avian_infectious_laryngotracheitis
-fowl typhoid,fowl_typhoid
-infectious bovine rhinotracheitis,infectious_bovine_rhinotracheitis
+equine piroplasmosis,equine_piroplasmosis
+parasitic gastroenteritis,parasitic_gastroenteritis
+taenia solium,taenia_solium
+taylorella equigenitalis,taylorella_equigenitalis
 pullorum disease,pullorum_disease
+fowl typhoid,fowl_typhoid
+ovine pox disease,ovine_pox_disease
+contagious agalactia,contagious_agalactia
 african horse sickness,african_horse_sickness
+maedi visna,maedi_visna
+bovine leukosis,bovine_leukosis
 infectious bursal disease,infectious_bursal_disease
+ovine contagious epididymitis,ovine_contagious_epididymitis
+infectious bovine rhinotracheitis,infectious_bovine_rhinotracheitis
+caprine arthritis and encephalitis,caprine_arthritis_and_encephalitis
 porcine reproductive and respiratory syndrome,porcine_reproductive_and_respiratory_syndrome
 trichomoniasis,trichomoniasis
-lumpy skin disease,lumpy_skin_disease
 avian infectious bronchitis,avian_infectious_bronchitis
-classical swine fever,classical_swine_fever
+lumpy skin disease,lumpy_skin_disease
+peste des petits ruminants,peste_des_petits_ruminants
 equine infectious anaemia,equine_infectious_anaemia
+classical swine fever,classical_swine_fever
 avian chlamydiosis,avian_chlamydiosis
+highly pathogenic avian influenza,highly_pathogenic_avian_influenza
 african swine fever,african_swine_fever
 mycobacterium tuberculosis,mycobacterium_tuberculosis
 bovine viral diarrhea,bovine_viral_diarrhea
@@ -49,7 +49,6 @@ equine arteritis,equine_arteritis
 equine influenza,equine_influenza
 newcastle disease,newcastle_disease
 swine vesicular disease,swine_vesicular_disease
-rabies,rabies
 equine viral rhinopneumonitis,equine_viral_rhinopneumonitis
 duck viral hepatitis,duck_viral_hepatitis
 turkey rhinotracheitis,turkey_rhinotracheitis
@@ -57,20 +56,21 @@ low pathogenic avian influenza,low_pathogenic_avian_influenza
 marek's disease,mareks_disease
 fowl cholera,fowl_cholera
 equine herpes virus,equine_herpes_virus
+rabies,rabies
 surra,surra
 malignant catarrhal fever,malignant_catarrhal_fever
 brucella abortus,brucella_abortus
 foot-and-mouth disease,foot_and_mouth_disease
 anthrax,anthrax
 brucella melitensis,brucella_melitensis
-leptospirosis,leptospirosis
 paratuberculosis,paratuberculosis
 echinococcosis,echinococcosis
+leptospirosis,leptospirosis
 brucella suis,brucella_suis
 ovine bluetongue disease,ovine_bluetongue_disease
 japanese encephalitis,japanese_encephalitis
+q fever,q_fever
 dermatophilosis,dermatophilosis
-pulmonary adenomatosis,pulmonary_adenomatosis
 equine smallpox,equine_smallpox
 atrophic rhinitis,atrophic_rhinitis
 chorioptic mange,chorioptic_mange
@@ -78,24 +78,27 @@ cysticercosis,cysticercosis
 duck enteritis,duck_enteritis
 entero encephalomyelitis,entero_encephalomyelitis
 epizootic lymphangite,epizootic_lymphangite
+pulmonary adenomatosis,pulmonary_adenomatosis
 rinderpest,rinderpest
 avian tuberculosis,avian_tuberculosis
 fowlpox,fowlpox
-q fever,q_fever
-"primary screwworm, new world screwworm",primary_screwworm_new_world_screwworm
 heartwater,heartwater
 echinococcus granulosus,echinococcus_granulosus
+"primary screwworm, new world screwworm",primary_screwworm_new_world_screwworm
 vesicular stomatitis,vesicular_stomatitis
-aujeszkys disease,aujeszkys_disease
 trichinellosis,trichinellosis
-leishmaniosis,leishmaniosis
+aujeszkys disease,aujeszkys_disease
 viral haemorrhagic disease,viral_haemorrhagic_disease
 west nile encephalitis,west_nile_encephalitis
 rift valley fever,rift_valley_fever
 myxoma virus,myxoma_virus
+mycoplasma gallisepticum,mycoplasma_gallisepticum
 poxvirus,poxvirus
-echinococcus multilocularis,echinococcus_multilocularis
+influenza a es of high pathogenicity,influenza_a_es_of_high_pathogenicity
+high pathogenicity avian influenza es,high_pathogenicity_avian_influenza_es
 tularemia,tularemia
+echinococcus multilocularis,echinococcus_multilocularis
 epizootic hemorrhagic disease,epizootic_hemorrhagic_disease
 crimean congo haemorrhagic fever,crimean_congo_haemorrhagic_fever
+leishmaniosis,leishmaniosis
 paenibacillus larvae,paenibacillus_larvae

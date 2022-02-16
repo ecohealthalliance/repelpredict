@@ -4,12 +4,14 @@
 \alias{repel_init.nowcast_model}
 \title{Preprocess nowcast data}
 \usage{
-\method{repel_init}{nowcast_model}(model_object, conn)
+\method{repel_init}{nowcast_model}(model_object, conn, clean_disease_names = TRUE)
 }
 \arguments{
 \item{model_object}{nowcast model object}
 
 \item{conn}{connection to repel db}
+
+\item{clean_disease_names}{defaults to TRUE but needs to be false when running disease name cleaning lookup}
 }
 \description{
 Preprocess nowcast data

@@ -7,16 +7,18 @@ repel_init <- function(x, ...){
 #' Preprocess nowcast data
 #' @param model_object nowcast model object
 #' @param conn connection to repel db
+#' @param clean_disease_names defaults to TRUE but needs to be false when running disease name cleaning lookup
 #' @import repeldata dplyr tidyr stringr
 #' @importFrom purrr map_chr
 #' @importFrom janitor get_dupes
 #' @importFrom assertthat are_equal
 #' @export
 repel_init.nowcast_model <- function(model_object,
-                                     conn){
+                                     conn,
+                                     clean_disease_names = TRUE){
 
-    dat <- tbl(conn, "six_month_reports_summary") %>%
-      collect()
+  dat <- tbl(conn, "six_month_reports_summary") %>%
+    collect()
 
   six_month_reports <- dat %>%
     mutate(country_iso3c = toupper(country_iso3c)) %>%
@@ -50,8 +52,10 @@ repel_init.nowcast_model <- function(model_object,
   assertthat::are_equal(0, nrow(dup_test))
 
   # clean disease names
-  six_month_reports <- repel_clean_disease_names(model_object, df = six_month_reports)
-  assertthat::assert_that(!any(is.na(unique(six_month_reports$disease)))) # if this fails, rerun inst/nowcast_generate_disease_lookup.R
+  if(clean_disease_names){
+    six_month_reports <- repel_clean_disease_names(model_object, df = six_month_reports)
+    assertthat::assert_that(!any(is.na(unique(six_month_reports$disease)))) # if this fails, rerun inst/nowcast_generate_disease_lookup.R
+  }
 
   return(six_month_reports)
 }
@@ -63,6 +67,7 @@ repel_init.nowcast_model <- function(model_object,
 #' @param outbreak_reports_events optional to provide outbreak_reports_events dataframe. This is used when providing new data. Default is to read full outbreak_reports_events from conn for model fitting.
 #' @param remove_single_country_disease whether to remove diseases that occur in only one country. Default is TRUE for model fitting. Use FALSE for new data.
 #' @param remove_non_primary_taxa_disease whether to remove diseases that do not occur in previously identified taxa for that disease. Default is TRUE for model fitting. Use FALSE for new data.
+#' @param clean_disease_names defaults to TRUE but needs to be false when running disease name cleaning lookup
 #' @import repeldata dplyr tidyr stringr
 #' @importFrom lubridate floor_date ceiling_date year month
 #' @export
@@ -70,7 +75,8 @@ repel_init.network_model <- function(model_object,
                                      conn,
                                      outbreak_reports_events = NULL,
                                      remove_single_country_disease = TRUE,
-                                     remove_non_primary_taxa_disease = TRUE){
+                                     remove_non_primary_taxa_disease = TRUE,
+                                     clean_disease_names = TRUE){
 
   current_month <- floor_date(Sys.Date(), unit = "month")
   current_year <- year(current_month)
@@ -230,9 +236,10 @@ repel_init.network_model <- function(model_object,
   }
 
   # clean disease names
-  events <- repel_clean_disease_names(model_object, df = events)
-  assertthat::assert_that(!any(is.na(unique(events$disease)))) # if this fails, rerun inst/nowcast_generate_disease_lookup.R
-
+  if(clean_disease_names){
+    events <- repel_clean_disease_names(model_object, df = events)
+    assertthat::assert_that(!any(is.na(unique(events$disease)))) # if this fails, rerun inst/network_generate_disease_lookup.R
+  }
   return(events)
 }
 

@@ -4,57 +4,91 @@ foot-and-mouth disease,foot_and_mouth_disease
 african swine fever,african_swine_fever
 newcastle disease,newcastle_disease
 anthrax,anthrax
+lumpy skin disease,lumpy_skin_disease
 ovine bluetongue disease,ovine_bluetongue_disease
 rabies,rabies
-lumpy skin disease,lumpy_skin_disease
 low pathogenic avian influenza,low_pathogenic_avian_influenza
+sars-cov-2,sars_cov_2
 peste des petits ruminants,peste_des_petits_ruminants
-west nile encephalitis,west_nile_encephalitis
 classical swine fever,classical_swine_fever
+influenza a,influenza_a
+west nile encephalitis,west_nile_encephalitis
 equine influenza,equine_influenza
+viral haemorrhagic disease,viral_haemorrhagic_disease
 equine infectious anaemia,equine_infectious_anaemia
 porcine reproductive and respiratory syndrome,porcine_reproductive_and_respiratory_syndrome
 rift valley fever,rift_valley_fever
+american fool brood,american_fool_brood
 bovine spongiform encephalopathy,bovine_spongiform_encephalopathy
-mycoplasma infection,mycoplasma_infection
+brucellosis,brucellosis
 ovine pox disease,ovine_pox_disease
 african horse sickness,african_horse_sickness
+pleuropneumonia,pleuropneumonia
+small hive beetle inf.,small_hive_beetle_inf
+varroosis,varroosis
+glanders,glanders
 mycobacterium tuberculosis,mycobacterium_tuberculosis
+myxoma virus,myxoma_virus
 scrapie,scrapie
 aujeszkys disease,aujeszkys_disease
-brucella suis,brucella_suis
-glanders,glanders
-equine encephalitis,equine_encephalitis
 equine piroplasmosis,equine_piroplasmosis
+schmallenberg virus,schmallenberg_virus
+equine encephalitis,equine_encephalitis
+porcine epidemic diarrhea,porcine_epidemic_diarrhea
 q fever,q_fever
 taylorella equigenitalis,taylorella_equigenitalis
-brucella abortus,brucella_abortus
+coronavirus,coronavirus
+avian infectious laryngotracheitis,avian_infectious_laryngotracheitis
 caprine arthritis and encephalitis,caprine_arthritis_and_encephalitis
 equine viral rhinopneumonitis,equine_viral_rhinopneumonitis
 fowl typhoid,fowl_typhoid
-venezuelan equine encephalitis,venezuelan_equine_encephalitis
-avian infectious laryngotracheitis,avian_infectious_laryngotracheitis
-brucella melitensis,brucella_melitensis
 leishmaniosis,leishmaniosis
+venezuelan equine encephalitis,venezuelan_equine_encephalitis
+infectious bovine rhinotracheitis,infectious_bovine_rhinotracheitis
 "primary screwworm, new world screwworm",primary_screwworm_new_world_screwworm
-vesicular stomatitis,vesicular_stomatitis
+tularemia,tularemia
+aethina tumida,aethina_tumida
+brucella melitensis,brucella_melitensis
+epizootic hemorrhagic disease,epizootic_hemorrhagic_disease
+equine viral arthritis,equine_viral_arthritis
 maedi visna,maedi_visna
+mycoplasma infection,mycoplasma_infection
 poxvirus,poxvirus
+vesicular stomatitis,vesicular_stomatitis
 avian infectious bronchitis,avian_infectious_bronchitis
 bovine anaplasmosis,bovine_anaplasmosis
 bovine babesiosis,bovine_babesiosis
-bovine leukosis,bovine_leukosis
+epizootic haemorrhagic disease,epizootic_haemorrhagic_disease
 equine herpes virus,equine_herpes_virus
 hemorrhagic septicemia,hemorrhagic_septicemia
-infectious bovine rhinotracheitis,infectious_bovine_rhinotracheitis
 parasitic gastroenteritis,parasitic_gastroenteritis
 pullorum disease,pullorum_disease
 avian chlamydiosis,avian_chlamydiosis
+bovine leukosis,bovine_leukosis
 bovine viral diarrhea,bovine_viral_diarrhea
+brucella abortus,brucella_abortus
 contagious agalactia,contagious_agalactia
 dourine,dourine
+duck  hepatitis,duck_hepatitis
+echinococcosis,echinococcosis
+enzootic abortion of ewes,enzootic_abortion_of_ewes
+equine arteritis,equine_arteritis
 heartwater,heartwater
 infectious bursal disease,infectious_bursal_disease
 paratuberculosis,paratuberculosis
-pleuropneumonia,pleuropneumonia
 trypanosomiasis,trypanosomiasis
+acarapisosis,acarapisosis
+bovine genital campylobacteriosis,bovine_genital_campylobacteriosis
+brucella suis,brucella_suis
+ehrlichia canis,ehrlichia_canis
+h5n1,h5n1
+hendra virus pneumonia,hendra_virus_pneumonia
+hpai,hpai
+malignant catarrhal fever,malignant_catarrhal_fever
+ovine contagious epididymitis,ovine_contagious_epididymitis
+paenibacillus larvae,paenibacillus_larvae
+pigeon rota,pigeon_rota
+postweaning multisystemic wasting syndrome,postweaning_multisystemic_wasting_syndrome
+surra,surra
+swine vesicular disease,swine_vesicular_disease
+trichinellosis,trichinellosis
