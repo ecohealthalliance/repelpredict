@@ -11,23 +11,10 @@ repel_predict <- function(x, ...){
 #'
 repel_predict.nowcast_baseline <- function(model_object, newdata) {
 
-  predicted_disease_status <- newdata$disease_status_lag1
-  which_predicted_status_positive <- which(predicted_disease_status == 1)
+  newdata %>%
+    mutate(disease_status_predicted = replace_na(disease_status_lag1, 0)) %>%
+    mutate(cases_predicted = ifelse(disease_status_predicted == 1, cases_lag1, 0))
 
-  # Predict case count
-  if(length(which_predicted_status_positive)){
-    predicted_cases <- newdata$cases_lag1[which_predicted_status_positive]
-
-    # Return a tibble
-    predicted_cases <- tibble(id = 1:nrow(newdata)) %>%
-      left_join(tibble(id = which_predicted_status_positive, predicted_cases = predicted_cases),
-                by = "id") %>%
-      mutate(predicted_cases = replace_na(predicted_cases, 0)) %>%
-      pull(predicted_cases)
-  }else{
-    predicted_cases <- predicted_disease_status
-  }
-  return(predicted_cases)
 }
 
 #' Predict from nowcast xgboost model object
@@ -48,27 +35,12 @@ repel_predict.nowcast_boost <- function(model_object, newdata, use_cache = TRUE)
   boost_mod_cases <- model_object$cases_model
   # boost_mod_cases_xg <- pull_workflow_fit(boost_mod_cases)
 
-  # Predict disease status
-  predicted_disease_status <- predict(boost_mod_disease_status,  new_data = newdata)
-  which_predicted_status_positive <- which(predicted_disease_status$.pred_class == 1)
+  newdata %>%
+    mutate(disease_status_predicted = as.numeric(as.character(predict(boost_mod_disease_status,  new_data = .)$.pred_class))) %>%
+    mutate(cases_predicted  = predict(boost_mod_cases,  new_data = .)$.pred) %>%
+    mutate(cases_predicted = round(10^cases_predicted)) %>%
+    mutate(cases_predicted = ifelse(disease_status_predicted == 0, 0, cases_predicted))
 
-  # Predict case count
-  if(length(which_predicted_status_positive)){
-    predicted_cases <- predict(boost_mod_cases,  new_data = newdata[which_predicted_status_positive,]) %>% pull(.pred)
-    predicted_cases <- 10^predicted_cases
-    predicted_cases <- round(predicted_cases)
-    assertthat::assert_that(min(predicted_cases) >= 0)
-
-    # Return a tibble
-    predicted_cases <- tibble(id = 1:nrow(newdata)) %>%
-      left_join(tibble(id = which_predicted_status_positive, predicted_cases = predicted_cases),
-                by = "id") %>%
-      mutate(predicted_cases = as.numeric(replace_na(predicted_cases, 0))) %>%
-      pull(predicted_cases)
-  }else{
-    predicted_cases <- as.numeric(rep(0, nrow(newdata)))
-  }
-  return(predicted_cases)
 }
 
 

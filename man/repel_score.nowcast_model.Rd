@@ -2,13 +2,13 @@
 % Please edit documentation in R/score.R
 \name{repel_score.nowcast_model}
 \alias{repel_score.nowcast_model}
-\title{Score accuracy of nowcast baseline model object}
+\title{Score accuracy of nowcast model object}
 \usage{
-\method{repel_score}{nowcast_model}(model_object, augmented_data, predicted_cases)
+\method{repel_score}{nowcast_model}(model_object, predicted_data)
 }
 \value{
 list containing predicted count and whether disease is expected or not (T/F)
 }
 \description{
-Score accuracy of nowcast baseline model object
+Score accuracy of nowcast model object
 }

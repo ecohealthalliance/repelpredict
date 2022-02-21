@@ -264,10 +264,8 @@ forecasted_baseline <- repel_forecast(model_object = nowcast_baseline_model(),
 write_rds(forecasted_baseline, here::here("tmp/forecasted_baseline.rds"))
 forecasted_baseline <- read_rds(here::here("tmp/forecasted_baseline.rds"))
 
-scored_baseline <- repel_score(model_object = nowcast_baseline_model(),
-                               augmented_data = forecasted_baseline$augmented_data,
-                               predicted_cases = forecasted_baseline$predicted_cases)
-
+scored_baseline <- repel_score(model_object = nowcast_baseline_model(), predicted_data = forecasted_baseline) %>% 
+  drop_na(disease_status_dirchange_actual) # first reporting semester - no lag data to make predictions with
 
 ## xgboost
 forecasted_boost <- repel_forecast(model_object = model_object,
@@ -277,18 +275,17 @@ write_rds(forecasted_boost, here::here("tmp/forecasted_boost.rds"))
 forecasted_boost <- read_rds(here::here("tmp/forecasted_boost.rds"))
 
 scored_boost <- repel_score(model_object = model_object,
-                            augmented_data = forecasted_boost$augmented_data,
-                            predicted_cases = forecasted_boost$predicted_cases)
+                            predicted_data = forecasted_boost)
 
 ```
 
 
 ```{r prep}
-scored_data_ds_baseline <- scored_baseline$scored_tibble %>%
-  select(taxa, country_iso3c, disease, disease_status_actual, disease_status_predicted, disease_status_dirchange_actual, disease_status_dirchange_predicted) %>%
+scored_data_ds_baseline <- scored_baseline %>%
+  dplyr::select(taxa, country_iso3c, disease, disease_status_actual, disease_status_predicted, disease_status_dirchange_actual, disease_status_dirchange_predicted) %>%
   mutate(model = "baseline")
-scored_data_ds_boost <- scored_boost$scored_tibble %>%
-  select(taxa, country_iso3c,  disease, disease_status_actual, disease_status_predicted, disease_status_dirchange_actual, disease_status_dirchange_predicted) %>%
+scored_data_ds_boost <- scored_boost %>%
+  dplyr::select(taxa, country_iso3c,  disease, disease_status_actual, disease_status_predicted, disease_status_dirchange_actual, disease_status_dirchange_predicted) %>%
   mutate(model = "xgboost")
 
 scored_data_ds <- bind_rows(scored_data_ds_baseline, scored_data_ds_boost) %>%
@@ -302,7 +299,7 @@ metrics <- tribble(~".metric", ~"desc",
                    "sens", "the proportion of positive results out of the number of samples which were actually positive.",
                    "spec", "the proportion of negative results out of the number of samples which were actually negative")
 
-ds_summary <- function(grp_var, filter_var = NULL, filter_values = NULL, truth, estimate){
+ds_summary <- function(filter_var = NULL, filter_values = NULL, truth, estimate, outbreak_starts_only = FALSE){
   
   if(!is.null(filter_var)){
     cm_scored_mat <- scored_data_ds %>%
@@ -311,9 +308,13 @@ ds_summary <- function(grp_var, filter_var = NULL, filter_values = NULL, truth, 
     cm_scored_mat <- scored_data_ds
   }
   
+  if(outbreak_starts_only){
+    cm_scored_mat <- cm_scored_mat %>% 
+      filter(disease_status_dirchange_actual == "outbreak starts")
+  }
+  
   cm_scored_mat <- cm_scored_mat %>%
-    mutate(lab = paste(model, get(grp_var), sep = " - ")) %>%
-    group_by_at(c("model", "lab", grp_var)) %>%
+    group_by(model) %>%
     conf_mat(truth = truth, estimate = estimate) %>%
     ungroup()
   
@@ -323,22 +324,21 @@ ds_summary <- function(grp_var, filter_var = NULL, filter_values = NULL, truth, 
     right_join(metrics)
   
   out_table <- cm_scored_summ %>%
-    select(one_of(grp_var), .metric, desc, model, .estimate) %>%
+    dplyr::select( .metric, desc, model, .estimate) %>%
     mutate(.estimate = signif(.estimate, 2)) %>%
-    pivot_wider(names_from = all_of(grp_var), values_from = .estimate) %>%
     arrange(.metric)
   
   out_plots <- map(cm_scored_mat$conf_mat, autoplot, type = "heatmap")
-  out_plots <- plot_grid(plotlist = out_plots, labels = cm_scored_mat$lab, label_size = 8)
+  out_plots <- plot_grid(plotlist = out_plots, labels = cm_scored_mat$model, label_size = 8)
   
   return(list("summary_table" = out_table, "conf_matrix" = out_plots, "raw" = cm_scored_mat))
 }
 ```
 
 <details>
-<summary>disease status confusion matrix</summary>
+<summary>disease status confusion matrix (all data)</summary>
 ```{r ds-cm-full-model, fig.width = 10, fig.height = 5}
-out_full_model <- ds_summary("full_model", truth = "disease_status_actual", estimate = "disease_status_predicted")
+out_full_model <- ds_summary(truth = "disease_status_actual", estimate = "disease_status_predicted")
 out_full_model[[1]]  %>% 
   filter(! .metric %in% c("sens", "spec")) %>% 
   kbl() %>% 
@@ -348,50 +348,43 @@ out_full_model[[1]]  %>%
 </details>
 
 <details>
-<summary>disease status direction change confusion matrix</summary>
+<summary>disease status outbreak start confusion matrix</summary>
 ```{r ds-cm-full-model-dc, fig.width = 10, fig.height = 5}
-out_full_model_dc <- ds_summary("full_model", truth = "disease_status_dirchange_actual", estimate = "disease_status_dirchange_predicted")
+out_full_model_dc <- ds_summary(truth = "disease_status_dirchange_actual", estimate = "disease_status_dirchange_predicted", outbreak_starts_only = TRUE)
 out_full_model_dc[[1]]  %>% 
-  filter(! .metric %in% c("sens", "spec")) %>% 
+  filter(.metric == "accuracy") %>% 
   kbl() %>% 
   collapse_rows(columns = 1:2, valign = "middle") %>% 
   kable_styling() 
 ```
-Note there are baseline cases where disease status is positive but cases are NA, which are imputed in the model as 0. 
 </details>
 
 <details>
-<summary>disease status direction change confusion matrix by select diseases</summary>
+<summary>disease status confusion matrix by select diseases</summary>
 ```{r ds-cm-disease-dc, fig.width = 15, fig.height = 8}
 
-ds_summary_tbl <- map_dfr(oie_high_importance_diseases, function(disease){
-  
-  out_disease_dc <- ds_summary("full_model", filter_var = "disease", filter_values = disease,
-                               truth = "disease_status_dirchange_actual", estimate = "disease_status_dirchange_predicted")
-  
-  tab_ds <- out_disease_dc[[1]] %>%
-    filter(.metric == "accuracy") %>%
-    select(model, full_model) %>%
-    pivot_wider(names_from = model, values_from = full_model)
-  
-  new_ds <-  out_disease_dc[[3]] %>%
-    filter(model == "xgboost") %>%
-    select(-model, -lab) %>%
-    mutate(new_accuracy = map(conf_mat, function(cm){
-      tidy(cm) %>%
-        filter(name %in% c("cell_1_3", "cell_3_3")) %>%
-        pivot_wider(names_from = name) %>%
-        transmute(new_accuracy = cell_3_3 / (cell_3_3 + cell_1_3)) %>%
-        pull(new_accuracy)
-    })) %>%
-    unnest(new_accuracy) %>%
-    select(-conf_mat) %>%
-    pull(new_accuracy)
-  
-  tab_ds %>%
-    mutate(Disease = str_replace_all(disease,"_", " ")) %>%
-    mutate(new_accuracy = new_ds)
-})
+ds_summary_tbl <- map_dfr(oie_high_importance_diseases[!oie_high_importance_diseases %in% c("rinderpest")], # no rinderpest outbreaks
+                          function(disease){
+                            
+                            out_disease_dc <- ds_summary(filter_var = "disease", filter_values = disease,
+                                                         truth = "disease_status_dirchange_actual", estimate = "disease_status_dirchange_predicted")
+                            
+                            # overall accuracy in predicting change (baseline stat is % of time there is no change)
+                            tab_ds <- out_disease_dc[[1]] %>%
+                              filter(.metric == "accuracy") %>% 
+                              pivot_wider(names_from = model, values_from = .estimate) 
+                            
+                            # accuracy in predicting new outbreaks
+                            out_disease_dc_new <- ds_summary(filter_var = "disease", filter_values = disease,
+                                                             truth = "disease_status_dirchange_actual", estimate = "disease_status_dirchange_predicted", outbreak_starts_only = TRUE)
+                            new_ds <- out_disease_dc_new[[1]] %>%
+                              filter(.metric == "accuracy", model == "xgboost") %>% 
+                              pull(.estimate)
+                            
+                            tab_ds %>%
+                              mutate(Disease = str_replace_all(disease,"_", " ")) %>%
+                              mutate(new_accuracy = new_ds)
+                          })
 
 ds_summary_tbl %>%
   filter(!is.nan(new_accuracy)) %>%
@@ -399,56 +392,33 @@ ds_summary_tbl %>%
   mutate_at(.vars = c("baseline", "xgboost", "new_accuracy"), .funs = ~paste0(round(100*.), "%")) %>%
   mutate(`REPEL (Overall/New Outbreaks)` = paste(xgboost, new_accuracy, sep = " / ")) %>%
   rename("Baseline Accuracy" = baseline) %>%
-  select(Disease, `Baseline Accuracy`, `REPEL (Overall/New Outbreaks)`) %>% 
+  dplyr::select(Disease, `Baseline Accuracy`, `REPEL (Overall/New Outbreaks)`) %>% 
   kbl() %>% 
   kable_styling() 
 
-## oie_high_importance_diseases lookup - start/end accuracy
-# disease <- "foot_and_mouth_disease"
-# accuracy_check <- ds_summary("full_model", filter_var = "disease", filter_values = disease,
-#                                truth = "disease_status_dirchange_actual", estimate = "disease_status_dirchange_predicted")
-# accuracy_check2 = accuracy_check[[3]] %>%
-#   filter(model == "xgboost") %>%
-#   mutate(conf_mat = map(conf_mat, tidy)) %>%
-#   unnest(conf_mat) %>%
-#   select(name, value) %>%
-#   pivot_wider(names_from = name, values_from = value)
-# 
-# # outbreak starts accuracy
-# accuracy_check2$cell_3_3 / (accuracy_check2$cell_1_3 + accuracy_check2$cell_2_3 + accuracy_check2$cell_3_3)
-# 
-# # outbreak ends accuracy
-# accuracy_check2$cell_2_2 / (accuracy_check2$cell_1_2 + accuracy_check2$cell_2_2 + accuracy_check2$cell_3_2)
 ```
 </details>
 
 <details>
-<summary>disease status direction change confusion matrix by taxa</summary>
+<summary>disease status confusion matrix by taxa</summary>
 ```{r ds-cm-taxa-dc, fig.width = 15, fig.height = 8}
 
 ds_summary_tbl <- map_dfr(unique(valdat$taxa), function(taxa){
   
-  out_disease_dc <- ds_summary("full_model", filter_var = "taxa", filter_values = taxa,
+  out_disease_dc <- ds_summary(filter_var = "taxa", filter_values = taxa,
                                truth = "disease_status_dirchange_actual", estimate = "disease_status_dirchange_predicted")
   
+  # overall accuracy in predicting change (baseline stat is % of time there is no change)
   tab_ds <- out_disease_dc[[1]] %>%
-    filter(.metric == "accuracy") %>%
-    select(model, full_model) %>%
-    pivot_wider(names_from = model, values_from = full_model)
+    filter(.metric == "accuracy") %>% 
+    pivot_wider(names_from = model, values_from = .estimate) 
   
-  new_ds <-  out_disease_dc[[3]] %>%
-    filter(model == "xgboost") %>%
-    select(-model, -lab) %>%
-    mutate(new_accuracy = map(conf_mat, function(cm){
-      tidy(cm) %>%
-        filter(name %in% c("cell_1_3", "cell_3_3")) %>%
-        pivot_wider(names_from = name) %>%
-        transmute(new_accuracy = cell_3_3 / (cell_3_3 + cell_1_3)) %>%
-        pull(new_accuracy)
-    })) %>%
-    unnest(new_accuracy) %>%
-    select(-conf_mat) %>%
-    pull(new_accuracy)
+  # accuracy in predicting new outbreaks
+  out_disease_dc_new <- ds_summary(filter_var = "taxa", filter_values = taxa,
+                                   truth = "disease_status_dirchange_actual", estimate = "disease_status_dirchange_predicted", outbreak_starts_only = TRUE)
+  new_ds <- out_disease_dc_new[[1]] %>%
+    filter(.metric == "accuracy", model == "xgboost") %>% 
+    pull(.estimate)
   
   tab_ds %>%
     mutate(Taxa = str_replace_all(taxa,"_", " ")) %>%
@@ -461,7 +431,7 @@ ds_summary_tbl %>%
   mutate_at(.vars = c("baseline", "xgboost", "new_accuracy"), .funs = ~paste0(round(100*.), "%")) %>%
   mutate(`REPEL (Overall/New Outbreaks)` = paste(xgboost, new_accuracy, sep = " / ")) %>%
   rename("Baseline Accuracy" = baseline) %>%
-  select(Taxa, `Baseline Accuracy`, `REPEL (Overall/New Outbreaks)`) %>% 
+  dplyr::select(Taxa, `Baseline Accuracy`, `REPEL (Overall/New Outbreaks)`) %>% 
   kbl() %>% 
   kable_styling() 
 
@@ -474,27 +444,20 @@ ds_summary_tbl %>%
 
 ds_summary_tbl <- map_dfr(na.omit(unique(scored_data_ds$continent)), function(continent){
   
-  out_disease_dc <- ds_summary("full_model", filter_var = "continent", filter_values = continent,
+  out_disease_dc <- ds_summary(filter_var = "continent", filter_values = continent,
                                truth = "disease_status_dirchange_actual", estimate = "disease_status_dirchange_predicted")
   
+ # overall accuracy in predicting change (baseline stat is % of time there is no change)
   tab_ds <- out_disease_dc[[1]] %>%
-    filter(.metric == "accuracy") %>%
-    select(model, full_model) %>%
-    pivot_wider(names_from = model, values_from = full_model)
+    filter(.metric == "accuracy") %>% 
+    pivot_wider(names_from = model, values_from = .estimate) 
   
-  new_ds <-  out_disease_dc[[3]] %>%
-    filter(model == "xgboost") %>%
-    select(-model, -lab) %>%
-    mutate(new_accuracy = map(conf_mat, function(cm){
-      tidy(cm) %>%
-        filter(name %in% c("cell_1_3", "cell_3_3")) %>%
-        pivot_wider(names_from = name) %>%
-        transmute(new_accuracy = cell_3_3 / (cell_3_3 + cell_1_3)) %>%
-        pull(new_accuracy)
-    })) %>%
-    unnest(new_accuracy) %>%
-    select(-conf_mat) %>%
-    pull(new_accuracy)
+  # accuracy in predicting new outbreaks
+  out_disease_dc_new <- ds_summary(filter_var = "continent", filter_values = continent,
+                                   truth = "disease_status_dirchange_actual", estimate = "disease_status_dirchange_predicted", outbreak_starts_only = TRUE)
+  new_ds <- out_disease_dc_new[[1]] %>%
+    filter(.metric == "accuracy", model == "xgboost") %>% 
+    pull(.estimate)
   
   tab_ds %>%
     mutate(Continent = str_replace_all(continent,"_", " ")) %>%
@@ -516,11 +479,11 @@ ds_summary_tbl %>%
 <details>
 <summary>cases model stats</summary>
 ```{r cs-stats}
-scored_data_cs_baseline <- scored_baseline$scored_tibble %>%
+scored_data_cs_baseline <- scored_baseline %>%
   select(disease, taxa, country_iso3c, cases_actual, cases_predicted, cases_dirchange_actual, cases_dirchange_predicted, cases_error) %>%
   mutate(model = "baseline") %>%
   drop_na(cases_actual)
-scored_data_cs_boost <- scored_boost$scored_tibble%>%
+scored_data_cs_boost <- scored_boost%>%
   select(disease, taxa, country_iso3c, cases_actual, cases_predicted, cases_dirchange_actual, cases_dirchange_predicted, cases_error) %>%
   mutate(model = "xgboost") %>%
   drop_na(cases_actual)
@@ -595,39 +558,35 @@ scored_data_cs %>%
 
 ### variable importance for specific cases of successfully predicting 0-1 switch
 ```{r}
-# variable importance for specific cases of successfully predicting 0-1 switch
-scored_boost <- repel_score(model_object = model_object,
-                            augmented_data = forecasted_boost$augmented_data,
-                            predicted_cases = forecasted_boost$predicted_cases)
+## variable importance for specific cases of successfully predicting 0-1 switch (disease status model)
 
-status_switched <- scored_boost$scored_tibble %>% 
+# extract training data (pre-prepped [augmented])
+boost_dat_disease_status <- boost_mod_disease_status$pre$actions$recipe$recipe$template
+
+# predict on training data
+boost_dat_disease_status_predicted <- repel_predict(model_object, newdata = boost_dat_disease_status)
+boost_dat_disease_status_scored <- repel_score(model_object, boost_dat_disease_status_predicted) %>% 
   mutate(ss = disease_status_dirchange_actual == "outbreak starts" &
-           disease_status_dirchange_predicted == "outbreak starts" ) 
-which_status_switched <- which(status_switched$ss)
+           disease_status_dirchange_predicted == "outbreak starts" )  
+which_status_switched <- which(boost_dat_disease_status_scored$ss)
 
-status_switched_augmented <- forecasted_boost$augmented_data %>% 
+# extract training data (prepped) and filter for correct outbreak predictions
+boost_dat_disease_status_mat <- extract_mold(boost_mod_disease_status)$predictors %>% 
   slice(which_status_switched) %>% 
-  select(-disease_status)
+  as.matrix()
 
-rec <- boost_mod_disease_status %>% pull_workflow_prepped_recipe()
-
-status_switched_mat <- bake(object = rec, new_data = status_switched_augmented) %>%
-  mutate_all(~as.numeric(.)) %>% 
-  as.data.frame() %>%
-  as.matrix() 
-
-lag_vars <- c("disease_status_lag1", "disease_status_lag2", "disease_status_lag3")
-
+# explainer
 explainer_disease_status_sub <- DALEX::explain(
   model = boost_mod_disease_status_xg,
-  data = status_switched_mat,
-  y = rep(1, nrow(status_switched_mat)),
+  data = boost_dat_disease_status_mat,
+  y = rep(1, nrow(boost_dat_disease_status_mat)),
   predict_function = predict_raw,
   verbose = FALSE
 )
 
+# variables of interest
 vars <- c("log_veterinarians_per_taxa",  "log_taxa_population", "cases_lag_sum_border_countries", "cases_lag1", "cases_lag2", "cases_lag3")
-vars <- c(vars, colnames(status_switched_mat)[str_starts(colnames(status_switched_mat), "control")])
+vars <- c(vars, colnames(boost_dat_disease_status_mat)[str_starts(colnames(boost_dat_disease_status_mat), "control")])
 
 vi <- DALEX::variable_importance(explainer_disease_status_sub)
 tt = vi %>% 
