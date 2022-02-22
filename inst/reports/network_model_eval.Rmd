@@ -13,6 +13,8 @@ output:
 knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE, fig.width = 7, fig.height = 5)
 devtools::load_all()
 library(ggplot2)
+library(ggrepel)
+library(ggthemes)
 library(patchwork)
 library(purrr)
 library(lme4)
@@ -289,8 +291,6 @@ lme_binoms <- lme_predict_full %>%
   mutate(disease = str_replace_all(disease, "_", " ")) 
 
 options(scipen = 999)
-library(ggrepel)
-library(ggthemes)
 
 disease_plots <- lme_binoms %>% 
   group_split(grp) %>% 
@@ -317,4 +317,274 @@ disease_plots[[1]]
 disease_plots[[2]]
 ```
 </details>
+
+
+
+
+
+
+
+
+### baseline
+```{r lme-mods-baseline}
+# Load model
+model_object <-  network_lme_model(
+  network_model = aws.s3::s3readRDS(bucket = "repeldb/models", object = "lme_mod_network_baseline.rds"),
+  network_scaling_values = aws.s3::s3readRDS(bucket = "repeldb/models", object = "network_scaling_values_baseline.rds")
+)
+lme_mod <- model_object$network_model
+network_scaling_values <- model_object$network_scaling_values
+```
+
+
+<details>
+<summary>residuals</summary>
+```{r lme-resids-baseline}
+residuals <- tibble::enframe(resid(lme_mod))
+
+plot(lme_mod, disease ~ resid(.), abline = 0 )
+
+ggplot(residuals, aes(x = value)) + 
+  geom_histogram(bins = 100) +
+  theme_minimal()
+```
+</details>
+
+<details>
+<summary>model summary</summary>
+```{r lme-rand-effs-baseline}
+lm_mod_sum <- summary(lme_mod)
+lm_mod_sum
+
+# add up total variance explained by random effects (following example here: https://it.unt.edu/sites/default/files/linearmixedmodels_jds_dec2010.pdf)
+lm_mod_vars <- map_dfr(lm_mod_sum$varcor, function(x){
+  map_dbl(1:ncol(x), ~x[.,.]) %>%
+    tibble::enframe(value = "variance") %>%
+    mutate(name = colnames(x)) %>% 
+    rename("variable" = name)
+}) %>% 
+  mutate(variable = str_replace(variable, "_from_outbreaks", " from countries with existing outbreak"),
+         #   variable = str_replace(variable, "ots_trade_dollars", "trade value of animal products"),
+         variable = str_replace(variable, "fao_trade_", ""),
+         variable = str_replace(variable, "_other", " (other)"),
+         variable = str_replace_all(variable, "_", " "),
+         variable = str_remove(variable, "continent")) %>% 
+  arrange(-variance) %>% 
+  mutate(variance = signif(variance, 2))
+
+
+# lm_mod_vars <- bind_rows(lm_mod_vars,
+#                          tibble(variable = "residual variance", variance = 100-sum(lm_mod_vars$variance))) %>% 
+#   arrange(-variance)
+# # ^? variance among slopes, or variance explained in data?
+
+knitr::kable(lm_mod_vars)
+
+```
+</details>
+
+```{r prep-lme-coef-plots-baseline}
+# Random effects
+randef <- ranef(lme_mod)
+#randef2 <- coef(lme_mod)$disease
+
+# if these are slopes, why do they all normally distribute around zero?
+# maybe they aren't slopes (as they are here https://journals.sagepub.com/doi/full/10.1177/2515245920960351), because we do not have fixed effects?
+# hist(randef$disease$continentAfrica)
+# hist(randef$disease$log_gdp_dollars)
+# hist(randef$disease$n_migratory_wildlife_from_outbreaks)
+# summary(randef$disease$n_migratory_wildlife_from_outbreaks)
+
+randef_disease <- randef$disease %>%
+  tibble::rownames_to_column(var = "disease") %>%
+  as_tibble() 
+
+randef_disease_long <- randef_disease %>%
+  pivot_longer(-disease, names_to = "variable", values_to = "coef") 
+
+randef_disease_long_formatted <- randef_disease_long %>% 
+  mutate(variable = str_replace(variable, "_from_outbreaks", " from countries with existing outbreak"),
+         #   variable = str_replace(variable, "ots_trade_dollars", "trade value of animal products"),
+         variable = str_replace(variable, "fao_trade_", ""),
+         variable = str_replace(variable, "_other", " (other)"),
+         variable = str_replace_all(variable, "_", " "),
+         variable = str_remove(variable, "continent"),
+         variable = str_replace(variable, "shared borders from countries with existing outbreak", "shared borders with country with existing outbreak"))
+
+
+lme_coeffs <- purrr::map(unique(randef_disease_long_formatted$variable), function(var){
+  dat <- randef_disease_long_formatted %>%
+    filter(variable == var) %>%
+    mutate(pos = coef > 0)
+  
+  dat <- dat %>% 
+    filter(disease %in% get_oie_high_importance_diseases()) %>% 
+    mutate(disease = str_replace_all(disease, "_", " ")) %>% 
+    mutate(disease = forcats::fct_reorder(disease, coef))
+  title <- var
+  ggplot(dat) +
+    geom_hline(aes(yintercept = 0), color = "gray50") +
+    geom_point(aes(x = disease, y = coef, color = pos), size = 2) +
+    geom_segment(aes(x = disease, xend = disease, y = coef, yend = 0, color = pos)) +
+    #    scale_y_continuous(limits = c(xmin,  xmax)) +
+    scale_color_manual(values = c("TRUE" = "#0072B2", "FALSE" = "#D55E00")) +
+    labs(y = "Coefficient", x = "", title = title) +
+    coord_flip() +
+    theme_minimal() +
+    theme(legend.position = "none", 
+          axis.text.y = element_text(size = 12, face = "bold"), 
+          axis.text.x = element_text(size = 10), 
+          plot.title= element_text(size = 14,  face = "bold"),
+          plot.title.position = "plot") +
+    NULL
+  
+})
+
+
+names(lme_coeffs) <- unique(randef_disease_long_formatted$variable)
+```
+
+
+```{r lme-var-by-disease-baseline, include = FALSE}
+src_lme <- map_chr(seq_along(lme_coeffs), ~ {
+  tab_name <- names(lme_coeffs[.x])
+  knit_expand(text = c("<details>",
+                       "<summary>{{tab_name}}</summary>",
+                       "```{r lme-coef-baseline-{{.x}}, echo = FALSE, align = 'left'}", 
+                       "lme_coeffs[[{{.x}}]]",
+                       "```",
+                       "</details>"))
+})
+
+```
+
+`r knit_child(text = src_lme)`
+
+<details>
+<summary>all</summary>
+```{r lme-coef-all-baseline, fig.width = 18, fig.height = 14}
+p1 <- patchwork::wrap_plots(lme_coeffs$Africa, lme_coeffs$Americas, lme_coeffs$Asia, lme_coeffs$Europe, lme_coeffs$Oceania)
+ggsave(filename = here::here("inst/reports/network_model_eval_files", "lme_coefs_continents_baseline.png"), width = 16, height = 12, dpi = "print")
+
+patchwork::wrap_plots(lme_coeffs$`log gdp dollars`, lme_coeffs$`log human population`, lme_coeffs$`log target taxa population`, lme_coeffs$`log veterinarians`, lme_coeffs$`shared borders with country with existing outbreak`)
+ggsave(filename = here::here("inst/reports/network_model_eval_files", "lme_coefs_country_attributes_baseline.png"), width = 16, height = 12, dpi = "print")
+
+```
+</details>
+
+<details>
+<summary>validation</summary>
+```{r lme-validation-baseline}
+# get predicted outbreak start probability by condition - break into groups by forecasted probability
+lme_predict <- augmented_data_val_bootstrap %>%
+  select(-month, -outbreak_start) %>%
+  mutate(outbreak_start_predict_prob = repel_predict(model_object, .)) %>% 
+  distinct() %>% # getting unique conditions  (unique combination of values)
+  drop_na(outbreak_start_predict_prob) %>% 
+  mutate(outbreak_start_predict_prob_grp = cut_number(outbreak_start_predict_prob, n = 30)) %>%
+  group_by(outbreak_start_predict_prob_grp) %>%
+  mutate(outbreak_start_predict_prob_grp_median = median(outbreak_start_predict_prob)) %>%
+  ungroup()
+
+# confirm we get the same prediction when conditions are the same
+lme_predict %>%
+  group_by_at(vars(-outbreak_start_predict_prob)) %>%
+  count() %>%
+  ungroup()  %>%
+  nrow() %>%
+  assertthat::are_equal(. , nrow(lme_predict))
+
+# to get actual probability, bring in data from full dataset that applies to the given conditions
+lme_predict_full <- augmented_data_training %>%
+  bind_rows(augmented_data_val) %>%
+  right_join(lme_predict) %>% # joins by condition - gets every actual instance of this condition from which to calculate actual probability
+  drop_na()  # dont include unknowns
+
+# overall forecast vs actual by binom group
+lme_binoms <- lme_predict_full %>% 
+  group_by(outbreak_start_predict_prob_grp) %>%
+  group_split() %>%
+  purrr::map_dfr(., function(tw){
+    binom <-  binom.confint(x = sum(tw$outbreak_start), n=nrow(tw), methods = "wilson")
+    tw %>%
+      distinct(outbreak_start_predict_prob_grp, outbreak_start_predict_prob_grp_median) %>%
+      mutate(outbreak_start_actual_prob = binom$mean, outbreak_start_actual_low = binom$lower, outbreak_start_actual_upper = binom$upper)})
+
+options(scipen = 999)
+ggplot(lme_binoms, aes(y = outbreak_start_predict_prob_grp_median, x  = outbreak_start_actual_prob)) +
+  geom_abline(color = "gray50") +
+  geom_errorbar(aes(xmin = outbreak_start_actual_low, xmax = outbreak_start_actual_upper)) +
+  geom_point(pch = 21,fill = "white") +
+  scale_x_continuous(limits = c(0, max(lme_binoms$outbreak_start_actual_upper))) +
+  scale_y_continuous(limits = c(0, max(lme_binoms$outbreak_start_actual_upper))) +
+  labs(y = "Forecasted probability", x = "Actual probabilty",
+       caption = paste("Forecasted probilities are binned into", n_distinct(lme_binoms$outbreak_start_predict_prob_grp_median), "groups by distribution density.\nActual probabilities are binomial probabilities and confidence intervals for actual outbreaks occurring within the forecasted interval")) +
+  theme_minimal() +
+  theme(legend.position = "none",
+        axis.text = element_text(size = 12),
+        title = element_text(size = 12),
+        plot.title.position = "plot",
+        plot.caption = element_text(hjust = 0)) +
+  NULL
+########################
+# overall forecast vs actual by disease
+
+lme_predict <- augmented_data_val_bootstrap %>%
+  select(-month, -outbreak_start) %>%
+  filter(disease %in% get_oie_high_importance_diseases()) %>% 
+  mutate(outbreak_start_predict_prob = repel_predict(model_object, .)) %>% 
+  distinct() %>% # getting unique conditions  (unique combination of values)
+  drop_na(outbreak_start_predict_prob) %>% 
+  group_by(disease) %>%
+  mutate(outbreak_start_predict_prob_disease_median = median(outbreak_start_predict_prob)) %>%
+  ungroup()
+
+# to get actual probability, bring in data from full dataset that applies to the given conditions
+lme_predict_full <- augmented_data_training %>%
+  bind_rows(augmented_data_val) %>%
+  filter(disease %in% get_oie_high_importance_diseases()) %>% 
+  right_join(lme_predict) %>% # joins by condition - gets every actual instance of this condition from which to calculate actual probability
+  drop_na()  # dont include unknowns
+
+# overall forecast vs actual by binom group
+lme_binoms <- lme_predict_full %>% 
+  group_by(disease) %>%
+  group_split() %>%
+  purrr::map_dfr(., function(tw){
+    binom <-  binom.confint(x = sum(tw$outbreak_start), n=nrow(tw), methods = "wilson")
+    tw %>%
+      distinct(disease, outbreak_start_predict_prob_disease_median) %>%
+      mutate(outbreak_start_actual_prob = binom$mean, outbreak_start_actual_low = binom$lower, outbreak_start_actual_upper = binom$upper)}) %>% 
+  mutate(grp = outbreak_start_predict_prob_disease_median < median(outbreak_start_predict_prob_disease_median)) %>% # split into two for visualization purposes
+  mutate(grp = ifelse(grp, 1, 2)) %>% 
+  mutate(disease = str_replace_all(disease, "_", " ")) 
+
+options(scipen = 999)
+
+disease_plots <- lme_binoms %>% 
+  group_split(grp) %>% 
+  map(function(x){
+    ggplot(x, aes(y = outbreak_start_predict_prob_disease_median, x  = outbreak_start_actual_prob, color = disease)) +
+      geom_abline(color = "gray50") +
+      geom_errorbar(aes(xmin = outbreak_start_actual_low, xmax = outbreak_start_actual_upper)) +
+      geom_point(pch = 21,fill = "white") +
+      geom_text_repel(aes(label = disease)) +
+      scale_x_continuous(limits = c(0, max(x$outbreak_start_actual_upper))) +
+      scale_y_continuous(limits = c(0, max(x$outbreak_start_actual_upper))) +
+      scale_color_colorblind()+
+      labs(y = "Forecasted probability", x = "Actual probabilty") +
+      theme_minimal() +
+      theme(legend.position = "none",
+            axis.text = element_text(size = 12),
+            title = element_text(size = 12),
+            plot.title.position = "plot",
+            plot.caption = element_text(hjust = 0)) +
+      NULL
+  })
+
+disease_plots[[1]]
+disease_plots[[2]]
+```
+</details>
+
 

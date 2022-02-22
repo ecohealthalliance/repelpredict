@@ -162,7 +162,7 @@ output:
 
 <details>
 <summary>all</summary>
-![](network_model_eval_files/figure-html/lme-coef-all-1.png)<!-- -->![](network_model_eval_files/figure-html/lme-coef-all-2.png)<!-- -->![](network_model_eval_files/figure-html/lme-coef-all-3.png)<!-- -->
+![](network_model_eval_files/figure-html/lme-coef-all-1.png)<!-- -->![](network_model_eval_files/figure-html/lme-coef-all-2.png)<!-- -->
 </details>
 
 <details>
@@ -174,4 +174,154 @@ output:
 
 ![](network_model_eval_files/figure-html/lme-validation-1.png)<!-- -->![](network_model_eval_files/figure-html/lme-validation-2.png)<!-- -->![](network_model_eval_files/figure-html/lme-validation-3.png)<!-- -->
 </details>
+
+
+
+
+
+
+
+
+### baseline
+
+
+
+<details>
+<summary>residuals</summary>
+![](network_model_eval_files/figure-html/lme-resids-baseline-1.png)<!-- -->![](network_model_eval_files/figure-html/lme-resids-baseline-2.png)<!-- -->
+</details>
+
+<details>
+<summary>model summary</summary>
+
+```
+## Generalized linear mixed model fit by maximum likelihood (Adaptive
+##   Gauss-Hermite Quadrature, nAGQ = 0) [glmerMod]
+##  Family: binomial  ( logit )
+## Formula: 
+## outbreak_start ~ (0 + continent | disease) + (0 + shared_borders_from_outbreaks |  
+##     disease) + (0 + log_gdp_dollars | disease) + (0 + log_human_population |  
+##     disease) + (0 + log_target_taxa_population | disease) + (0 +  
+##     log_veterinarians | disease)
+##    Data: augmented_data_compressed
+## Weights: wgts
+## Control: glmerControl(calc.derivs = TRUE)
+## 
+##      AIC      BIC   logLik deviance df.resid 
+##  19431.5  19642.4  -9694.8  19389.5   170220 
+## 
+## Scaled residuals: 
+##     Min      1Q  Median      3Q     Max 
+##   -2.69   -0.07   -0.03   -0.02 1343.94 
+## 
+## Random effects:
+##  Groups    Name                          Variance Std.Dev. Corr             
+##  disease   continentAfrica               5.62466  2.3716                    
+##            continentAmericas             3.46546  1.8616   -0.04            
+##            continentAsia                 4.11710  2.0291    0.78  0.34      
+##            continentEurope               3.97869  1.9947    0.21  0.68  0.59
+##            continentOceania              0.95086  0.9751    0.53  0.51  0.79
+##  disease.1 shared_borders_from_outbreaks 0.09296  0.3049                    
+##  disease.2 log_gdp_dollars               1.61280  1.2700                    
+##  disease.3 log_human_population          0.78688  0.8871                    
+##  disease.4 log_target_taxa_population    1.64673  1.2833                    
+##  disease.5 log_veterinarians             0.05049  0.2247                    
+##       
+##       
+##       
+##       
+##       
+##   0.94
+##       
+##       
+##       
+##       
+##       
+## Number of obs: 170241, groups:  disease, 58
+## 
+## Fixed effects:
+##             Estimate Std. Error z value            Pr(>|z|)    
+## (Intercept)  -8.9704     0.2025  -44.31 <0.0000000000000002 ***
+## ---
+## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+```
+
+
+
+|variable                                             | variance|
+|:----------------------------------------------------|--------:|
+|Africa                                               |    5.600|
+|Asia                                                 |    4.100|
+|Europe                                               |    4.000|
+|Americas                                             |    3.500|
+|log target taxa population                           |    1.600|
+|log gdp dollars                                      |    1.600|
+|Oceania                                              |    0.950|
+|log human population                                 |    0.790|
+|shared borders from countries with existing outbreak |    0.093|
+|log veterinarians                                    |    0.050|
+</details>
+
+
+
+
+
+
+
+<details>
+<summary>Africa</summary>
+![](network_model_eval_files/figure-html/lme-coef-baseline-1-1.png)<!-- -->
+</details>
+<details>
+<summary>Americas</summary>
+![](network_model_eval_files/figure-html/lme-coef-baseline-2-1.png)<!-- -->
+</details>
+<details>
+<summary>Asia</summary>
+![](network_model_eval_files/figure-html/lme-coef-baseline-3-1.png)<!-- -->
+</details>
+<details>
+<summary>Europe</summary>
+![](network_model_eval_files/figure-html/lme-coef-baseline-4-1.png)<!-- -->
+</details>
+<details>
+<summary>Oceania</summary>
+![](network_model_eval_files/figure-html/lme-coef-baseline-5-1.png)<!-- -->
+</details>
+<details>
+<summary>shared borders with country with existing outbreak</summary>
+![](network_model_eval_files/figure-html/lme-coef-baseline-6-1.png)<!-- -->
+</details>
+<details>
+<summary>log gdp dollars</summary>
+![](network_model_eval_files/figure-html/lme-coef-baseline-7-1.png)<!-- -->
+</details>
+<details>
+<summary>log human population</summary>
+![](network_model_eval_files/figure-html/lme-coef-baseline-8-1.png)<!-- -->
+</details>
+<details>
+<summary>log target taxa population</summary>
+![](network_model_eval_files/figure-html/lme-coef-baseline-9-1.png)<!-- -->
+</details>
+<details>
+<summary>log veterinarians</summary>
+![](network_model_eval_files/figure-html/lme-coef-baseline-10-1.png)<!-- -->
+</details>
+
+<details>
+<summary>all</summary>
+![](network_model_eval_files/figure-html/lme-coef-all-baseline-1.png)<!-- -->
+</details>
+
+<details>
+<summary>validation</summary>
+
+```
+## [1] TRUE
+```
+
+![](network_model_eval_files/figure-html/lme-validation-baseline-1.png)<!-- -->![](network_model_eval_files/figure-html/lme-validation-baseline-2.png)<!-- -->![](network_model_eval_files/figure-html/lme-validation-baseline-3.png)<!-- -->
+</details>
+
 
