@@ -8,7 +8,7 @@
   model_object,
   augmented_data,
   predictor_vars,
-  output_directory,
+  baseline = FALSE,
   verbose = interactive()
 )
 }

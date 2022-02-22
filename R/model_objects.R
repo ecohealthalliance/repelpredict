@@ -28,6 +28,14 @@ nowcast_boost_model <- function(disease_status_model = NULL,
             class = c("nowcast_boost", "nowcast_tree", "nowcast_model", "repel_model"))
 }
 
+#' Produces network baseline model object
+#' @import repeldata dplyr tidyr
+#' @return a list with description and classes
+#' @export
+network_baseline_model <- function(){
+  structure(list(description = "Network baseline model"),
+            class = c("network_baseline", "network_lme", "network_model", "repel_model"))
+}
 
 #' Produces network lme model object
 #' @import repeldata dplyr tidyr

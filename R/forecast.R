@@ -13,7 +13,7 @@ repel_forecast <- function(x, ...){
 repel_forecast.network_model <- function(model_object, conn, newdata) {
   augmented_data <- repel_augment(model_object, conn, newdata)
   predictions <- repel_predict(model_object, newdata = augmented_data)
-  return(list(augmented_data = augmented_data, predicted_cases = predictions))
+  return(list(augmented_data = augmented_data, outbreak_start_probability = predictions))
 }
 
 #' forecast nowcast model object

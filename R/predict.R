@@ -61,18 +61,20 @@ repel_predict.network_lme <- function(model_object, newdata) {
   predictor_vars <- network_scaling_values$key
 
   # transform with scaling values
-  newdata2 <- network_recipe(augmented_data = newdata, predictor_vars = predictor_vars, scaling_values = network_scaling_values)
-  newdata2 <- newdata2 %>%
-    mutate(complete_case = complete.cases(newdata2)) %>%
+  newdata_scaled <- network_recipe(augmented_data = newdata, predictor_vars = predictor_vars, scaling_values = network_scaling_values)
+  newdata_scaled <- newdata_scaled %>%
+    mutate(complete_case = complete.cases(newdata_scaled)) %>%
     mutate(row_number = row_number())
 
-  out <- newdata2 %>%
+  # warning about complete cases
+  if(any(!newdata_scaled$complete_case)) warning("NAs returned for augmented data containing NAs")
+
+  # run predictions
+  out <- newdata_scaled %>%
     filter(complete_case) %>%
     mutate(prediction = predict(lme_mod, ., type = "response")) %>%
-    bind_rows(newdata2 %>% filter(!complete_case)) %>%
+    bind_rows(newdata_scaled %>% filter(!complete_case)) %>%
     arrange(row_number)
-
-  if(any(!newdata2$complete_case)) warning("NAs returned for augmented data containing NAs")
 
   return(out$prediction)
 

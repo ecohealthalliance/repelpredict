@@ -213,8 +213,6 @@ repel_fit.nowcast_boost <- function(model_object,
   }
 }
 
-
-
 #' Fit network LME model object
 #' @return list containing predicted count and whether disease is expected or not (T/F)
 #' @import dplyr tidyr lme4 tictoc
@@ -224,7 +222,7 @@ repel_fit.nowcast_boost <- function(model_object,
 repel_fit.network_lme <- function(model_object,
                                   augmented_data,
                                   predictor_vars,
-                                  output_directory,
+                                  baseline = FALSE,
                                   verbose = interactive()) {
 
   augmented_data_select <- augmented_data %>%
@@ -266,11 +264,13 @@ repel_fit.network_lme <- function(model_object,
                      verbose = 2, control = glmerControl(calc.derivs = TRUE))
   toc()
 
-  write_rds(mod, here::here(paste0(output_directory, "/lme_mod_network.rds")))
-  aws.s3::s3saveRDS(mod, bucket = "repeldb/models", object = "lme_mod_network.rds")
+  baseline_append <- switch(baseline, "_baseline", "")
 
-  write_csv(scaling_values, here::here(paste0(output_directory, "/network_scaling_values.csv")))
-  aws.s3::s3saveRDS(scaling_values, bucket = "repeldb/models", object = "network_scaling_values.rds")
+  write_rds(mod, here::here(paste0("models", "/lme_mod_network", baseline_append, ".rds")))
+  aws.s3::s3saveRDS(mod, bucket = "repeldb/models", object = paste0("lme_mod_network", baseline_append, ".rds"))
+
+  write_csv(scaling_values, here::here(paste0("models", "/network_scaling_values", baseline_append, ".csv")))
+  aws.s3::s3saveRDS(scaling_values, bucket = "repeldb/models", object = paste0("network_scaling_values", baseline_append, ".rds"))
 
 }
 
