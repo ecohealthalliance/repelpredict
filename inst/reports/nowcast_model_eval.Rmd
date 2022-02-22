@@ -69,9 +69,7 @@ importance_disease_status$data <-
                            "cases (6 months) missing" = "missing value: cases (6 months)",
                            "cases (12 months) missing" = "missing value: cases (12 months)",
                            "cases (18 months) missing" = "missing value: cases (18 months)",
-                           "log gdp per capita" = "GDP per capita"
-                           
-  ))
+                           "log gdp per capita" = "GDP per capita"))
 
 importance_disease_status + 
   ggthemes::theme_fivethirtyeight(base_size = 22) +
@@ -158,7 +156,7 @@ ds_pd_by_disease_dat  <- ds_pd_by_disease_dat %>%
   mutate(x = recode(x, `1` = "disease_present", `0` = "disease_absent")) %>% 
   pivot_wider(names_from = x, values_from = yhat) %>% 
   drop_na() %>% 
-  mutate(diff = disease_present - disease_absent) %>% 
+  mutate(diff = disease_absent - disease_present) %>% # not sure why absent is greater than present (in previous model iterations we did present-absent)
   mutate(vname = recode(vname, "disease_status_lag1" = "6 months",
                         "disease_status_lag2" = "12 months",
                         "disease_status_lag3" = "18 months")) %>% 
