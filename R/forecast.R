@@ -13,7 +13,7 @@ repel_forecast <- function(x, ...){
 repel_forecast.network_model <- function(model_object, conn, newdata) {
   augmented_data <- repel_augment(model_object, conn, newdata)
   predictions <- repel_predict(model_object, newdata = augmented_data)
-  return(list(augmented_data = augmented_data, outbreak_start_probability = predictions))
+  return(list(augmented_data = augmented_data, outbreak_start_probability = predictions)) # network forecast separates out the augment and predictions
 }
 
 #' forecast nowcast model object
@@ -27,6 +27,6 @@ repel_forecast.nowcast_model <- function(model_object,
                                          subset = NULL) {
   augmented_data <- repel_augment(model_object, conn, subset)
   predictions <- repel_predict(model_object, newdata = augmented_data)
-  return(predictions)
+  return(predictions) # nowcast returns one dataframe with augment and prediction
 }
 
