@@ -4,7 +4,7 @@
 \alias{repel_augment.network_model}
 \title{Augment steps for baseline and full model}
 \usage{
-\method{repel_augment}{network_model}(model_object, conn, newdata)
+\method{repel_augment}{network_model}(model_object, conn, newdata, sum_country_imports = TRUE)
 }
 \arguments{
 \item{model_object}{network model object}
