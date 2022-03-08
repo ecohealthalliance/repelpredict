@@ -16,19 +16,10 @@ augmented_data <- repel_augment(model_object = model_object,
 tic()
 repel_fit(model_object =  model_object,
           augmented_data = augmented_data,
-          predictor_vars = c("continent", "shared_borders_from_outbreaks",
+          predictor_vars = c("continent", "disease_present_anywhere",
                              #"ots_trade_dollars_from_outbreaks","fao_livestock_heads_from_outbreaks", "n_migratory_wildlife_from_outbreaks",
-                             "log_gdp_dollars", "log_human_population", "log_target_taxa_population", "log_veterinarians"),
-          baseline = TRUE)
-toc() # 7656.041 sec elapsed (~2)
+                             "log_gdp_dollars", "log_human_population", "log_target_taxa_population", "log_veterinarians"))
+toc()
 
-# Predict/Forecast example --------------------------------------------------------
-model_object <-  repelpredict::network_lme_model(
-  network_model = aws.s3::s3readRDS(bucket = "repeldb/models", object = "lme_mod_network_baseline.rds"),
-  network_scaling_values = aws.s3::s3readRDS(bucket = "repeldb/models", object = "network_scaling_values_baseline.rds")
-)
-forecasted_lme_baseline <-repel_forecast(model_object = model_object,
-                                    conn = conn,
-                                    newdata = traindat)
 # Disconnect DB -----------------------------------------------------------
 repel_remote_disconnect()

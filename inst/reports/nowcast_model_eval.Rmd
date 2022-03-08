@@ -17,6 +17,8 @@ library(yardstick)
 library(cowplot)
 library(DALEX)
 library(rsample)
+library(gt)
+library(gtsummary)
 
 oie_high_importance_diseases <- get_oie_high_importance_diseases()
 
@@ -72,8 +74,8 @@ importance_disease_status$data <-
                            "log gdp per capita" = "GDP per capita"))
 
 importance_disease_status + 
-  ggthemes::theme_fivethirtyeight(base_size = 22) +
-  theme(axis.title = element_text(size = 14)) 
+  theme_minimal(base_size = 22) +
+  labs(y = "Importance Score")
 
 ```
 </details>
@@ -101,8 +103,7 @@ importance_cases$data <-
   ))
 
 importance_cases + 
-  ggthemes::theme_fivethirtyeight(base_size = 22) +
-  theme(axis.title = element_text(size = 14)) 
+  ggthemes::theme_fivethirtyeight(base_size = 22) 
 
 ```
 </details>
@@ -130,7 +131,7 @@ ds_pd_by_disease <-  map_dfr(oie_high_importance_diseases, function(disease){
       )
       
       map_dfr(lag_vars, function(var){
-        var_resp <- model_profile(explainer_disease_status_sub, 
+        var_resp <- model_profile(explainer_disease_status_sub,  # how does the expected value of model prediction behave as a function of a selected explanatory variable
                                   variable =  var , 
                                   type = "partial", 
                                   variable_type = "categorical")
@@ -172,9 +173,9 @@ ggplot(ds_pd_by_disease_dat, aes(x = disease, y = diff, fill = vname)) +
   scale_y_continuous(expand=c(0,0)) +
   scale_fill_manual(values = cbp1[1:3], guide = guide_legend(reverse = TRUE)) +
   coord_flip() +
-  ggthemes::theme_fivethirtyeight(base_size = 22) +
-  theme(legend.position = "top", axis.title = element_text(size = 14)) +
-  labs(y = "Percent", x = "", fill = "") 
+  theme_minimal(base_size = 22) +
+  theme(legend.position = "top") +
+  labs(y = "Prediction (parital dependency)", x = "", fill = "") 
 
 ```
 </details>
@@ -361,7 +362,7 @@ out_full_model_dc[[1]]  %>%
 <summary>disease status confusion matrix by select diseases</summary>
 ```{r ds-cm-disease-dc, fig.width = 15, fig.height = 8}
 
-ds_summary_tbl <- map_dfr(oie_high_importance_diseases[!oie_high_importance_diseases %in% c("rinderpest")], # no rinderpest outbreaks
+ds_summary_tbl_by_disease <- map_dfr(oie_high_importance_diseases[!oie_high_importance_diseases %in% c("rinderpest")], # no rinderpest outbreaks
                           function(disease){
                             
                             out_disease_dc <- ds_summary(filter_var = "disease", filter_values = disease,
@@ -384,15 +385,19 @@ ds_summary_tbl <- map_dfr(oie_high_importance_diseases[!oie_high_importance_dise
                               mutate(new_accuracy = new_ds)
                           })
 
-ds_summary_tbl %>%
+tbl <- ds_summary_tbl_by_disease %>%
   filter(!is.nan(new_accuracy)) %>%
   arrange(-new_accuracy) %>%
   mutate_at(.vars = c("baseline", "xgboost", "new_accuracy"), .funs = ~paste0(round(100*.), "%")) %>%
   mutate(`REPEL (Overall/New Outbreaks)` = paste(xgboost, new_accuracy, sep = " / ")) %>%
   rename("Baseline Accuracy" = baseline) %>%
-  dplyr::select(Disease, `Baseline Accuracy`, `REPEL (Overall/New Outbreaks)`) %>% 
+  dplyr::select(Disease, `Baseline Accuracy`, `REPEL (Overall/New Outbreaks)`)
+
+tbl %>% 
   kbl() %>% 
   kable_styling() 
+
+write_csv(tbl, file = here::here("inst", "reports",  "tables", "nowcast_disease_status_accuracy_by_disease.csv"))
 
 ```
 </details>
@@ -401,7 +406,7 @@ ds_summary_tbl %>%
 <summary>disease status confusion matrix by taxa</summary>
 ```{r ds-cm-taxa-dc, fig.width = 15, fig.height = 8}
 
-ds_summary_tbl <- map_dfr(unique(valdat$taxa), function(taxa){
+ds_summary_tbl_by_taxa <- map_dfr(unique(valdat$taxa), function(taxa){
   
   out_disease_dc <- ds_summary(filter_var = "taxa", filter_values = taxa,
                                truth = "disease_status_dirchange_actual", estimate = "disease_status_dirchange_predicted")
@@ -423,15 +428,19 @@ ds_summary_tbl <- map_dfr(unique(valdat$taxa), function(taxa){
     mutate(new_accuracy = new_ds)
 })
 
-ds_summary_tbl %>%
+tbl <- ds_summary_tbl_by_taxa %>%
   filter(!is.nan(new_accuracy)) %>%
   arrange(-new_accuracy) %>%
   mutate_at(.vars = c("baseline", "xgboost", "new_accuracy"), .funs = ~paste0(round(100*.), "%")) %>%
   mutate(`REPEL (Overall/New Outbreaks)` = paste(xgboost, new_accuracy, sep = " / ")) %>%
   rename("Baseline Accuracy" = baseline) %>%
-  dplyr::select(Taxa, `Baseline Accuracy`, `REPEL (Overall/New Outbreaks)`) %>% 
+  dplyr::select(Taxa, `Baseline Accuracy`, `REPEL (Overall/New Outbreaks)`) 
+
+ tbl %>% 
   kbl() %>% 
   kable_styling() 
+
+write_csv(tbl, file = here::here("inst", "reports",  "tables", "nowcast_disease_status_accuracy_by_taxa.csv"))
 
 ```
 </details>
@@ -440,12 +449,12 @@ ds_summary_tbl %>%
 <summary>disease status direction change confusion matrix by continent</summary>
 ```{r ds-cm-continent-dc, fig.width = 15, fig.height = 8}
 
-ds_summary_tbl <- map_dfr(na.omit(unique(scored_data_ds$continent)), function(continent){
+ds_summary_tbl_by_continent <- map_dfr(na.omit(unique(scored_data_ds$continent)), function(continent){
   
   out_disease_dc <- ds_summary(filter_var = "continent", filter_values = continent,
                                truth = "disease_status_dirchange_actual", estimate = "disease_status_dirchange_predicted")
   
- # overall accuracy in predicting change (baseline stat is % of time there is no change)
+  # overall accuracy in predicting change (baseline stat is % of time there is no change)
   tab_ds <- out_disease_dc[[1]] %>%
     filter(.metric == "accuracy") %>% 
     pivot_wider(names_from = model, values_from = .estimate) 
@@ -462,15 +471,20 @@ ds_summary_tbl <- map_dfr(na.omit(unique(scored_data_ds$continent)), function(co
     mutate(new_accuracy = new_ds)
 })
 
-ds_summary_tbl %>%
+tbl <- ds_summary_tbl_by_continent %>%
   filter(!is.nan(new_accuracy)) %>%
   arrange(-new_accuracy) %>%
   mutate_at(.vars = c("baseline", "xgboost", "new_accuracy"), .funs = ~paste0(round(100*.), "%")) %>%
   mutate(`REPEL (Overall/New Outbreaks)` = paste(xgboost, new_accuracy, sep = " / ")) %>%
   rename("Baseline Accuracy" = baseline) %>%
-  select(Continent, `Baseline Accuracy`, `REPEL (Overall/New Outbreaks)`) %>% 
+  select(Continent, `Baseline Accuracy`, `REPEL (Overall/New Outbreaks)`) 
+
+tbl %>% 
   kbl() %>% 
   kable_styling() 
+
+write_csv(tbl, file = here::here("inst", "reports",  "tables", "nowcast_disease_status_accuracy_by_continent.csv"))
+
 ```
 </details>
 
@@ -479,11 +493,11 @@ ds_summary_tbl %>%
 ```{r cs-stats}
 scored_data_cs_baseline <- scored_baseline %>%
   select(disease, taxa, country_iso3c, cases_actual, cases_predicted, cases_dirchange_actual, cases_dirchange_predicted, cases_error) %>%
-  mutate(model = "baseline") %>%
+  mutate(model = "Baseline") %>%
   drop_na(cases_actual)
 scored_data_cs_boost <- scored_boost%>%
   select(disease, taxa, country_iso3c, cases_actual, cases_predicted, cases_dirchange_actual, cases_dirchange_predicted, cases_error) %>%
-  mutate(model = "xgboost") %>%
+  mutate(model = "NowCast") %>%
   drop_na(cases_actual)
 
 scored_data_cs <- bind_rows(scored_data_cs_baseline, scored_data_cs_boost) %>%
@@ -506,7 +520,8 @@ scored_data_cs %>%
   scale_y_log10(limits = c(1, max(c(scored_data_cs$cases_actual, scored_data_cs$cases_predicted)))) +
   scale_x_log10(limits = c(1, max(c(scored_data_cs$cases_actual, scored_data_cs$cases_predicted)))) +
   scale_color_viridis_c() +
-  theme_bw()
+  labs(x = "Actual Cases", y = "Predicted Cases", color = "Error (log scale)") +
+  theme_minimal()
 ```
 </details>
 

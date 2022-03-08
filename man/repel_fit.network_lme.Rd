@@ -8,13 +8,18 @@
   model_object,
   augmented_data,
   predictor_vars,
-  baseline = FALSE,
+  verbose = interactive()
+)
+
+\method{repel_fit}{network_lme}(
+  model_object,
+  augmented_data,
+  predictor_vars,
   verbose = interactive()
 )
 }
-\value{
-list containing predicted count and whether disease is expected or not (T/F)
-}
 \description{
 Fit network LME model object
+
+Fit network baseline intercept-only model object
 }

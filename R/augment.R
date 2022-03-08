@@ -327,18 +327,17 @@ repel_augment.nowcast_gam <- function(model_object, conn, newdata, rare = 1000) 
 }
 
 
-#' Augment network model object
+#' Augment steps for baseline and full model
 #' @param model_object network model object
 #' @param conn connection to repel db
 #' @param newdata dataframe that has been preprocessed through `repel_init()` and optionally split into training/validation. contains country, disease, month, and outbreak status.
-#' @param sum_country_imports whether or not to sum all imports. FALSE results in data disaggregated by origin countries. Default is TRUE.
 #' @import repeldata dplyr tidyr dtplyr data.table
 #' @importFrom assertthat has_name assert_that
 #' @importFrom janitor make_clean_names
 #' @importFrom lubridate ymd year
 #' @importFrom purrr map_dfr
 #' @export
-repel_augment.network_model <- function(model_object, conn, newdata, sum_country_imports = TRUE) {
+repel_augment.network_model <- function(model_object, conn, newdata) {
 
   # check newdata has correct input vars
   assertthat::has_name(newdata, c("country_iso3c", "disease", "month", "outbreak_start",
@@ -353,19 +352,27 @@ repel_augment.network_model <- function(model_object, conn, newdata, sum_country
     mutate(year = year(month))
 
   ### country characteristics
+  # continent
+  outbreak_status <- outbreak_status %>%
+    mutate(continent = as.factor(countrycode::countrycode(country_iso3c,  origin = "iso3c", destination = "continent")))
+
   # gdp
   gdp <- tbl(conn,  "country_yearly_wb_gdp") %>%
     select(country_iso3c, year, gdp_dollars) %>%
     collect()
 
-  outbreak_status <- left_join(outbreak_status, gdp,  by = c("country_iso3c", "year"))
+  outbreak_status <- left_join(outbreak_status, gdp,  by = c("country_iso3c", "year")) %>%
+    mutate(log_gdp_dollars = prepvar(gdp_dollars, trans_fn = log10)) %>%
+    select(-gdp_dollars)
 
   # human populations
   hpop <- tbl(conn,  "country_yearly_wb_human_population") %>%
     select(country_iso3c, year, human_population) %>%
     collect()
 
-  outbreak_status <- left_join(outbreak_status, hpop,  by = c("country_iso3c", "year"))
+  outbreak_status <- left_join(outbreak_status, hpop,  by = c("country_iso3c", "year")) %>%
+    mutate(log_human_population = prepvar(human_population, trans_fn = log10)) %>%
+    select(-human_population)
 
   # taxa population
   disease_taxa_lookup <- vroom::vroom(system.file("lookup", "disease_taxa_lookup.csv", package = "repelpredict"), col_types = cols(
@@ -383,14 +390,19 @@ repel_augment.network_model <- function(model_object, conn, newdata, sum_country
     summarize(target_taxa_population = sum(population, na.rm = TRUE)) %>%
     ungroup()
 
-  outbreak_status <- left_join(outbreak_status, taxa_population,  by = c("country_iso3c", "year", "disease"))
+  outbreak_status <- left_join(outbreak_status, taxa_population,  by = c("country_iso3c", "year", "disease")) %>%
+    mutate(log_target_taxa_population = prepvar((target_taxa_population+1), trans_fn = log10)) %>%
+    select(-target_taxa_population)
 
   # vet capacity
   vets <- tbl(conn, "country_yearly_oie_vet_population" ) %>%
     select(country_iso3c, year, veterinarian_count) %>%
     collect()
 
-  outbreak_status <- left_join(outbreak_status, vets,  by = c("country_iso3c", "year"))
+  outbreak_status <- left_join(outbreak_status, vets,  by = c("country_iso3c", "year")) %>%
+    mutate(log_veterinarians = prepvar((veterinarian_count+1), trans_fn = log10)) %>%
+    select(-veterinarian_count)
+
 
   # which countries have disease outbreak in a given month - read from cached data - roundabout way of dealing with pre/post cleaned disease names
   disease_status_present <- tbl(conn, "outbreak_reports_events") %>%
@@ -407,8 +419,29 @@ repel_augment.network_model <- function(model_object, conn, newdata, sum_country
     filter(outbreak_start | outbreak_subsequent_month | endemic) %>%
     select(country_origin = country_iso3c, month, disease)
 
-  outbreak_status <- outbreak_status %>%
+
+  return(list(outbreak_status = outbreak_status, disease_status_present = disease_status_present))
+
+}
+
+
+#' Augment network model object
+#' @param model_object network_lme object
+#' @param conn connection to repel db
+#' @param newdata dataframe that has been preprocessed through `repel_init()` and optionally split into training/validation. contains country, disease, month, and outbreak status.
+#' @param sum_country_imports whether or not to sum all imports. FALSE results in data disaggregated by origin countries. Default is TRUE.
+#' @import repeldata dplyr tidyr dtplyr data.table
+#' @importFrom assertthat has_name assert_that
+#' @importFrom janitor make_clean_names
+#' @importFrom lubridate ymd year
+#' @importFrom purrr map_dfr
+#' @export
+repel_augment.network_lme <- function(model_object, conn, newdata, sum_country_imports = TRUE) {
+
+  init_augment <- repel_augment.network_model(model_object, conn, newdata) # augment steps for baseline and full model
+  outbreak_status <- init_augment$outbreak_status %>%
     mutate(outbreak_start = as.integer(outbreak_start))
+  disease_status_present <- init_augment$disease_status_present
 
   # set up country origin/destination combinations - origin is countries that have the disease present in the given month
   outbreak_status <- outbreak_status %>%
@@ -470,8 +503,8 @@ repel_augment.network_model <- function(model_object, conn, newdata, sum_country
     outbreak_status <- outbreak_status %>%
       lazy_dt() %>%
       select(-country_origin, -year) %>%
-      group_by(country_destination, disease, month, outbreak_start,
-               gdp_dollars, human_population, target_taxa_population, veterinarian_count ## non-bilaterial values
+      group_by(country_destination, continent, disease, month, outbreak_start,
+               log_gdp_dollars, log_human_population, log_target_taxa_population, log_veterinarians ## non-bilaterial values
       ) %>%
       summarize_all(~sum(as.numeric(.), na.rm = TRUE)) %>%
       ungroup() %>%
@@ -479,7 +512,7 @@ repel_augment.network_model <- function(model_object, conn, newdata, sum_country
   }else{
     # for disaggregated imports, remove NAs in country_origins, unless there are no imports at all, as we do not want to lose country record
     outbreak_status <- outbreak_status %>%
-      group_by(country_destination, disease, month) %>%
+      group_by(country_destination, continent, disease, month) %>%
       mutate(no_origin = all(is.na(country_origin))) %>%
       ungroup() %>%
       filter(!(!no_origin & is.na(country_origin))) %>% # removing na if country/disease has at least one country_origin
@@ -496,15 +529,6 @@ repel_augment.network_model <- function(model_object, conn, newdata, sum_country
     mutate(outbreak_ongoing = outbreak_ongoing > 0) %>%
     mutate(outbreak_start_while_ongoing_or_endemic = outbreak_start_while_ongoing_or_endemic > 0) %>%
     mutate(shared_border = as.integer(shared_border)) %>%
-    mutate(log_human_population = prepvar(human_population, trans_fn = log10)) %>%
-    select(-human_population) %>%
-    mutate(log_gdp_dollars = prepvar(gdp_dollars, trans_fn = log10)) %>%
-    select(-gdp_dollars) %>%
-    mutate(log_target_taxa_population = prepvar((target_taxa_population+1), trans_fn = log10)) %>%
-    select(-target_taxa_population) %>%
-    mutate(log_veterinarians = prepvar((veterinarian_count+1), trans_fn = log10)) %>%
-    select(-veterinarian_count) %>%
-    mutate(continent = as.factor(countrycode::countrycode(country_destination,  origin = "iso3c", destination = "continent"))) %>%
     select(country_iso3c = country_destination, continent, suppressWarnings(one_of("country_origin")),
            disease, month, log_gdp_dollars, log_human_population, log_target_taxa_population,
            log_veterinarians,
@@ -519,5 +543,42 @@ repel_augment.network_model <- function(model_object, conn, newdata, sum_country
 
   return(outbreak_status)
 
+}
+
+#' Augment baseline model object
+#' @param model_object network_lme object
+#' @param conn connection to repel db
+#' @param newdata dataframe that has been preprocessed through `repel_init()` and optionally split into training/validation. contains country, disease, month, and outbreak status.
+#' @import repeldata dplyr tidyr dtplyr data.table
+#' @importFrom assertthat has_name assert_that
+#' @importFrom janitor make_clean_names
+#' @importFrom lubridate ymd year
+#' @importFrom purrr map_dfr
+#' @export
+repel_augment.network_baseline <- function(model_object, conn, newdata) {
+
+  init_augment <- repel_augment.network_model(model_object, conn, newdata) # augment steps for baseline and full model
+  outbreak_status <- init_augment$outbreak_status
+
+  # identify if the disease is present anywhere in the world
+  disease_status_present <- init_augment$disease_status_present %>%
+    distinct(month, disease) %>%
+    mutate(disease_present_anywhere = TRUE)
+
+  outbreak_status <- outbreak_status %>%
+    left_join(disease_status_present) %>%
+    mutate(disease_present_anywhere = replace_na(disease_present_anywhere, FALSE))
+
+  # finishing touches
+  outbreak_status <- outbreak_status %>%
+    select(-suppressWarnings(one_of("year"))) %>%
+    select(country_iso3c, continent,
+           disease, month, log_gdp_dollars, log_human_population, log_target_taxa_population, log_veterinarians,
+           outbreak_start,
+           disease_present_anywhere,
+           outbreak_subsequent_month, outbreak_ongoing, outbreak_start_while_ongoing_or_endemic, endemic, disease_country_combo_unreported,
+           everything())
+
+  return(outbreak_status)
 }
 

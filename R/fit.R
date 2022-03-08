@@ -213,17 +213,15 @@ repel_fit.nowcast_boost <- function(model_object,
   }
 }
 
-#' Fit network LME model object
-#' @return list containing predicted count and whether disease is expected or not (T/F)
+
+#' Feature engineering (pre-fit) steps for baseline and full model
 #' @import dplyr tidyr lme4 tictoc
 #' @importFrom here here
 #' @importFrom RhpcBLASctl blas_set_num_threads
 #' @export
-repel_fit.network_lme <- function(model_object,
+repel_fit.network_model <- function(model_object,
                                   augmented_data,
-                                  predictor_vars,
-                                  baseline = FALSE,
-                                  verbose = interactive()) {
+                                  predictor_vars) {
 
   augmented_data_select <- augmented_data %>%
     drop_na() %>%
@@ -238,6 +236,7 @@ repel_fit.network_lme <- function(model_object,
     summarize(mean = mean(value), sd = sd(value)) %>%
     ungroup()
 
+  # compress by unique combo of data
   augmented_data_compressed <- augmented_data_select %>%
     network_recipe(., predictor_vars, scaling_values) %>%
     group_by_all() %>%
@@ -246,13 +245,29 @@ repel_fit.network_lme <- function(model_object,
     select(country_iso3c, disease, count = n, outbreak_start, everything()) %>%
     arrange(disease, desc(count), country_iso3c)
 
+  return(list(scaling_values = scaling_values, augmented_data_compressed = augmented_data_compressed))
+
+
+}
+
+#' Fit network LME model object
+#' @import dplyr tidyr lme4 tictoc
+#' @importFrom here here
+#' @importFrom RhpcBLASctl blas_set_num_threads
+#' @export
+repel_fit.network_lme <- function(model_object,
+                                  augmented_data,
+                                  predictor_vars,
+                                  verbose = interactive()) {
+
+  init_fit <- repel_fit.network_model(model_object, augmented_data, predictor_vars) # feature engineering steps for baseline and full model
+  augmented_data_compressed <- init_fit$augmented_data_compressed
+  scaling_values <- init_fit$scaling_values
+
   wgts <- augmented_data_compressed$count
 
   frm <- as.formula(paste0("outbreak_start ~ ",
-                           paste0("(0 + ", predictor_vars, "|disease)", collapse = " + "))) #  “variance of trade by disease”
-  # syntax notes: (https://stats.stackexchange.com/questions/13166/rs-lmer-cheat-sheet)
-  # (0 + var | disease) = The effect of var within each level of disease (more specifically, the degree to which the var effect within a given level deviates from the global effect of var), while enforcing a zero correlation between the intercept deviations and var effect deviations across levels of disease
-
+                           paste0(predictor_vars, collapse = " + "), " + (1|disease)")) # fixed intercept, fixed slope, intercept offset by disease
 
   RhpcBLASctl::blas_set_num_threads(16)
   tic("16 blas threads")
@@ -264,15 +279,53 @@ repel_fit.network_lme <- function(model_object,
                      verbose = 2, control = glmerControl(calc.derivs = TRUE))
   toc()
 
-  baseline_append <- switch(baseline, "_baseline", "")
+  write_rds(mod, here::here(paste0("models", "/lme_mod_network_baseline.rds")))
+  aws.s3::s3saveRDS(mod, bucket = "repeldb/models", object = paste0("lme_mod_network_baseline.rds"))
 
-  write_rds(mod, here::here(paste0("models", "/lme_mod_network", baseline_append, ".rds")))
-  aws.s3::s3saveRDS(mod, bucket = "repeldb/models", object = paste0("lme_mod_network", baseline_append, ".rds"))
-
-  write_csv(scaling_values, here::here(paste0("models", "/network_scaling_values", baseline_append, ".csv")))
-  aws.s3::s3saveRDS(scaling_values, bucket = "repeldb/models", object = paste0("network_scaling_values", baseline_append, ".rds"))
+  write_csv(scaling_values, here::here(paste0("models", "/network_scaling_values_baseline.csv")))
+  aws.s3::s3saveRDS(scaling_values, bucket = "repeldb/models", object = paste0("network_scaling_values_baseline.rds"))
 
 }
+
+#' Fit network baseline intercept-only model object
+#' @import dplyr tidyr lme4 tictoc
+#' @importFrom here here
+#' @importFrom RhpcBLASctl blas_set_num_threads
+#' @export
+repel_fit.network_lme <- function(model_object,
+                                  augmented_data,
+                                  predictor_vars,
+                                  verbose = interactive()) {
+
+  init_fit <- repel_fit.network_model(model_object, augmented_data, predictor_vars) # feature engineering steps for baseline and full model
+  augmented_data_compressed <- init_fit$augmented_data_compressed
+  scaling_values <- init_fit$scaling_values
+
+  wgts <- augmented_data_compressed$count
+
+  frm <- as.formula(paste0("outbreak_start ~ ",
+                           paste0("(0 + ", predictor_vars, "|disease)", collapse = " + "))) #  “variance of trade by disease”
+  # syntax notes: (https://stats.stackexchange.com/questions/13166/rs-lmer-cheat-sheet)
+  # (0 + var | disease) = The effect of var within each level of disease (more specifically, the degree to which the var effect within a given level deviates from the global effect of var), while enforcing a zero correlation between the intercept deviations and var effect deviations across levels of disease
+
+  RhpcBLASctl::blas_set_num_threads(16)
+  tic("16 blas threads")
+  mod <- lme4::glmer(data = augmented_data_compressed,
+                     weights = wgts,
+                     family = binomial,
+                     formula = frm,
+                     nAGQ = 0, # adaptive Gaussian quadrature instead the Laplace approximation. The former is known to be better for binomial data.
+                     verbose = 2, control = glmerControl(calc.derivs = TRUE))
+  toc()
+
+  write_rds(mod, here::here(paste0("models", "/lme_mod_network.rds")))
+  aws.s3::s3saveRDS(mod, bucket = "repeldb/models", object = paste0("lme_mod_network.rds"))
+
+  write_csv(scaling_values, here::here(paste0("models", "/network_scaling_values.csv")))
+  aws.s3::s3saveRDS(scaling_values, bucket = "repeldb/models", object = paste0("network_scaling_values.rds"))
+
+}
+
 
 
 #' Fit network BRMS model object
