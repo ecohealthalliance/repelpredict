@@ -21,5 +21,18 @@ repel_fit(model_object =  model_object,
                              "log_gdp_dollars", "log_human_population", "log_target_taxa_population", "log_veterinarians"))
 toc()
 
+
 # Disconnect DB -----------------------------------------------------------
 repel_remote_disconnect()
+
+
+# Check model -------------------------------------------------------------
+
+# Load model
+model_object_baseline <-  network_lme_model(
+  network_model = aws.s3::s3readRDS(bucket = "repeldb/models", object = "lme_mod_network_baseline.rds"),
+  network_scaling_values = aws.s3::s3readRDS(bucket = "repeldb/models", object = "network_scaling_values_baseline.rds")
+)
+lme_mod_baseline <- model_object_baseline$network_model
+network_scaling_values_baseline <- model_object_baseline$network_scaling_values
+

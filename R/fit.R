@@ -250,12 +250,12 @@ repel_fit.network_model <- function(model_object,
 
 }
 
-#' Fit network LME model object
+#' Fit network baseline model object
 #' @import dplyr tidyr lme4 tictoc
 #' @importFrom here here
 #' @importFrom RhpcBLASctl blas_set_num_threads
 #' @export
-repel_fit.network_lme <- function(model_object,
+repel_fit.network_baseline <- function(model_object,
                                   augmented_data,
                                   predictor_vars,
                                   verbose = interactive()) {
@@ -287,7 +287,7 @@ repel_fit.network_lme <- function(model_object,
 
 }
 
-#' Fit network baseline intercept-only model object
+#' Fit network lme full model object
 #' @import dplyr tidyr lme4 tictoc
 #' @importFrom here here
 #' @importFrom RhpcBLASctl blas_set_num_threads
