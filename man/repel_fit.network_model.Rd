@@ -2,10 +2,16 @@
 % Please edit documentation in R/fit.R
 \name{repel_fit.network_model}
 \alias{repel_fit.network_model}
-\title{Feature engineering (pre-fit) steps for baseline and full model}
+\title{Fit network LME model object (works for baseline and full model)}
 \usage{
-\method{repel_fit}{network_model}(model_object, augmented_data, predictor_vars)
+\method{repel_fit}{network_model}(
+  model_object,
+  augmented_data,
+  predictor_vars,
+  baseline = FALSE,
+  verbose = interactive()
+)
 }
 \description{
-Feature engineering (pre-fit) steps for baseline and full model
+Fit network LME model object (works for baseline and full model)
 }

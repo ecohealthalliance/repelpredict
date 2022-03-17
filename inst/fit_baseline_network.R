@@ -17,8 +17,8 @@ tic()
 repel_fit(model_object =  model_object,
           augmented_data = augmented_data,
           predictor_vars = c("continent", "disease_present_anywhere",
-                             #"ots_trade_dollars_from_outbreaks","fao_livestock_heads_from_outbreaks", "n_migratory_wildlife_from_outbreaks",
-                             "log_gdp_dollars", "log_human_population", "log_target_taxa_population", "log_veterinarians"))
+                             "log_gdp_dollars", "log_human_population", "log_target_taxa_population", "log_veterinarians"),
+          baseline = TRUE)
 toc()
 
 
