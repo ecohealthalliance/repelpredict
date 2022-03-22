@@ -16,8 +16,7 @@ augmented_data <- repel_augment(model_object = model_object,
 tic()
 repel_fit(model_object =  model_object,
           augmented_data = augmented_data,
-          predictor_vars = c("continent", "disease_present_anywhere",
-                             "log_gdp_dollars", "log_human_population", "log_target_taxa_population", "log_veterinarians"),
+          predictor_vars = c("continent", "disease_present_anywhere"),
           baseline = TRUE)
 toc()
 

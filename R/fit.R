@@ -20,7 +20,7 @@ repel_fit.nowcast_boost <- function(model_object,
                                     output_directory,
                                     verbose = interactive()) {
 
- # augmented_data <- recode_disease_rare(augmented_data) # does not fit into recipe step
+  # augmented_data <- recode_disease_rare(augmented_data) # does not fit into recipe step
 
   # Status model ------------------------------------------------------------
   if(model == "disease_status"){
@@ -165,7 +165,7 @@ repel_fit.nowcast_boost <- function(model_object,
     cases_folds <- vfold_cv(augmented_data_cases)
 
     # Set up parallel
-     registerDoMC(cores=parallel::detectCores())
+    registerDoMC(cores=parallel::detectCores())
     # all_cores <- parallel::detectCores(logical = FALSE)-2
     # cl <- parallel::makePSOCKcluster(all_cores)
     # doParallel::registerDoParallel(cl)
@@ -220,10 +220,10 @@ repel_fit.nowcast_boost <- function(model_object,
 #' @importFrom RhpcBLASctl blas_set_num_threads
 #' @export
 repel_fit.network_model <- function(model_object,
-                                  augmented_data,
-                                  predictor_vars,
-                                  baseline = FALSE,
-                                  verbose = interactive()) {
+                                    augmented_data,
+                                    predictor_vars,
+                                    baseline = FALSE,
+                                    verbose = interactive()) {
 
   augmented_data_select <- augmented_data %>%
     drop_na() %>%
@@ -231,20 +231,37 @@ repel_fit.network_model <- function(model_object,
     filter(!outbreak_subsequent_month)
 
   # mean/sd for scaling predictions
-  scaling_values <- augmented_data_select %>%
-    select(all_of(predictor_vars), -continent) %>%
-    gather() %>%
-    group_by(key) %>%
-    summarize(mean = mean(value), sd = sd(value)) %>%
-    ungroup()
+  if(length(predictor_vars[!predictor_vars %in% "continent"])){
+    scaling_values <- augmented_data_select %>%
+      select(all_of(predictor_vars), -continent) %>%
+      gather() %>%
+      group_by(key) %>%
+      summarize(mean = mean(value), sd = sd(value)) %>%
+      ungroup()
 
-  augmented_data_compressed <- augmented_data_select %>%
-    network_recipe(., predictor_vars, scaling_values) %>%
-    group_by_all() %>%
-    count() %>%
-    ungroup() %>%
-    select(country_iso3c, disease, count = n, outbreak_start, everything()) %>%
-    arrange(disease, desc(count), country_iso3c)
+    augmented_data_compressed <- augmented_data_select %>%
+      network_recipe(., predictor_vars, scaling_values) %>%
+      group_by_all() %>%
+      count() %>%
+      ungroup() %>%
+      select(country_iso3c, disease, count = n, outbreak_start, everything()) %>%
+      arrange(disease, desc(count), country_iso3c)
+  }else{ # only fitting on continent
+    scaling_values <- data.frame()
+    augmented_data_compressed <- augmented_data_select %>%
+      select(country_iso3c,
+             suppressWarnings(one_of("continent")),
+             disease,
+             suppressWarnings(one_of("outbreak_start"))) %>%
+      mutate(country_iso3c = as.factor(country_iso3c)) %>%
+      mutate(disease = as.factor(disease)) %>%
+      group_by_all() %>%
+      count() %>%
+      ungroup() %>%
+      select(country_iso3c, disease, count = n, outbreak_start, everything()) %>%
+      arrange(disease, desc(count), country_iso3c)
+
+  }
 
   wgts <- augmented_data_compressed$count
 
