@@ -1,0 +1,9 @@
+Taxa,Baseline Accuracy,REPEL (Overall/New Outbreaks)
+buffaloes,64%,95% / 87%
+camelidae,51%,77% / 53%
+swine,97%,98% / 49%
+sheep/goats,97%,97% / 46%
+equidae,98%,98% / 40%
+cattle,96%,96% / 38%
+hares/rabbits,62%,73% / 31%
+birds,96%,95% / 10%
