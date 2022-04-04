@@ -2,7 +2,7 @@
 % Please edit documentation in R/augment.R
 \name{repel_augment.network_model}
 \alias{repel_augment.network_model}
-\title{Augment network model object}
+\title{Augment steps for baseline and full model}
 \usage{
 \method{repel_augment}{network_model}(model_object, conn, newdata, sum_country_imports = TRUE)
 }
@@ -12,9 +12,7 @@
 \item{conn}{connection to repel db}
 
 \item{newdata}{dataframe that has been preprocessed through \code{repel_init()} and optionally split into training/validation. contains country, disease, month, and outbreak status.}
-
-\item{sum_country_imports}{whether or not to sum all imports. FALSE results in data disaggregated by origin countries. Default is TRUE.}
 }
 \description{
-Augment network model object
+Augment steps for baseline and full model
 }

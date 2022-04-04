@@ -4,7 +4,7 @@
 \alias{network_baseline_model}
 \title{Produces network baseline model object}
 \usage{
-network_baseline_model()
+network_baseline_model(network_model = NULL, network_scaling_values = NULL)
 }
 \value{
 a list with description and classes

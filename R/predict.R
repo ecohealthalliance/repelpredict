@@ -49,7 +49,7 @@ repel_predict.nowcast_boost <- function(model_object, newdata, use_cache = TRUE)
 #' @import tidyr dplyr lme4 stringr
 #' @export
 #'
-repel_predict.network_lme <- function(model_object, newdata) {
+repel_predict.network_model <- function(model_object, newdata) {
 
   # load model
   lme_mod <- model_object$network_model
@@ -61,10 +61,24 @@ repel_predict.network_lme <- function(model_object, newdata) {
   predictor_vars <- network_scaling_values$key
 
   # transform with scaling values
+  if(!is.null(predictor_vars)){
   newdata_scaled <- network_recipe(augmented_data = newdata, predictor_vars = predictor_vars, scaling_values = network_scaling_values)
   newdata_scaled <- newdata_scaled %>%
     mutate(complete_case = complete.cases(newdata_scaled)) %>%
     mutate(row_number = row_number())
+  }else{ #only fit on continent
+    newdata_scaled <- newdata %>%
+      select(country_iso3c,
+             suppressWarnings(one_of("continent")),
+             disease,
+             suppressWarnings(one_of("outbreak_start"))) %>%
+      mutate(country_iso3c = as.factor(country_iso3c)) %>%
+      mutate(disease = as.factor(disease))
+    newdata_scaled <- newdata_scaled %>%
+      mutate(complete_case = complete.cases(newdata_scaled)) %>%
+      mutate(row_number = row_number())
+
+  }
 
   # warning about complete cases
   if(any(!newdata_scaled$complete_case)) warning("NAs returned for augmented data containing NAs")

@@ -20,7 +20,7 @@ repel_fit.nowcast_boost <- function(model_object,
                                     output_directory,
                                     verbose = interactive()) {
 
- # augmented_data <- recode_disease_rare(augmented_data) # does not fit into recipe step
+  # augmented_data <- recode_disease_rare(augmented_data) # does not fit into recipe step
 
   # Status model ------------------------------------------------------------
   if(model == "disease_status"){
@@ -165,7 +165,7 @@ repel_fit.nowcast_boost <- function(model_object,
     cases_folds <- vfold_cv(augmented_data_cases)
 
     # Set up parallel
-     registerDoMC(cores=parallel::detectCores())
+    registerDoMC(cores=parallel::detectCores())
     # all_cores <- parallel::detectCores(logical = FALSE)-2
     # cl <- parallel::makePSOCKcluster(all_cores)
     # doParallel::registerDoParallel(cl)
@@ -213,17 +213,17 @@ repel_fit.nowcast_boost <- function(model_object,
   }
 }
 
-#' Fit network LME model object
-#' @return list containing predicted count and whether disease is expected or not (T/F)
+
+#' Fit network LME model object (works for baseline and full model)
 #' @import dplyr tidyr lme4 tictoc
 #' @importFrom here here
 #' @importFrom RhpcBLASctl blas_set_num_threads
 #' @export
-repel_fit.network_lme <- function(model_object,
-                                  augmented_data,
-                                  predictor_vars,
-                                  baseline = FALSE,
-                                  verbose = interactive()) {
+repel_fit.network_model <- function(model_object,
+                                    augmented_data,
+                                    predictor_vars,
+                                    baseline = FALSE,
+                                    verbose = interactive()) {
 
   augmented_data_select <- augmented_data %>%
     drop_na() %>%
@@ -231,20 +231,37 @@ repel_fit.network_lme <- function(model_object,
     filter(!outbreak_subsequent_month)
 
   # mean/sd for scaling predictions
-  scaling_values <- augmented_data_select %>%
-    select(all_of(predictor_vars), -continent) %>%
-    gather() %>%
-    group_by(key) %>%
-    summarize(mean = mean(value), sd = sd(value)) %>%
-    ungroup()
+  if(length(predictor_vars[!predictor_vars %in% "continent"])){
+    scaling_values <- augmented_data_select %>%
+      select(all_of(predictor_vars), -continent) %>%
+      gather() %>%
+      group_by(key) %>%
+      summarize(mean = mean(value), sd = sd(value)) %>%
+      ungroup()
 
-  augmented_data_compressed <- augmented_data_select %>%
-    network_recipe(., predictor_vars, scaling_values) %>%
-    group_by_all() %>%
-    count() %>%
-    ungroup() %>%
-    select(country_iso3c, disease, count = n, outbreak_start, everything()) %>%
-    arrange(disease, desc(count), country_iso3c)
+    augmented_data_compressed <- augmented_data_select %>%
+      network_recipe(., predictor_vars, scaling_values) %>%
+      group_by_all() %>%
+      count() %>%
+      ungroup() %>%
+      select(country_iso3c, disease, count = n, outbreak_start, everything()) %>%
+      arrange(disease, desc(count), country_iso3c)
+  }else{ # only fitting on continent
+    scaling_values <- data.frame()
+    augmented_data_compressed <- augmented_data_select %>%
+      select(country_iso3c,
+             suppressWarnings(one_of("continent")),
+             disease,
+             suppressWarnings(one_of("outbreak_start"))) %>%
+      mutate(country_iso3c = as.factor(country_iso3c)) %>%
+      mutate(disease = as.factor(disease)) %>%
+      group_by_all() %>%
+      count() %>%
+      ungroup() %>%
+      select(country_iso3c, disease, count = n, outbreak_start, everything()) %>%
+      arrange(disease, desc(count), country_iso3c)
+
+  }
 
   wgts <- augmented_data_compressed$count
 
@@ -271,68 +288,6 @@ repel_fit.network_lme <- function(model_object,
 
   write_csv(scaling_values, here::here(paste0("models", "/network_scaling_values", baseline_append, ".csv")))
   aws.s3::s3saveRDS(scaling_values, bucket = "repeldb/models", object = paste0("network_scaling_values", baseline_append, ".rds"))
-
 }
-
-
-#' Fit network BRMS model object
-#' @return list containing predicted count and whether disease is expected or not (T/F)
-#' @import dplyr tidyr brms tictoc
-#' @importFrom here here
-#' @importFrom RhpcBLASctl blas_set_num_threads
-#' @export
-repel_fit.network_brms <- function(model_object,
-                                   augmented_data,
-                                   predictor_vars,
-                                   output_directory,
-                                   verbose = interactive()) {
-
-  augmented_data_select <- augmented_data %>%
-    drop_na() %>%
-    filter(!endemic) %>%
-    filter(!outbreak_subsequent_month)
-
-  # mean/sd for scaling predictions
-  scaling_values <- augmented_data_select %>%
-    select(all_of(predictor_vars), -continent) %>%
-    gather() %>%
-    group_by(key) %>%
-    summarize(mean = mean(value), sd = sd(value)) %>%
-    ungroup()
-
-  augmented_data_compressed <- augmented_data_select %>%
-    network_recipe(., predictor_vars, scaling_values) %>%
-    group_by_all() %>%
-    count() %>%
-    ungroup() %>%
-    select(country_iso3c, disease, count = n, outbreak_start, everything()) %>%
-    arrange(disease, desc(count), country_iso3c)
-
-  wgts <- augmented_data_compressed$count
-
-  frm <- bf(paste0("outbreak_start|weights(count)  ~ ", # baseline intercept for disease in country
-                   paste0("(0 + ", predictor_vars, "|disease)", collapse = " + "))) #  “variance of trade by disease”
-
-  tic()
-  mod <- brms::brm(
-    formula = frm,
-    data = augmented_data_compressed,
-    family = 'bernoulli',
-    iter = 2000,
-    chains = 4,
-    cores = 4,
-    backend = "cmdstanr",
-    threads = threading(8)
-  )
-  toc()
-
-  write_rds(mod, here::here(paste0(output_directory, "/brms_mod_network.rds")))
-  aws.s3::s3saveRDS(mod, bucket = "repeldb/models", object = "brms_mod_network.rds")
-
-  write_csv(scaling_values, here::here(paste0(output_directory, "/network_scaling_values.csv")))
-  aws.s3::s3saveRDS(scaling_values, bucket = "repeldb/models", object = "network_scaling_values.rds")
-
-}
-
 
 
