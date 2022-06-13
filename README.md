@@ -1,3 +1,7 @@
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+[![License: CC0-1.0](https://img.shields.io/badge/License-CC0_1.0-lightgrey.svg)](http://creativecommons.org/publicdomain/zero/1.0/)
+[![License: CC-BY-4.0](https://img.shields.io/badge/License-CC_BY_4.0-blue.svg)](http://creativecommons.org/publicdomain/zero/1.0/)
+
 # repelpredict
 
 An R package to predict from REPEL models and power the REPEL API. The NowCast model provides current and next-year estimates of disease status (i.e., presence or absence) and case counts at the country level. The Network (aka TravelCast) model predicts the probability of cross-border disease spread following a new outbreak event and the likely mechanism of spread (e.g., trade).
